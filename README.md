@@ -1,27 +1,83 @@
 # AI Tab Optimizer
 
-> Intelligent Chrome extension that turns tab chaos into structured knowledge — powered by local AI, no data leaves your machine.
+> Intelligent Chrome extension that turns tab chaos into structured knowledge — powered by **local AI**, no data leaves your machine.
 
-![Version](https://img.shields.io/badge/version-0.2.1-blue)
-![Chrome](https://img.shields.io/badge/Chrome-114%2B-green?logo=googlechrome)
-![Manifest](https://img.shields.io/badge/Manifest-V3-orange)
-![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+[![Version](https://img.shields.io/badge/version-0.2.1-blue)](https://github.com/eiler2005/ai-tab-optimizer/releases)
+[![Chrome](https://img.shields.io/badge/Chrome-114%2B-4285F4?logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange)](https://developer.chrome.com/docs/extensions/mv3/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://python.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4%2B-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
+
+---
+
+## Table of Contents
+
+- [Screenshots](#screenshots)
+- [What it does](#what-it-does)
+- [How it works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Development](#development)
+- [AI Providers](#ai-providers)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/ai-analysis.png" alt="AI Analysis view" width="280"/><br/>
+      <sub><b>AI Analysis</b> — per-tab recommendations with confidence scores</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/topic-clusters.png" alt="Topic Clusters" width="280"/><br/>
+      <sub><b>Topic Clusters</b> — AI-grouped tabs, expandable with tab actions</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/analytics.png" alt="Analytics dashboard" width="280"/><br/>
+      <sub><b>Analytics</b> — habits score, activity heatmap, browsing insights</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/tab-list.png" alt="Tab List" width="280"/><br/>
+      <sub><b>Tab List</b> — filter, bulk actions, duplicate detection</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/cleanup-session.png" alt="Cleanup Session" width="280"/><br/>
+      <sub><b>Cleanup Session</b> — guided step-by-step tab cleanup flow</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/chat-search.png" alt="Chat Search" width="280"/><br/>
+      <sub><b>Chat Search</b> — conversational search over your tab history</sub>
+    </td>
+  </tr>
+</table>
+
+> Screenshots are coming soon. To add them: take screenshots of each view and place them in `docs/screenshots/`. See [docs/screenshots/README.md](docs/screenshots/README.md) for naming conventions.
 
 ---
 
 ## What it does
 
-AI Tab Optimizer helps you regain control of 100+ open tabs without losing context. It combines rule-based tab analysis with AI-powered topic clustering, guided cleanup sessions, and long-term analytics — all running locally on your machine.
+AI Tab Optimizer helps you regain control of 100+ open tabs without losing context. It combines rule-based analysis with AI-powered topic clustering, guided cleanup sessions, and long-term analytics — all running locally on your machine.
 
-**Key features:**
-
-- **AI Analysis** — batch-analyze all open tabs using Claude Code CLI or Codex CLI; each tab gets an action recommendation (keep / group / read later / archive / close) with a confidence score and reason
-- **Topic Clusters** — AI groups tabs into named theme clusters; one click creates Chrome Tab Groups from them
-- **Persistent Knowledge** — analysis results cached in local SQLite; revisit insights without re-running expensive AI calls
-- **Tab Analytics** — habits score, recommendation tracking, activity heatmap, LLM-generated browsing insights
-- **Guided Cleanup** — step-by-step session mode: review AI recommendations, accept/skip, close in bulk, generate a summary
-- **Obsidian Integration** — export individual tab links, topic clusters, session snapshots, and cleanup reports directly to your Obsidian vault
+| Feature | Description |
+|---|---|
+| **AI Analysis** | Batch-analyze all open tabs using Claude Code CLI or Codex CLI. Each tab gets an action recommendation (keep / group / read later / archive / close) with a confidence score and reason. |
+| **Topic Clusters** | AI groups tabs into named theme clusters. One click creates Chrome Tab Groups from them. |
+| **Persistent Cache** | Analysis results cached in local SQLite (180-day TTL). Revisit insights without re-running expensive AI calls. |
+| **Tab Analytics** | Habits score, recommendation tracking, activity heatmap, LLM-generated browsing insights. |
+| **Guided Cleanup** | Step-by-step session mode: review recommendations, accept/skip, close in bulk, export a summary. |
+| **Obsidian Export** | Export tab links, topic clusters, session snapshots, and cleanup reports to your Obsidian vault. |
+| **Chat Search** | Conversational search over your entire tab history and analysis results via SQLite-backed RAG. |
+| **Tab History** | Full event log (opened/closed/activated) with stats, search, and timeframe filters. |
 
 ---
 
@@ -29,26 +85,28 @@ AI Tab Optimizer helps you regain control of 100+ open tabs without losing conte
 
 ```
 Side Panel (React + Zustand)
-        │  chrome.runtime.sendMessage (45 request types)
+        │  chrome.runtime.sendMessage  (45 request types, 8 broadcast events)
         ▼
-Service Worker (MV3)
+Service Worker  (MV3 background)
         │  fetch → localhost:8765
         ▼
-FastAPI AI Server (agent.py)
-        │  subprocess (CLI)         SQLite (tab_analysis.db)
-        ├──────────────────────┐    ├── url_analysis
-        ▼                      ▼    ├── analysis_sessions
-Claude Code CLI          Codex CLI  ├── analysis_runs
-   (primary)             (fallback) ├── tab_history_events
-                                    ├── snapshots
-                                    ├── llm_call_logs
-                                    └── topic_clusters
+FastAPI AI Server  (agent.py)
+        │  subprocess                   SQLite  (tab_analysis.db)
+        ├─────────────────────────┐     ├── url_analysis        (per-URL AI results)
+        ▼                         ▼     ├── analysis_runs       (resumable sessions)
+Claude Code CLI            Codex CLI    ├── tab_history_events
+   (primary)               (fallback)   ├── snapshots
+                                        ├── llm_call_logs
+                                        └── topic_clusters
 ```
 
-- All AI inference runs **locally** via CLI tools — no external API calls, no cloud storage
-- Automatic provider failover: if Claude Code CLI times out or errors, Codex CLI takes over mid-batch
-- URL-based caching (180-day TTL by default) means previously analyzed tabs are instant on the next run
-- The extension communicates with the server through the service worker only (Chrome MV3 CSP)
+**Key design decisions:**
+
+- All AI inference runs **locally** via CLI subprocesses — no external API calls, no cloud storage
+- Automatic **provider failover**: if Claude Code CLI times out or errors mid-batch, Codex CLI takes over
+- **URL-based caching** (180-day TTL) makes previously-analyzed tabs instant on the next run
+- Extension ↔ server communication passes only through the service worker (Chrome MV3 CSP requirement)
+- **Tab IDs are ephemeral** — the extension stores URLs as stable keys and remaps IDs on each session
 
 ---
 
@@ -63,17 +121,17 @@ Claude Code CLI          Codex CLI  ├── analysis_runs
 | Claude Code CLI | latest | Primary AI provider |
 | Codex CLI | latest | Fallback AI provider (optional) |
 
-You need **at least one** AI provider CLI installed and authenticated. The extension works without a CLI but AI analysis will be unavailable.
+At least **one** AI provider CLI must be installed and authenticated. The extension runs without a CLI, but AI analysis features will be unavailable.
 
-- [Install Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
-- [Install Codex CLI](https://github.com/openai/codex)
+- [Install Claude Code CLI →](https://docs.anthropic.com/en/docs/claude-code)
+- [Install Codex CLI →](https://github.com/openai/codex)
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Clone the repo
+# 1. Clone
 git clone https://github.com/eiler2005/ai-tab-optimizer.git
 cd ai-tab-optimizer
 
@@ -82,55 +140,50 @@ cd extension && pnpm install && cd ..
 
 # 3. Build the extension
 pnpm build
-# Output: extension/dist/
+# → output: extension/dist/
 
 # 4. Load in Chrome
-#    chrome://extensions → Developer mode → Load unpacked → select extension/dist/
+# Open chrome://extensions → enable Developer mode → Load unpacked → select extension/dist/
 
 # 5. Set up and start the AI server
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 pnpm server
-# Server starts at http://localhost:8765
+# → FastAPI server starts at http://localhost:8765
 ```
 
-Open the side panel by clicking the extension icon or pressing the configured keyboard shortcut.
+Open the side panel by clicking the extension icon in the Chrome toolbar.
 
 ---
 
 ## Development
 
 ```bash
-# Watch mode — rebuilds on file changes
-pnpm dev
-
-# TypeScript check only
-pnpm typecheck
-
-# Start AI server
-pnpm server
-
-# Check server health
-pnpm health
-# → {"status":"ok"}
+pnpm dev          # watch mode — rebuilds extension on file change
+pnpm typecheck    # TypeScript check only (runs in extension/)
+pnpm server       # start AI server (FastAPI + uvicorn)
+pnpm health       # check server: curl http://localhost:8765/health
+pnpm build        # production build (typecheck + vite)
 ```
 
-After changing the service worker, click **Reload** on the extension card in `chrome://extensions`.
+After changing `service-worker.ts`, click **Reload** on the extension card in `chrome://extensions`.
+
+For a full dev environment guide including troubleshooting, see [SETUP.md](SETUP.md).
 
 ---
 
 ## AI Providers
 
-The server (`agent.py`) supports two local CLI providers with automatic failover:
+The server supports two local CLI providers with automatic failover:
 
-| Provider | CLI | Default role |
-|---|---|---|
-| Claude Code | `claude` | Primary |
-| Codex CLI | `codex` | Fallback |
+| Provider | CLI binary | Default role | Config |
+|---|---|---|---|
+| Claude Code | `claude` | Primary | Settings → AI Provider → Primary |
+| Codex CLI | `codex` | Fallback | Settings → AI Provider → Fallback |
 
-Configure the active provider and fallback in the extension **Settings → AI Provider**. The server logs every provider attempt and exposes them in Settings → LLM Call Logs.
+The server logs every provider attempt with timing, token counts, and cost estimates. View them in **Settings → LLM Call Logs**.
 
-**Privacy:** The AI server runs entirely on `localhost`. Tab URLs, titles, and excerpts are passed only to the local CLI process — never to a remote server.
+**Privacy guarantee:** The AI server runs entirely on `localhost`. Tab URLs, titles, and page excerpts are passed only to the local CLI subprocess — never sent to a remote server or third-party API.
 
 ---
 
@@ -138,39 +191,72 @@ Configure the active provider and fallback in the extension **Settings → AI Pr
 
 ```
 ai-tab-optimizer/
-├── agent.py                  # FastAPI AI server (local CLI orchestration)
-├── requirements.txt          # Python dependencies
-├── package.json              # Root workspace (pnpm scripts)
+├── agent.py                    # FastAPI AI server — CLI orchestration, SQLite, provider failover
+├── requirements.txt            # Python deps: fastapi, uvicorn, aiosqlite, claude-agent-sdk
+├── package.json                # Root workspace scripts
 ├── extension/
 │   ├── src/
-│   │   ├── background/       # Service worker (Chrome API bridge)
-│   │   ├── side-panel/       # React app + Zustand store
-│   │   │   └── components/   # AIRecommendations, ChatSearch, HistoryPanel, …
-│   │   ├── content/          # On-demand page extractor
+│   │   ├── background/
+│   │   │   └── service-worker.ts      # Chrome API bridge, message routing, AI proxy
+│   │   ├── side-panel/
+│   │   │   ├── store.ts               # Zustand store (all global state)
+│   │   │   ├── App.tsx                # View router
+│   │   │   └── components/            # React components (AIRecommendations, ChatSearch, …)
+│   │   ├── content/
+│   │   │   └── page-extractor.ts      # On-demand meta/H1/excerpt extraction
 │   │   └── shared/
-│   │       ├── types/        # TypeScript interfaces
-│   │       ├── utils/        # URL, rules, Obsidian helpers
-│   │       └── i18n/         # en / ru
+│   │       ├── types/                 # TypeScript interfaces (tab, ai, messages, snapshot, …)
+│   │       ├── utils/                 # URL, rule engine, Obsidian export helpers
+│   │       └── i18n/                  # English / Russian translations
 │   └── public/
-│       └── manifest.json     # MV3 manifest
-├── PROJECT.md                # Full product spec & architecture
-├── SETUP.md                  # Detailed dev environment guide
-└── OBSIDIAN_INTEGRATION.md   # Vault export entity spec
+│       └── manifest.json              # MV3 manifest
+├── docs/
+│   ├── screenshots/                   # UI screenshots for README
+│   └── templates/                     # Research & plan templates
+├── PROJECT.md                         # Full product spec & architecture
+├── SETUP.md                           # Detailed dev environment guide
+└── OBSIDIAN_INTEGRATION.md            # Vault export entity spec
 ```
 
 ---
 
 ## Roadmap
 
-| Version | Focus |
-|---|---|
-| **v0.2.1** (current) | Analytics, focus mode, resumable analysis, per-tab status, SQLite search |
-| **v0.3** | Provider health UI, snapshot comparison, additional local model adapters |
-| **v1.0** | Onboarding, keyboard shortcuts, Chrome Web Store release |
-| **v2.0** | Cross-device sync, Obsidian plugin, richer local model support |
+| Version | Status | Focus |
+|---|---|---|
+| v0.1 | ✅ Complete | Tab list, rule-based analysis, manual snapshots, basic Obsidian export |
+| v0.2 | ✅ Complete | AI analysis, tab history, topic clusters, cleanup session, auto-snapshots |
+| v0.2.1 | ✅ Complete | Analytics, focus mode, resumable analysis, per-tab status, Chat Search |
+| **v0.3** | Planned | Test suite, provider health UI, snapshot comparison, additional local model adapters |
+| v1.0 | Planned | Onboarding, keyboard shortcuts, Chrome Web Store release |
+| v2.0 | Planned | Cross-device sync, Obsidian plugin, richer local model support |
+
+---
+
+## Contributing
+
+Contributions are welcome! Here's how to get started:
+
+1. **Fork** the repository and create a feature branch: `git checkout -b feat/your-feature`
+2. **Set up** the dev environment following [SETUP.md](SETUP.md)
+3. **Read** [CLAUDE.md](CLAUDE.md) for coding conventions and workflow rules
+4. **Implement** your change — run `pnpm typecheck` before committing
+5. **Submit** a pull request with a clear description of what and why
+
+**Before opening a PR:**
+- [ ] `pnpm typecheck` passes with no errors
+- [ ] `pnpm build` produces a working extension
+- [ ] New features are reflected in `PROJECT.md` and `MVP_FEATURES.md`
+- [ ] No secrets, API keys, or personal data in commits
+
+For larger features, open an issue first to discuss the approach.
 
 ---
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+<p align="center">Built with <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> · React · FastAPI · SQLite</p>
