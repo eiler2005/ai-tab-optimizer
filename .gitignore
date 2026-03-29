@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build output
+extension/dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+extension/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+tab_analysis.db
+tab_analysis.db-shm
+tab_analysis.db-wal
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Chrome Extension packaging
+*.crx
+*.pem
+*.zip
+
+# Personal / dev artifacts
+.claude/
+prompt.md
+image.png
+firstai_agentproj.code-workspace

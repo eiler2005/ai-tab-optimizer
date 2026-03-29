@@ -1,0 +1,13 @@
+{
+  "name": "ai-tab-optimizer-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "build": "pnpm --dir extension build",
+    "dev": "pnpm --dir extension dev",
+    "typecheck": "pnpm --dir extension typecheck",
+    "server": ".venv/bin/python agent.py",
+    "check:python": ".venv/bin/python -m py_compile agent.py",
+    "health": "curl -sf http://127.0.0.1:8765/health"
+  }
+}
