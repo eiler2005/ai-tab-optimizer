@@ -41,7 +41,11 @@ pnpm-debug.log*
 *.zip
 
 # Personal / dev artifacts
-.claude/
 prompt.md
 image.png
 firstai_agentproj.code-workspace
+
+# Claude Code — commit skills, agents, hooks; exclude personal data
+.claude/settings.local.json
+.claude/plans/
+.claude/commands/

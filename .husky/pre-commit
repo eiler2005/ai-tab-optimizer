@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Check if any TypeScript files are staged
+TS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' || true)
+
+if [ -n "$TS_STAGED" ]; then
+  echo "TypeScript files changed — running typecheck..."
+  cd extension && pnpm typecheck
+  if [ $? -ne 0 ]; then
+    echo "Typecheck failed. Fix errors before committing."
+    exit 1
+  fi
+fi
+
+# Check for potential secrets
+SECRETS=$(git diff --cached --name-only --diff-filter=ACM | xargs grep -l -E '(api_key|secret|password|token|Bearer)\s*[:=]\s*["\x27][^"\x27]{8,}' 2>/dev/null || true)
+
+if [ -n "$SECRETS" ]; then
+  echo "WARNING: Possible secrets detected in:"
+  echo "$SECRETS"
+  echo "Review these files before committing."
+  exit 1
+fi

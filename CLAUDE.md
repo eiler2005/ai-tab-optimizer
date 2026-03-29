@@ -33,13 +33,49 @@ pnpm health                     # curl health check
 
 Every non-trivial feature follows three phases — do not skip:
 
-**1. Research** — read relevant files, check existing patterns. Never assume.
+**1. Research** — `/research <topic>` — reads code, writes `docs/research/<slug>.md`
 
-**2. Plan** — enter Plan Mode (`/plan`), create `docs/plans/<slug>.md` from `@docs/templates/plan.md`. Do NOT write code until plan is reviewed.
+**2. Plan** — `/plan <feature>` — creates `docs/plans/<slug>.md` with task checklist. Do NOT code until approved.
 
-**3. Implement** — execute task by task. After each task: run typecheck, mark `- [x]` in plan. Do not stop until all tasks done.
+**3. Implement** — `/implement <path-to-plan>` — executes tasks, typechecks, marks done.
 
 For small changes (typo, rename, single-line fix): skip planning, implement directly.
+
+## Skills (`.claude/skills/`)
+
+| Skill | Trigger | Purpose |
+|---|---|---|
+| `/research` | Manual | Deep-research a topic, output to `docs/research/` |
+| `/plan` | Manual | Create implementation plan in `docs/plans/` |
+| `/implement` | Manual | Execute an approved plan task by task |
+
+## Subagents (`.claude/agents/`)
+
+| Agent | Model | Use case |
+|---|---|---|
+| `code-reviewer` | Sonnet | Review code for patterns, edge cases, project conventions |
+| `security-reviewer` | Opus | Scan for injection, secrets, XSS, OWASP top 10 |
+| `test-writer` | Sonnet | Generate Vitest / pytest tests for given files |
+
+Usage: `"Use the code-reviewer agent to review store.ts"` or `"Use a subagent to review this for security issues"`
+
+## Hooks (`.claude/settings.json`)
+
+| Hook | Trigger | Action |
+|---|---|---|
+| PostToolUse (Edit/Write) | After `.ts`/`.tsx` file changes | Auto-runs `pnpm typecheck` |
+
+## Pre-commit (`.husky/pre-commit`)
+
+- TypeScript typecheck on staged `.ts`/`.tsx` files
+- Secret detection scan (blocks commit if potential secrets found)
+
+## CI/CD (`.github/workflows/ci.yml`)
+
+Runs on push/PR to `master`:
+- TypeScript check
+- Extension build
+- Python syntax check (`py_compile agent.py`)
 
 ## Key Architectural Constraints
 
@@ -62,13 +98,3 @@ For small changes (typo, rename, single-line fix): skip planning, implement dire
 - Delegate large file explorations to subagents to keep main context clean.
 - If Claude repeats the same mistake twice, clear context and write a better prompt.
 - Use Plan Mode for multi-file changes or unfamiliar code areas.
-
-## Skills & Hooks
-
-Available slash commands (skills):
-- `/research <topic>` — explore codebase, write findings to `docs/research/<slug>.md`
-- `/plan <feature>` — create implementation plan in `docs/plans/<slug>.md`
-- `/implement <path-to-plan>` — execute an approved plan file
-
-Hooks (configured in `.claude/settings.json`):
-- Post-edit: run `pnpm typecheck` automatically after TypeScript file changes
