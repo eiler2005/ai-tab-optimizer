@@ -29,38 +29,20 @@
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center">
-      <img src="docs/screenshots/ai-analysis.png" alt="AI Analysis view" width="280"/><br/>
-      <sub><b>AI Analysis</b> — per-tab recommendations with confidence scores</sub>
-    </td>
-    <td align="center">
-      <img src="docs/screenshots/topic-clusters.png" alt="Topic Clusters" width="280"/><br/>
-      <sub><b>Topic Clusters</b> — AI-grouped tabs, expandable with tab actions</sub>
-    </td>
-    <td align="center">
-      <img src="docs/screenshots/analytics.png" alt="Analytics dashboard" width="280"/><br/>
-      <sub><b>Analytics</b> — habits score, activity heatmap, browsing insights</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="docs/screenshots/tab-list.png" alt="Tab List" width="280"/><br/>
-      <sub><b>Tab List</b> — filter, bulk actions, duplicate detection</sub>
-    </td>
-    <td align="center">
-      <img src="docs/screenshots/cleanup-session.png" alt="Cleanup Session" width="280"/><br/>
-      <sub><b>Cleanup Session</b> — guided step-by-step tab cleanup flow</sub>
-    </td>
-    <td align="center">
-      <img src="docs/screenshots/chat-search.png" alt="Chat Search" width="280"/><br/>
-      <sub><b>Chat Search</b> — conversational search over your tab history</sub>
-    </td>
-  </tr>
-</table>
+> Screenshots coming soon — see [docs/screenshots/README.md](docs/screenshots/README.md) for naming conventions and how to contribute them.
 
-> Screenshots are coming soon. To add them: take screenshots of each view and place them in `docs/screenshots/`. See [docs/screenshots/README.md](docs/screenshots/README.md) for naming conventions.
+**Views in the extension:**
+
+| View | Description |
+|---|---|
+| **Tab List** | All open tabs across windows — filter, bulk close, duplicate badges |
+| **AI Analysis** | Per-tab recommendations (keep / group / read later / close) with confidence scores |
+| **Topic Clusters** | AI-grouped tabs, expandable with Go to / Close actions, Smart Tab Groups |
+| **Analytics** | Habits score, activity heatmap (7×24), LLM-generated browsing insights |
+| **Chat Search** | Conversational search over your entire tab history and AI analysis results |
+| **Cleanup Session** | Guided step-by-step flow: review recommendations, accept/skip, close in bulk |
+| **Snapshots** | Save and restore full browser sessions |
+| **Settings** | AI provider, LLM call logs, URL cache browser, Obsidian vault path |
 
 ---
 
