@@ -653,7 +653,7 @@ FastAPI server wrapping local AI CLIs. Runs on port 8765 (configurable via `PORT
 4. Only tabs without fresh coverage are formatted into compact prompts and analyzed in batches of 30 via the configured CLI provider
 5. If the primary CLI fails or hits a usage limit, the server retries the batch with the fallback CLI provider
 6. The extension persists partial/final run state with per-tab statuses in `analysis_runs`, so stop/resume survives reloads
-7. If a batch finishes via heuristic fallback in the extension, those per-URL results are imported back through `/url-analysis/import`
+7. If a batch falls back to heuristics, those per-URL results are still persisted to `url_analysis` either directly on the server or via `/url-analysis/import`, so per-tab coverage stays in sync with what the user just analyzed
 8. The server stores per-URL results + session metrics in SQLite, then returns the aggregated `AnalyzeResponse`
 9. The Search dialog uses `/chat` to retrieve SQLite candidates and, when useful, summarize/rank them with the same provider/model chain as AI Analysis
 

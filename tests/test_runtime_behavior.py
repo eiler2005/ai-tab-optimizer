@@ -143,3 +143,44 @@ def test_analyze_disables_provider_for_later_batches_after_usage_limit(client, m
     response = client.post("/analyze", json={"tabs": tabs, "forceRefresh": True})
     assert response.status_code == 200
     assert calls == ["claude_code", "codex_cli", "codex_cli"]
+
+
+def test_analyze_saves_heuristic_fallback_results_to_cache(client, monkeypatch):
+    client.post("/settings", json={"settings": {"serverAiProvider": "codex_cli", "fallbackAiProvider": "none"}})
+
+    async def fake_analyze_batch_via_provider(provider: str, batch: list[agent.TabInput], settings: agent.AppSettings, **kwargs):
+        raise RuntimeError("Codex CLI timed out after 60s")
+
+    monkeypatch.setattr(agent, "analyze_batch_via_provider", fake_analyze_batch_via_provider)
+
+    tabs = [
+        {
+            "id": 1,
+            "url": "https://example.com/a",
+            "title": "Tab A",
+            "domain": "example.com",
+            "pinned": False,
+            "active": False,
+        },
+        {
+            "id": 2,
+            "url": "https://example.com/b",
+            "title": "Tab B",
+            "domain": "example.com",
+            "pinned": False,
+            "active": True,
+        },
+    ]
+
+    response = client.post("/analyze", json={"tabs": tabs, "forceRefresh": True})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["cacheStats"]["tabsSaved"] == 2
+    assert len(data["result"]["tabRecommendations"]) == 2
+
+    status_response = client.post("/tab-analysis-status", json={"tabs": tabs})
+    assert status_response.status_code == 200
+    status_data = status_response.json()
+    assert status_data["summary"]["pending"] == 0
+    assert status_data["summary"]["cached"] == 2
+    assert all(status["status"] == "cached" for status in status_data["statuses"])

@@ -105,7 +105,7 @@ Each test function gets a fresh in-memory SQLite database via the `client` fixtu
 | R18 | Invalid URL | No exception thrown for non-URL string |
 | R19 | Invalid URL near-dup | Invalid URL tab not flagged as near-duplicate of valid tab |
 
-### 3.3 Python — FastAPI server + runtime behavior (28 tests)
+### 3.3 Python — FastAPI server + runtime behavior (29 tests)
 
 | ID | Endpoint | Description |
 |---|---|---|
@@ -119,6 +119,7 @@ Each test function gets a fresh in-memory SQLite database via the `client` fixtu
 | P08 | `POST /url-analysis/import` | Single result saved (saved ≥ 1) |
 | P09 | `POST /url-analysis/import` | Empty payload returns `{ saved: 0 }` |
 | P10 | `POST /url-analysis/import` | Multiple results counted correctly |
+| P10a | `POST /analyze` + `POST /tab-analysis-status` | Provider timeout falls back to heuristics, saves results to SQLite, and marks tabs as cached on the next coverage check |
 | P11 | `GET /clusters` | Empty database returns `{ clusters: [] }` |
 | P12 | `POST /clusters/merge` | Creates a new cluster, visible in list |
 | P13 | `PUT /clusters/{id}` | Renames cluster, name reflected in list |

@@ -2272,9 +2272,32 @@ async def analyze(request: AnalyzeRequest, req: Request) -> AnalyzeResponse:
                     error_msg = summarize_provider_error(provider_error) if provider_error else "No provider configured"
                     fallback_notice = classify_fallback_issue(provider_error or RuntimeError("No provider configured"))
                     fallback_notices.append(fallback_notice)
+                    heuristic_reason = f"{fallback_notice} Original provider error: {error_msg}."
+                    heuristic_recommendations = build_heuristic_recommendations(batch, heuristic_reason)
+                    now = time.time()
+                    db_entries = []
+                    for rec in heuristic_recommendations:
+                        tab = next((t for t in batch if t.id == rec.get("tabId")), None)
+                        if tab:
+                            db_entries.append({
+                                "url": f"{cache_namespace}::{tab.url}",
+                                "action": rec["action"],
+                                "confidence": rec["confidence"],
+                                "reason": rec["reason"],
+                                "suggestedGroupName": rec.get("suggestedGroupName"),
+                                "analyzedAt": now,
+                                "analysisSource": "heuristic",
+                                "provider": None,
+                                "model": None,
+                            })
+                        all_recommendations.append(rec)
+
+                    await save_url_analyses(db, db_entries)
+                    tabs_saved += len(db_entries)
+
                     failed_urls = [tab.url for tab in batch]
                     logger.error(
-                        "Batch %s/%s FAILED (not saved to DB): %s. Failed URLs: %s",
+                        "Batch %s/%s provider fallback saved as heuristics: %s. Failed URLs: %s",
                         batch_idx + 1,
                         len(batches),
                         error_msg,
@@ -2282,20 +2305,13 @@ async def analyze(request: AnalyzeRequest, req: Request) -> AnalyzeResponse:
                     )
                     await add_runtime_log(
                         db,
-                        "error",
+                        "warning",
                         "provider",
                         f"Batch {batch_idx + 1}/{len(batches)}: all providers failed — {error_msg}. "
-                        f"{len(batch)} URLs skipped (not saved): "
+                        f"{len(db_entries)} heuristic URL analysis record(s) saved instead: "
                         + ", ".join(url[:60] for url in failed_urls[:5])
                         + (f" (+{len(failed_urls)-5} more)" if len(failed_urls) > 5 else ""),
                     )
-                    for tab in batch:
-                        all_recommendations.append({
-                            "tabId": tab.id,
-                            "action": "keep",
-                            "confidence": 0.0,
-                            "reason": f"Error: {error_msg}. This tab was not analyzed.",
-                        })
 
         # Step 4: Build full result
         fallback_summary = fallback_notices[0] if fallback_notices else None

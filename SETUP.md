@@ -199,7 +199,7 @@ The AI server is a FastAPI application that proxies tab analysis requests to CLI
 3. Server checks `tab_analysis.db` for fresh per-URL cache hits (180-day TTL, namespaced by provider/model settings)
 4. Only tabs without fresh SQLite coverage are sent to the configured CLI provider, in batches of 30, unless `Re-analyze` is used
 5. If the primary provider fails or hits a usage limit, the server automatically tries the fallback CLI provider
-6. If both configured providers fail, heuristic recommendations keep the batch moving and the UI still receives structured results
+6. If both configured providers fail, the server saves heuristic recommendations into `url_analysis`, so the batch still produces structured results and the same tabs stop appearing as "not yet analyzed"
 7. After each batch, the extension persists partial/final analysis run state in SQLite (`analysis_runs`) with per-tab statuses so stop/resume survives extension reloads
 8. If a batch finishes through the client-side heuristic fallback, those per-URL results are imported back into SQLite through `/url-analysis/import`, so coverage stays accurate
 9. Server stores per-URL results + session metrics in SQLite, then returns the aggregated result, metadata, and cache stats
