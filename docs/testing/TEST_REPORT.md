@@ -10,21 +10,20 @@
 
 | Layer | Runner | Total | Passed | Failed | Skipped | Duration |
 |---|---|---|---|---|---|---|
-| TypeScript (url, rules) | Vitest 4.1.2 | 47 | **47** | 0 | 0 | 370 ms |
-| Python (FastAPI server) | pytest 9.0.2 | 23 | **23** | 0 | 0 | 130 ms |
-| **Total** | | **70** | **70** | **0** | **0** | **~500 ms** |
+| TypeScript (shared utils + background helpers) | Vitest 4.1.2 | 55 | **55** | 0 | 0 | 382 ms |
+| Python (FastAPI server + runtime behavior) | pytest 9.0.2 | 28 | **28** | 0 | 0 | 220 ms |
+| **Total** | | **83** | **83** | **0** | **0** | **~600 ms** |
 
-All 70 tests pass on first run. No flaky tests observed.
+All 83 tests pass. No flaky tests observed.
 
 ---
 
 ## TypeScript Results
 
 ```
- Test Files  2 passed (2)
-      Tests  47 passed (47)
-   Start at  07:39:00
-   Duration  370ms (transform 64ms, setup 0ms, import 84ms, tests 11ms)
+ Test Files  4 passed (4)
+      Tests  55 passed (55)
+   Duration  382ms (transform 198ms, setup 0ms, import 615ms, tests 38ms)
 ```
 
 ### File breakdown
@@ -33,6 +32,8 @@ All 70 tests pass on first run. No flaky tests observed.
 |---|---|---|
 | `src/shared/utils/__tests__/url.test.ts` | 25 | All pass |
 | `src/shared/utils/__tests__/rules.test.ts` | 22 | All pass |
+| `src/background/__tests__/transport.test.ts` | 5 | All pass |
+| `src/background/__tests__/analysis-helpers.test.ts` | 3 | All pass |
 
 ### Notable test cases
 
@@ -45,7 +46,7 @@ All 70 tests pass on first run. No flaky tests observed.
 ## Python Results
 
 ```
-======================== 23 passed, 1 warning in 0.13s =========================
+============================= 28 passed in 0.22s =============================
 ```
 
 ### File breakdown
@@ -53,6 +54,7 @@ All 70 tests pass on first run. No flaky tests observed.
 | File | Tests | Status |
 |---|---|---|
 | `tests/test_api.py` | 23 | All pass |
+| `tests/test_runtime_behavior.py` | 5 | All pass |
 
 ### Class breakdown
 
@@ -68,12 +70,7 @@ All 70 tests pass on first run. No flaky tests observed.
 
 ### Warning
 
-```
-DeprecationWarning: There is no current event loop
-    db = asyncio.get_event_loop().run_until_complete(_setup())
-```
-
-Python 3.10+ deprecates `get_event_loop()` in contexts where no loop exists. The warning is benign (pytest still runs correctly), but should be resolved before upgrading to a future Python version that removes the fallback. Fix: replace with `asyncio.run(_setup())` in conftest.py.
+No warnings on the current run. The previous `asyncio.get_event_loop()` deprecation warning in `conftest.py` has been removed.
 
 ---
 

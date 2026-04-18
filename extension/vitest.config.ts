@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/shared/utils/**/*.ts'],
+      include: ['src/shared/utils/**/*.ts', 'src/background/**/*.ts'],
     },
   },
   resolve: {

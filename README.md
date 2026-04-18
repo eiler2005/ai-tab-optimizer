@@ -1,6 +1,6 @@
 # AI Tab Optimizer
 
-> Intelligent Chrome extension that turns tab chaos into structured knowledge — powered by **local AI**, no data leaves your machine.
+> Intelligent Chrome extension that turns tab chaos into structured knowledge — powered by a **local-first AI workflow** with optional cloud-backed CLI fallback.
 
 [![Version](https://img.shields.io/badge/version-0.2.1-blue)](https://github.com/eiler2005/ai-tab-optimizer/releases)
 [![Chrome](https://img.shields.io/badge/Chrome-114%2B-4285F4?logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
@@ -48,7 +48,7 @@
 
 ## What it does
 
-AI Tab Optimizer helps you regain control of 100+ open tabs without losing context. It combines rule-based analysis with AI-powered topic clustering, guided cleanup sessions, and long-term analytics — all running locally on your machine.
+AI Tab Optimizer helps you regain control of 100+ open tabs without losing context. It combines rule-based analysis with AI-powered topic clustering, guided cleanup sessions, and long-term analytics through a localhost FastAPI server, local browser storage, and local CLI-based AI providers.
 
 | Feature | Description |
 |---|---|
@@ -69,11 +69,11 @@ AI Tab Optimizer helps you regain control of 100+ open tabs without losing conte
 Side Panel (React + Zustand)
         │  chrome.runtime.sendMessage  (45 request types, 8 broadcast events)
         ▼
-Service Worker  (MV3 background)
+Service Worker  (MV3 background, split into transport + persistence + orchestration helpers)
         │  fetch → localhost:8765
         ▼
-FastAPI AI Server  (agent.py)
-        │  subprocess                   SQLite  (tab_analysis.db)
+FastAPI AI Server  (agent.py + server_core/*)
+        │  subprocess / SDK             SQLite  (tab_analysis.db)
         ├─────────────────────────┐     ├── url_analysis        (per-URL AI results)
         ▼                         ▼     ├── analysis_runs       (resumable sessions)
 Claude Code CLI            Codex CLI    ├── tab_history_events
@@ -84,9 +84,9 @@ Claude Code CLI            Codex CLI    ├── tab_history_events
 
 **Key design decisions:**
 
-- All AI inference runs **locally** via CLI subprocesses — no external API calls, no cloud storage
-- Automatic **provider failover**: if Claude Code CLI times out or errors mid-batch, Codex CLI takes over
-- **URL-based caching** (180-day TTL) makes previously-analyzed tabs instant on the next run
+- The extension talks only to a **localhost FastAPI server**; browser-side state stays local in Chrome storage / SQLite
+- Automatic **provider failover**: if Claude Code CLI times out or errors mid-batch, Codex CLI is tried next; if both fail, heuristic recommendations keep the UI usable
+- **URL-based caching** (180-day TTL) makes previously-analyzed tabs instant on the next run; retention is enforced on startup and by a periodic background sweep
 - Extension ↔ server communication passes only through the service worker (Chrome MV3 CSP requirement)
 - **Tab IDs are ephemeral** — the extension stores URLs as stable keys and remaps IDs on each session
 
@@ -156,7 +156,7 @@ For a full dev environment guide including troubleshooting, see [SETUP.md](SETUP
 
 ## AI Providers
 
-The server supports two local CLI providers with automatic failover:
+The server supports two CLI-based providers with automatic failover:
 
 | Provider | CLI binary | Default role | Config |
 |---|---|---|---|
@@ -165,7 +165,7 @@ The server supports two local CLI providers with automatic failover:
 
 The server logs every provider attempt with timing, token counts, and cost estimates. View them in **Settings → LLM Call Logs**.
 
-**Privacy guarantee:** The AI server runs entirely on `localhost`. Tab URLs, titles, and page excerpts are passed only to the local CLI subprocess — never sent to a remote server or third-party API.
+**Privacy model:** The extension talks only to `http://localhost:8765`. Claude Code CLI runs through the local Claude tooling on your machine. If you enable Codex CLI as fallback, prompts may be sent through OpenAI via the authenticated Codex CLI session. In other words: the app is local-first, but not an absolute offline-only guarantee when cloud-backed CLIs are configured.
 
 ---
 
@@ -173,13 +173,17 @@ The server logs every provider attempt with timing, token counts, and cost estim
 
 ```
 ai-tab-optimizer/
-├── agent.py                    # FastAPI AI server — CLI orchestration, SQLite, provider failover
+├── agent.py                    # FastAPI AI server — HTTP surface and orchestration entrypoint
 ├── requirements.txt            # Python deps: fastapi, uvicorn, aiosqlite, claude-agent-sdk
 ├── package.json                # Root workspace scripts
+├── server_core/                # Backend policy/runtime modules (retention, provider policy, runtime state)
 ├── extension/
 │   ├── src/
 │   │   ├── background/
-│   │   │   └── service-worker.ts      # Chrome API bridge, message routing, AI proxy
+│   │   │   ├── service-worker.ts      # Chrome API bridge, listeners, router entrypoint
+│   │   │   ├── transport.ts           # Local server transport helpers
+│   │   │   ├── persistence.ts         # Settings/local persistence helpers
+│   │   │   └── analysis-helpers.ts    # Shared analysis state helpers
 │   │   ├── side-panel/
 │   │   │   ├── store.ts               # Zustand store (all global state)
 │   │   │   ├── App.tsx                # View router

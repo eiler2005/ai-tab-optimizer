@@ -26,6 +26,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+from server_core.constants import (
+    BATCH_SIZE,
+    CLAUDE_TIMEOUT_SECONDS,
+    CODEX_TIMEOUT_SECONDS,
+    LLM_LOG_RETENTION_DAYS,
+    MAX_RUNTIME_LOG_ENTRIES,
+    SUPPORTED_SERVER_AI_PROVIDERS,
+    URL_ANALYSIS_TTL_DAYS,
+    VALID_ACTIONS,
+)
+from server_core.provider_policy import (
+    classify_fallback_issue,
+    should_disable_provider_for_run,
+    summarize_provider_error,
+)
+from server_core.runtime_state import AnalysisRuntimeState
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,20 +55,10 @@ for _env_key in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_ENABLE_SDK
     os.environ.pop(_env_key, None)
 
 DB_PATH = Path(__file__).parent / "tab_analysis.db"
-BATCH_SIZE = 30
-CACHE_TTL_DAYS = 180
-CLEANUP_TTL_DAYS = 30
-CLAUDE_TIMEOUT_SECONDS = 120
-CODEX_TIMEOUT_SECONDS = 60
-MAX_RUNTIME_LOG_ENTRIES = 300
-VALID_ACTIONS = {"keep", "group", "read_later", "archive", "close"}
-SUPPORTED_SERVER_AI_PROVIDERS = {"none", "claude_code", "codex_cli"}
 APP_ROOT = Path(__file__).parent
+RETENTION_SWEEP_INTERVAL_SECONDS = 3600
 
-# --- Analysis cancellation globals ---
-_analysis_cancel_event: asyncio.Event | None = None
-_analysis_running_task: asyncio.Task | None = None  # type: ignore[type-arg]
-_codex_process: asyncio.subprocess.Process | None = None
+analysis_runtime = AnalysisRuntimeState()
 THEME_QUERY_KEYS = {"q", "query", "search", "text", "title", "topic", "s"}
 THEME_STOPWORDS = {
     "about", "account", "accounts", "agent", "agents", "all", "and", "app", "article",
@@ -564,10 +570,34 @@ async def init_db(db: aiosqlite.Connection) -> None:
         except Exception:
             pass
 
-    cutoff = time.time() - CLEANUP_TTL_DAYS * 86400
-    await db.execute("DELETE FROM url_analysis WHERE analyzed_at < ?", (cutoff,))
-    await db.execute("DELETE FROM llm_call_logs WHERE timestamp < ?", (cutoff * 1000,))
+    await apply_retention_policies(db)
+
+
+async def apply_retention_policies(db: aiosqlite.Connection) -> None:
+    url_cutoff = time.time() - URL_ANALYSIS_TTL_DAYS * 86400
+    log_cutoff = time.time() - LLM_LOG_RETENTION_DAYS * 86400
+    deleted_rows = 0
+
+    cursor = await db.execute("DELETE FROM url_analysis WHERE analyzed_at < ?", (url_cutoff,))
+    deleted_rows += max(cursor.rowcount, 0)
+    cursor = await db.execute("DELETE FROM llm_call_logs WHERE timestamp < ?", (log_cutoff * 1000,))
+    deleted_rows += max(cursor.rowcount, 0)
     await db.commit()
+
+    if deleted_rows > 0:
+        try:
+            await db.execute("VACUUM")
+        except Exception:
+            logger.exception("SQLite VACUUM failed after retention cleanup")
+
+
+async def retention_worker(db: aiosqlite.Connection) -> None:
+    while True:
+        await asyncio.sleep(RETENTION_SWEEP_INTERVAL_SECONDS)
+        try:
+            await apply_retention_policies(db)
+        except Exception:
+            logger.exception("Periodic retention cleanup failed")
 
 
 @asynccontextmanager
@@ -576,8 +606,14 @@ async def lifespan(application: FastAPI):
     db.row_factory = aiosqlite.Row
     await init_db(db)
     application.state.db = db
+    retention_task = asyncio.create_task(retention_worker(db))
     logger.info(f"SQLite database opened: {DB_PATH}")
     yield
+    retention_task.cancel()
+    try:
+        await retention_task
+    except asyncio.CancelledError:
+        pass
     await db.close()
     logger.info("SQLite database closed")
 
@@ -606,7 +642,7 @@ async def get_cached_urls(
 ) -> dict[str, dict[str, Any]]:
     if not urls:
         return {}
-    cutoff = time.time() - CACHE_TTL_DAYS * 86400
+    cutoff = time.time() - URL_ANALYSIS_TTL_DAYS * 86400
     cache_key_map = {
         f"{cache_namespace}::{url}": url
         for url in urls
@@ -1440,53 +1476,6 @@ def parse_ai_response(text: str) -> dict[str, Any]:
         ) from exc
 
 
-def classify_fallback_issue(error: Exception) -> str:
-    message = str(error)
-    lowered = message.lower()
-
-    if "you've hit your limit" in lowered or "hit your limit" in lowered:
-        return "The selected CLI provider hit its usage limit, so heuristic recommendations were used."
-    if "failed to parse ai response as json" in lowered:
-        return "The selected CLI provider returned a non-JSON response, so heuristic recommendations were used."
-    if "codex" in lowered and "not found" in lowered:
-        return "Codex CLI was not found, so heuristic recommendations were used."
-    if "claude" in lowered and "not found" in lowered:
-        return "Claude Code CLI was not found, so heuristic recommendations were used."
-    if "no result from ai" in lowered or "empty response" in lowered:
-        return "The selected CLI provider returned no result, so heuristic recommendations were used."
-
-    return "Configured CLI providers were unavailable, so heuristic recommendations were used."
-
-
-def summarize_provider_error(error: Exception) -> str:
-    message = " ".join(str(error).strip().split())
-    lowered = message.lower()
-
-    if "you've hit your limit" in lowered or "hit your limit" in lowered:
-        if "resets" in message:
-            return message[message.lower().find("you've hit your limit"):] if "you've hit your limit" in lowered else message
-        return "Usage limit reached."
-
-    if "raw response:" in message:
-        raw = message.split("Raw response:", 1)[1].strip()
-        if raw:
-            return raw[:300]
-
-    if "| stderr:" in message:
-        parts = message.split("| stderr:", 1)
-        prefix = parts[0].strip()[:150]
-        stderr_part = parts[1].strip()[:500]
-        return f"{prefix} | stderr: {stderr_part}"
-
-    if "CLI stderr:" in message:
-        parts = message.split("CLI stderr:", 1)
-        prefix = parts[0].strip()[:150]
-        stderr_part = parts[1].strip()[:500]
-        return f"{prefix} | stderr: {stderr_part}"
-
-    return message[:500]
-
-
 def build_heuristic_recommendations(
     tabs: list[TabInput], reason_prefix: str
 ) -> list[dict[str, Any]]:
@@ -1633,10 +1622,6 @@ def get_provider_model(provider: str, settings: AppSettings) -> str | None:
     return None
 
 
-def should_disable_provider_for_run(error: Exception) -> bool:
-    return True
-
-
 async def analyze_batch_via_claude(
     tabs: list[TabInput],
     settings: AppSettings,
@@ -1678,9 +1663,8 @@ async def analyze_batch_via_claude(
                     metadata.inputTokens = message.usage.get("input_tokens", 0)
                     metadata.outputTokens = message.usage.get("output_tokens", 0)
 
-    global _analysis_running_task
     task = asyncio.ensure_future(consume_query())
-    _analysis_running_task = task
+    await analysis_runtime.set_running_task(task)
     timed_out = False
     try:
         await asyncio.wait_for(asyncio.shield(task), timeout=CLAUDE_TIMEOUT_SECONDS)
@@ -1695,7 +1679,7 @@ async def analyze_batch_via_claude(
             stream_error = RuntimeError(
                 f"Claude Code CLI timed out after {CLAUDE_TIMEOUT_SECONDS}s"
             )
-        elif _analysis_cancel_event is not None and _analysis_cancel_event.is_set():
+        elif await analysis_runtime.is_cancelled():
             task.cancel()
             try:
                 await task
@@ -1709,7 +1693,7 @@ async def analyze_batch_via_claude(
     except Exception as exc:
         stream_error = exc
     finally:
-        _analysis_running_task = None
+        await analysis_runtime.clear_running_task(task)
 
     if not result_text:
         if stream_error is not None:
@@ -1765,7 +1749,7 @@ async def analyze_batch_via_codex(
         command.extend(["-m", settings.codexModel.strip()])
     command.append(prompt)
 
-    global _codex_process
+    process: asyncio.subprocess.Process | None = None
     try:
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -1773,7 +1757,7 @@ async def analyze_batch_via_codex(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _codex_process = process
+        await analysis_runtime.set_codex_process(process)
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
                 process.communicate(),
@@ -1820,7 +1804,7 @@ async def analyze_batch_via_codex(
         )
         return recommendations, metadata
     finally:
-        _codex_process = None
+        await analysis_runtime.clear_codex_process(process)
         Path(schema_path).unlink(missing_ok=True)
         Path(output_path).unlink(missing_ok=True)
 
@@ -2108,268 +2092,256 @@ async def get_analysis_run_endpoint(run_id: str, req: Request):
 
 @app.post("/analyze/cancel")
 async def cancel_analysis():
-    global _analysis_cancel_event, _analysis_running_task, _codex_process
-    cancelled = False
-    if _analysis_cancel_event is not None:
-        _analysis_cancel_event.set()
-        cancelled = True
-    if _analysis_running_task is not None and not _analysis_running_task.done():
-        _analysis_running_task.cancel()
-        cancelled = True
-    if _codex_process is not None:
-        try:
-            _codex_process.kill()
-        except ProcessLookupError:
-            pass
-        cancelled = True
+    cancelled = await analysis_runtime.cancel()
     logger.info("Analysis cancel requested: cancelled=%s", cancelled)
     return {"cancelled": cancelled}
 
 
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest, req: Request) -> AnalyzeResponse:
-    global _analysis_cancel_event
     if not request.tabs:
         raise HTTPException(status_code=400, detail="No tabs provided")
 
-    _analysis_cancel_event = asyncio.Event()
+    await analysis_runtime.start_run()
 
-    db = get_db(req)
-    tab_count = len(request.tabs)
-    start_time = time.time()
-    settings = await get_app_settings(db)
-    provider_chain = resolve_provider_chain(settings, request.providerOrder)
-    cache_namespace = build_cache_namespace(settings)
+    try:
+        db = get_db(req)
+        tab_count = len(request.tabs)
+        start_time = time.time()
+        settings = await get_app_settings(db)
+        provider_chain = resolve_provider_chain(settings, request.providerOrder)
+        cache_namespace = build_cache_namespace(settings)
 
-    logger.info(f"Starting analysis: {tab_count} tabs, forceRefresh={request.forceRefresh}")
+        logger.info(f"Starting analysis: {tab_count} tabs, forceRefresh={request.forceRefresh}")
 
-    # Step 1: Check cache
-    all_urls = [tab.url for tab in request.tabs]
+        # Step 1: Check cache
+        all_urls = [tab.url for tab in request.tabs]
 
-    if request.forceRefresh:
-        cached = {}
-    else:
-        cached = await get_cached_urls(db, all_urls, cache_namespace)
+        if request.forceRefresh:
+            cached = {}
+        else:
+            cached = await get_cached_urls(db, all_urls, cache_namespace)
 
-    cached_tabs = [tab for tab in request.tabs if tab.url in cached]
-    new_tabs = [tab for tab in request.tabs if tab.url not in cached]
+        cached_tabs = [tab for tab in request.tabs if tab.url in cached]
+        new_tabs = [tab for tab in request.tabs if tab.url not in cached]
 
-    logger.info(f"Cache: {len(cached_tabs)} hits, {len(new_tabs)} misses")
-    await add_runtime_log(
-        db,
-        "info",
-        "analysis",
-        f"Analysis started: {tab_count} tabs, {len(cached_tabs)} cache hits, {len(new_tabs)} new.",
-    )
+        logger.info(f"Cache: {len(cached_tabs)} hits, {len(new_tabs)} misses")
+        await add_runtime_log(
+            db,
+            "info",
+            "analysis",
+            f"Analysis started: {tab_count} tabs, {len(cached_tabs)} cache hits, {len(new_tabs)} new.",
+        )
 
-    # Step 2: Build recommendations from cache
-    all_recommendations: list[dict[str, Any]] = []
-    for tab in cached_tabs:
-        entry = cached[tab.url]
-        all_recommendations.append({
-            "tabId": tab.id,
-            "action": entry["action"],
-            "confidence": entry["confidence"],
-            "reason": entry["reason"],
-            "suggestedGroupName": entry.get("suggestedGroupName"),
-        })
+        # Step 2: Build recommendations from cache
+        all_recommendations: list[dict[str, Any]] = []
+        for tab in cached_tabs:
+            entry = cached[tab.url]
+            all_recommendations.append({
+                "tabId": tab.id,
+                "action": entry["action"],
+                "confidence": entry["confidence"],
+                "reason": entry["reason"],
+                "suggestedGroupName": entry.get("suggestedGroupName"),
+            })
 
-    # Step 3: Analyze new tabs in batches
-    total_metadata = AnalysisMetadata(
-        durationMs=0, durationApiMs=0, totalCostUsd=None,
-        inputTokens=0, outputTokens=0, tabCount=tab_count,
-    )
-    fallback_notices: list[str] = []
-    tabs_saved = 0
-    disabled_providers: set[str] = set()
+        # Step 3: Analyze new tabs in batches
+        total_metadata = AnalysisMetadata(
+            durationMs=0, durationApiMs=0, totalCostUsd=None,
+            inputTokens=0, outputTokens=0, tabCount=tab_count,
+        )
+        fallback_notices: list[str] = []
+        tabs_saved = 0
+        disabled_providers: set[str] = set()
 
-    if new_tabs:
-        batches = [new_tabs[i:i + BATCH_SIZE] for i in range(0, len(new_tabs), BATCH_SIZE)]
-        logger.info(f"Processing {len(batches)} batch(es) of new tabs")
+        if new_tabs:
+            batches = [new_tabs[i:i + BATCH_SIZE] for i in range(0, len(new_tabs), BATCH_SIZE)]
+            logger.info(f"Processing {len(batches)} batch(es) of new tabs")
 
-        for batch_idx, batch in enumerate(batches):
-            if _analysis_cancel_event is not None and _analysis_cancel_event.is_set():
-                logger.info("Analysis cancelled before batch %s/%s", batch_idx + 1, len(batches))
-                await add_runtime_log(db, "info", "analysis", "Analysis cancelled by user.")
-                break
+            for batch_idx, batch in enumerate(batches):
+                if await analysis_runtime.is_cancelled():
+                    logger.info("Analysis cancelled before batch %s/%s", batch_idx + 1, len(batches))
+                    await add_runtime_log(db, "info", "analysis", "Analysis cancelled by user.")
+                    break
 
-            provider_error: Exception | None = None
-            provider_used: str | None = None
-            recs: list[dict[str, Any]] | None = None
-            batch_meta: AnalysisMetadata | None = None
-            batch_attempts: list[ProviderAttempt] = []
-            active_chain = [provider for provider in provider_chain if provider not in disabled_providers]
+                provider_error: Exception | None = None
+                provider_used: str | None = None
+                recs: list[dict[str, Any]] | None = None
+                batch_meta: AnalysisMetadata | None = None
+                batch_attempts: list[ProviderAttempt] = []
+                active_chain = [provider for provider in provider_chain if provider not in disabled_providers]
 
-            for provider in active_chain:
-                await add_runtime_log(
-                    db,
-                    "info",
-                    "provider",
-                    f"Batch {batch_idx + 1}/{len(batches)}: trying {provider}.",
-                )
-                try:
-                    recs, batch_meta = await analyze_batch_via_provider(
-                        provider, batch, settings,
-                        db=db, session_timestamp=start_time, batch_index=batch_idx,
-                    )
-                    provider_used = provider
-                    batch_attempts.append(ProviderAttempt(
-                        provider=provider,
-                        model=get_provider_model(provider, settings),
-                        status="succeeded",
-                    ))
+                for provider in active_chain:
                     await add_runtime_log(
                         db,
                         "info",
                         "provider",
-                        f"Batch {batch_idx + 1}/{len(batches)}: {provider} succeeded"
-                        + (f" ({batch_meta.modelUsed})" if batch_meta.modelUsed else "")
-                        + ".",
+                        f"Batch {batch_idx + 1}/{len(batches)}: trying {provider}.",
                     )
-                    break
-                except Exception as error:
-                    provider_error = error
-                    batch_attempts.append(ProviderAttempt(
-                        provider=provider,
-                        model=get_provider_model(provider, settings),
-                        status="failed",
-                        error=summarize_provider_error(error),
-                    ))
-                    if should_disable_provider_for_run(error):
-                        disabled_providers.add(provider)
-                    logger.warning(
-                        "Provider %s failed for batch %s/%s: %s",
-                        provider,
+                    try:
+                        recs, batch_meta = await analyze_batch_via_provider(
+                            provider, batch, settings,
+                            db=db, session_timestamp=start_time, batch_index=batch_idx,
+                        )
+                        provider_used = provider
+                        batch_attempts.append(ProviderAttempt(
+                            provider=provider,
+                            model=get_provider_model(provider, settings),
+                            status="succeeded",
+                        ))
+                        await add_runtime_log(
+                            db,
+                            "info",
+                            "provider",
+                            f"Batch {batch_idx + 1}/{len(batches)}: {provider} succeeded"
+                            + (f" ({batch_meta.modelUsed})" if batch_meta.modelUsed else "")
+                            + ".",
+                        )
+                        break
+                    except Exception as error:
+                        provider_error = error
+                        batch_attempts.append(ProviderAttempt(
+                            provider=provider,
+                            model=get_provider_model(provider, settings),
+                            status="failed",
+                            error=summarize_provider_error(error),
+                        ))
+                        if should_disable_provider_for_run(error):
+                            disabled_providers.add(provider)
+                        logger.warning(
+                            "Provider %s failed for batch %s/%s: %s",
+                            provider,
+                            batch_idx + 1,
+                            len(batches),
+                            error,
+                        )
+                        await add_runtime_log(
+                            db,
+                            "warning",
+                            "provider",
+                            f"Batch {batch_idx + 1}/{len(batches)}: {provider} failed — {summarize_provider_error(error)}",
+                        )
+
+                if recs is not None and batch_meta is not None:
+                    batch_meta.providerAttempts = batch_attempts
+                    now = time.time()
+                    analysis_source = "provider" if batch_meta.providerUsed else "heuristic"
+                    db_entries = []
+                    for rec in recs:
+                        tab = next((t for t in batch if t.id == rec.get("tabId")), None)
+                        if tab:
+                            db_entries.append({
+                                "url": f"{cache_namespace}::{tab.url}",
+                                "action": rec["action"],
+                                "confidence": rec["confidence"],
+                                "reason": rec["reason"],
+                                "suggestedGroupName": rec.get("suggestedGroupName"),
+                                "analyzedAt": now,
+                                "analysisSource": analysis_source,
+                                "provider": batch_meta.providerUsed,
+                                "model": batch_meta.modelUsed,
+                            })
+                        all_recommendations.append(rec)
+
+                    await save_url_analyses(db, db_entries)
+                    tabs_saved += len(db_entries)
+
+                    total_metadata.durationMs += batch_meta.durationMs
+                    total_metadata.durationApiMs += batch_meta.durationApiMs
+                    total_metadata.inputTokens += batch_meta.inputTokens
+                    total_metadata.outputTokens += batch_meta.outputTokens
+                    total_metadata.providerUsed = batch_meta.providerUsed
+                    total_metadata.modelUsed = batch_meta.modelUsed
+                    total_metadata.providerAttempts.extend(batch_meta.providerAttempts)
+                    if batch_meta.totalCostUsd is not None:
+                        total_metadata.totalCostUsd = (total_metadata.totalCostUsd or 0) + batch_meta.totalCostUsd
+
+                    logger.info(
+                        "Batch %s/%s analyzed via %s: %s tabs, %s+%s tokens",
                         batch_idx + 1,
                         len(batches),
-                        error,
+                        provider_used,
+                        len(batch),
+                        batch_meta.inputTokens,
+                        batch_meta.outputTokens,
+                    )
+                else:
+                    if provider_error is None and not provider_chain:
+                        provider_error = RuntimeError("AI provider is disabled.")
+                    total_metadata.providerAttempts.extend(batch_attempts)
+                    error_msg = summarize_provider_error(provider_error) if provider_error else "No provider configured"
+                    fallback_notice = classify_fallback_issue(provider_error or RuntimeError("No provider configured"))
+                    fallback_notices.append(fallback_notice)
+                    failed_urls = [tab.url for tab in batch]
+                    logger.error(
+                        "Batch %s/%s FAILED (not saved to DB): %s. Failed URLs: %s",
+                        batch_idx + 1,
+                        len(batches),
+                        error_msg,
+                        ", ".join(url[:80] for url in failed_urls[:5]) + (f" (+{len(failed_urls)-5} more)" if len(failed_urls) > 5 else ""),
                     )
                     await add_runtime_log(
                         db,
-                        "warning",
+                        "error",
                         "provider",
-                        f"Batch {batch_idx + 1}/{len(batches)}: {provider} failed — {summarize_provider_error(error)}",
+                        f"Batch {batch_idx + 1}/{len(batches)}: all providers failed — {error_msg}. "
+                        f"{len(batch)} URLs skipped (not saved): "
+                        + ", ".join(url[:60] for url in failed_urls[:5])
+                        + (f" (+{len(failed_urls)-5} more)" if len(failed_urls) > 5 else ""),
                     )
-
-            if recs is not None and batch_meta is not None:
-                batch_meta.providerAttempts = batch_attempts
-                now = time.time()
-                analysis_source = "provider" if batch_meta.providerUsed else "heuristic"
-                db_entries = []
-                for rec in recs:
-                    tab = next((t for t in batch if t.id == rec.get("tabId")), None)
-                    if tab:
-                        db_entries.append({
-                            "url": f"{cache_namespace}::{tab.url}",
-                            "action": rec["action"],
-                            "confidence": rec["confidence"],
-                            "reason": rec["reason"],
-                            "suggestedGroupName": rec.get("suggestedGroupName"),
-                            "analyzedAt": now,
-                            "analysisSource": analysis_source,
-                            "provider": batch_meta.providerUsed,
-                            "model": batch_meta.modelUsed,
+                    for tab in batch:
+                        all_recommendations.append({
+                            "tabId": tab.id,
+                            "action": "keep",
+                            "confidence": 0.0,
+                            "reason": f"Error: {error_msg}. This tab was not analyzed.",
                         })
-                    all_recommendations.append(rec)
 
-                await save_url_analyses(db, db_entries)
-                tabs_saved += len(db_entries)
+        # Step 4: Build full result
+        fallback_summary = fallback_notices[0] if fallback_notices else None
+        result = build_full_result(all_recommendations, request.tabs, fallback_summary)
 
-                total_metadata.durationMs += batch_meta.durationMs
-                total_metadata.durationApiMs += batch_meta.durationApiMs
-                total_metadata.inputTokens += batch_meta.inputTokens
-                total_metadata.outputTokens += batch_meta.outputTokens
-                total_metadata.providerUsed = batch_meta.providerUsed
-                total_metadata.modelUsed = batch_meta.modelUsed
-                total_metadata.providerAttempts.extend(batch_meta.providerAttempts)
-                if batch_meta.totalCostUsd is not None:
-                    total_metadata.totalCostUsd = (total_metadata.totalCostUsd or 0) + batch_meta.totalCostUsd
+        wall_time_ms = int((time.time() - start_time) * 1000)
 
-                logger.info(
-                    "Batch %s/%s analyzed via %s: %s tabs, %s+%s tokens",
-                    batch_idx + 1,
-                    len(batches),
-                    provider_used,
-                    len(batch),
-                    batch_meta.inputTokens,
-                    batch_meta.outputTokens,
-                )
-            else:
-                if provider_error is None and not provider_chain:
-                    provider_error = RuntimeError("AI provider is disabled.")
-                total_metadata.providerAttempts.extend(batch_attempts)
-                error_msg = summarize_provider_error(provider_error) if provider_error else "No provider configured"
-                fallback_notice = classify_fallback_issue(provider_error or RuntimeError("No provider configured"))
-                fallback_notices.append(fallback_notice)
-                failed_urls = [tab.url for tab in batch]
-                logger.error(
-                    "Batch %s/%s FAILED (not saved to DB): %s. Failed URLs: %s",
-                    batch_idx + 1,
-                    len(batches),
-                    error_msg,
-                    ", ".join(url[:80] for url in failed_urls[:5]) + (f" (+{len(failed_urls)-5} more)" if len(failed_urls) > 5 else ""),
-                )
-                await add_runtime_log(
-                    db,
-                    "error",
-                    "provider",
-                    f"Batch {batch_idx + 1}/{len(batches)}: all providers failed — {error_msg}. "
-                    f"{len(batch)} URLs skipped (not saved): "
-                    + ", ".join(url[:60] for url in failed_urls[:5])
-                    + (f" (+{len(failed_urls)-5} more)" if len(failed_urls) > 5 else ""),
-                )
-                for tab in batch:
-                    all_recommendations.append({
-                        "tabId": tab.id,
-                        "action": "keep",
-                        "confidence": 0.0,
-                        "reason": f"Error: {error_msg}. This tab was not analyzed.",
-                    })
+        cache_stats = CacheStats(
+            totalTabs=tab_count,
+            tabsFromCache=len(cached_tabs),
+            tabsAnalyzed=len(new_tabs),
+            tabsSaved=tabs_saved,
+            cacheHitRate=round(len(cached_tabs) / max(tab_count, 1), 3),
+        )
 
-    # Step 4: Build full result
-    fallback_summary = fallback_notices[0] if fallback_notices else None
-    result = build_full_result(all_recommendations, request.tabs, fallback_summary)
+        # Step 5: Save session
+        action_breakdown = result.get("sessionStats", {}).get("actionBreakdown", {})
+        await save_session(db, {
+            "timestamp": time.time(),
+            "tab_count": tab_count,
+            "tabs_from_cache": len(cached_tabs),
+            "tabs_analyzed": len(new_tabs),
+            "duration_ms": total_metadata.durationMs,
+            "duration_api_ms": total_metadata.durationApiMs,
+            "wall_time_ms": wall_time_ms,
+            "total_cost_usd": total_metadata.totalCostUsd,
+            "input_tokens": total_metadata.inputTokens,
+            "output_tokens": total_metadata.outputTokens,
+            "action_breakdown_json": json.dumps(action_breakdown) if action_breakdown else None,
+        })
 
-    wall_time_ms = int((time.time() - start_time) * 1000)
+        logger.info(
+            f"Analysis complete: {tab_count} tabs ({len(cached_tabs)} cached, {len(new_tabs)} new), "
+            f"{wall_time_ms}ms wall, {total_metadata.inputTokens}+{total_metadata.outputTokens} tokens, "
+            f"${total_metadata.totalCostUsd or 0:.4f}"
+        )
+        await add_runtime_log(
+            db,
+            "info",
+            "analysis",
+            f"Analysis complete: {tab_count} tabs, provider={total_metadata.providerUsed or 'cache/heuristics'}, saved={tabs_saved}.",
+        )
 
-    cache_stats = CacheStats(
-        totalTabs=tab_count,
-        tabsFromCache=len(cached_tabs),
-        tabsAnalyzed=len(new_tabs),
-        tabsSaved=tabs_saved,
-        cacheHitRate=round(len(cached_tabs) / max(tab_count, 1), 3),
-    )
-
-    # Step 5: Save session
-    action_breakdown = result.get("sessionStats", {}).get("actionBreakdown", {})
-    await save_session(db, {
-        "timestamp": time.time(),
-        "tab_count": tab_count,
-        "tabs_from_cache": len(cached_tabs),
-        "tabs_analyzed": len(new_tabs),
-        "duration_ms": total_metadata.durationMs,
-        "duration_api_ms": total_metadata.durationApiMs,
-        "wall_time_ms": wall_time_ms,
-        "total_cost_usd": total_metadata.totalCostUsd,
-        "input_tokens": total_metadata.inputTokens,
-        "output_tokens": total_metadata.outputTokens,
-        "action_breakdown_json": json.dumps(action_breakdown) if action_breakdown else None,
-    })
-
-    logger.info(
-        f"Analysis complete: {tab_count} tabs ({len(cached_tabs)} cached, {len(new_tabs)} new), "
-        f"{wall_time_ms}ms wall, {total_metadata.inputTokens}+{total_metadata.outputTokens} tokens, "
-        f"${total_metadata.totalCostUsd or 0:.4f}"
-    )
-    await add_runtime_log(
-        db,
-        "info",
-        "analysis",
-        f"Analysis complete: {tab_count} tabs, provider={total_metadata.providerUsed or 'cache/heuristics'}, saved={tabs_saved}.",
-    )
-
-    _analysis_cancel_event = None
-    return AnalyzeResponse(result=result, metadata=total_metadata, cacheStats=cache_stats)
+        return AnalyzeResponse(result=result, metadata=total_metadata, cacheStats=cache_stats)
+    finally:
+        await analysis_runtime.finish_run()
 
 
 @app.get("/stats")

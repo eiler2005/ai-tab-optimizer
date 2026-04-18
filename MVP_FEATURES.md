@@ -109,7 +109,7 @@ Add AI-powered analysis, tab browsing history, guided cleanup, and advanced Obsi
 - [x] Structured prompt: system instructions + compact tab list + JSON output schema
 - [x] Server-side logging: tab count, cache hits/misses, duration, tokens, cost per request
 - [x] Service worker proxies requests to localhost:8765
-- [x] SQLite per-URL analysis cache in `tab_analysis.db` with 7-day TTL
+- [x] SQLite per-URL analysis cache in `tab_analysis.db` with 180-day TTL
 - [x] SQLite-backed settings in `app_settings`
 - [x] Automatic provider failover from primary CLI to fallback CLI
 - [x] Provider timeouts so a stuck CLI can fail over and the batch can finish via another model
@@ -314,7 +314,7 @@ Deeper analytics to surface tab management habits, persistent knowledge from AI 
 - [x] Search input stays active while query is processing — user can type next query without waiting
 
 ### Extension Infrastructure (v0.2.1 additions)
-- [x] 44 request types (adds `OPEN_URL`, `FOCUS_TAB`, `CHAT_SEARCH` on top of the earlier analytics/focus-mode requests)
+- [x] 45 request types (adds `OPEN_URL`, `FOCUS_TAB`, `CHAT_SEARCH`, `REFRESH_ANALYTICS` on top of the earlier analytics/focus-mode requests)
 - [x] 3 new SQLite tables (`recommendation_actions`, `topic_clusters`, `analysis_runs`)
 - [x] Zustand store: focus mode slice, resume state, per-tab analysis status, search dialog state
 - [x] 50+ new i18n keys (habits, recommendations, heatmap, persistent clusters, focus mode, per-tab status, next steps, theme comparison, analytics snapshot, search dialog)

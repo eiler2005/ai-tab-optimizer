@@ -82,7 +82,7 @@ pnpm dev      # watch mode for development
 ```bash
 pnpm server
 ```
-This starts a FastAPI server on `http://localhost:8765`. The server orchestrates local AI CLIs, persists state in SQLite, and can fail over from Claude Code CLI to Codex CLI without separate API billing.
+This starts a FastAPI server on `http://localhost:8765`. The server orchestrates CLI-based AI providers, persists state in SQLite, and can fail over from Claude Code CLI to Codex CLI before dropping to heuristic recommendations.
 
 ### 6. Configure the Extension
 1. Open the extension side panel
@@ -136,8 +136,8 @@ zip -r ../tab-optimizer.zip .
 
 ## AI Server (agent.py)
 
-The AI server is a FastAPI application that proxies tab analysis requests to local AI CLIs and keeps SQLite-backed state in `tab_analysis.db` (10 tables):
-- `url_analysis` — per-URL AI cache with 7-day TTL
+The AI server is a FastAPI application that proxies tab analysis requests to CLI-based AI providers and keeps SQLite-backed state in `tab_analysis.db` (10 tables):
+- `url_analysis` — per-URL AI cache with 180-day TTL
 - `analysis_sessions` — analysis run metadata and cost tracking
 - `analysis_runs` — full analysis run state snapshots for stop/resume (pending tabs, per-tab statuses, result, metadata)
 - `tab_history_events` — browser tab lifecycle events
@@ -196,14 +196,15 @@ The AI server is a FastAPI application that proxies tab analysis requests to loc
 ### How It Works
 1. Extension service worker first asks `/tab-analysis-status` which current tabs already have fresh SQLite results
 2. Server loads persisted settings from SQLite to determine the primary CLI provider, fallback provider, and model
-3. Server checks `tab_analysis.db` for fresh per-URL cache hits (7-day TTL, namespaced by provider/model settings)
+3. Server checks `tab_analysis.db` for fresh per-URL cache hits (180-day TTL, namespaced by provider/model settings)
 4. Only tabs without fresh SQLite coverage are sent to the configured CLI provider, in batches of 30, unless `Re-analyze` is used
 5. If the primary provider fails or hits a usage limit, the server automatically tries the fallback CLI provider
-6. After each batch, the extension persists partial/final analysis run state in SQLite (`analysis_runs`) with per-tab statuses so stop/resume survives extension reloads
-7. If a batch finishes through the client-side heuristic fallback, those per-URL results are imported back into SQLite through `/url-analysis/import`, so coverage stays accurate
-8. Server stores per-URL results + session metrics in SQLite, then returns the aggregated result, metadata, and cache stats
-9. Service worker also persists tab history events, snapshots, and settings to the same SQLite database so they survive extension reload/removal
-10. The Search tab uses `/chat` to retrieve SQLite candidates from URL analysis and history via a consolidated UNION ALL query (up to 6 keyword patterns, 20s LLM timeout), plus persistent clusters, then ranks/summarizes them through the same provider/model chain configured in Settings
+6. If both configured providers fail, heuristic recommendations keep the batch moving and the UI still receives structured results
+7. After each batch, the extension persists partial/final analysis run state in SQLite (`analysis_runs`) with per-tab statuses so stop/resume survives extension reloads
+8. If a batch finishes through the client-side heuristic fallback, those per-URL results are imported back into SQLite through `/url-analysis/import`, so coverage stays accurate
+9. Server stores per-URL results + session metrics in SQLite, then returns the aggregated result, metadata, and cache stats
+10. Service worker also persists tab history events, snapshots, and settings to the same SQLite database so they survive extension reload/removal
+11. The Search tab uses `/chat` to retrieve SQLite candidates from URL analysis and history via a consolidated UNION ALL query (up to 6 keyword patterns, 20s LLM timeout), plus persistent clusters, then ranks/summarizes them through the same provider/model chain configured in Settings
 
 ### Running the Server
 ```bash
@@ -220,6 +221,24 @@ PORT=9000 .venv/bin/python agent.py
   - Codex CLI (`codex login` completed)
 - For automatic failover, configure both CLIs
 - Python 3.11+ with dependencies from `requirements.txt`
+- Privacy note: the extension itself talks only to `localhost`, but Codex CLI may send prompts to OpenAI if you keep it enabled as fallback
+
+---
+
+## Automated Tests
+
+```bash
+# Python integration + behavior tests
+.venv/bin/pytest
+
+# TypeScript unit tests (shared utils + background helpers)
+pnpm --dir extension test
+
+# Static verification
+.venv/bin/python -m py_compile agent.py server_core/*.py
+pnpm --dir extension typecheck
+pnpm build
+```
 
 ---
 

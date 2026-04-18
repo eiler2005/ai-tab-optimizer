@@ -32,7 +32,7 @@ def client():
         await init_db(db)
         return db
 
-    db = asyncio.get_event_loop().run_until_complete(_setup())
+    db = asyncio.run(_setup())
 
     @asynccontextmanager
     async def test_lifespan(application: FastAPI):
@@ -46,4 +46,4 @@ def client():
         yield c
 
     app.router.lifespan_context = original_lifespan
-    asyncio.get_event_loop().run_until_complete(db.close())
+    asyncio.run(db.close())

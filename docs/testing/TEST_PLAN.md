@@ -12,12 +12,12 @@ This plan covers automated tests for the two independently testable parts of the
 
 | Layer | Technology | Runner |
 |---|---|---|
-| Shared utility functions (TypeScript) | Vitest, Node env | `pnpm test` in `extension/` |
-| FastAPI server endpoints (Python) | pytest + httpx | `pytest tests/` in project root |
+| Shared utility functions + background helpers (TypeScript) | Vitest, Node env | `pnpm test` in `extension/` |
+| FastAPI server endpoints + runtime behavior (Python) | pytest + httpx | `pytest tests/` in project root |
 
 Out of scope for automated tests:
 - Chrome Extension UI (requires a real browser; covered by manual testing in SETUP.md)
-- Claude Code CLI / Codex CLI integration (requires authenticated CLIs and incurs cost)
+- Live Claude Code CLI / Codex CLI subprocess integration (requires authenticated CLIs and incurs cost)
 - Obsidian vault file writes (requires File System Access API in a browser context)
 
 ---
@@ -26,9 +26,9 @@ Out of scope for automated tests:
 
 ### 2.1 TypeScript — Pure unit tests
 
-**Principle:** test pure functions in isolation, no mocks, no Chrome API.
+**Principle:** test pure functions and low-risk background helpers in isolation.
 
-The two shared utility modules (`url.ts`, `rules.ts`) are pure functions with no side effects. Every test follows the pattern: *arrange input → call function → assert output*. No stubs or spies are needed.
+The shared utility modules (`url.ts`, `rules.ts`) stay pure. Background helper modules (`transport.ts`, `analysis-helpers.ts`) are tested with lightweight mocks for `fetch` only; no real Chrome runtime or local server is required.
 
 **Fixture factory** (`fixtures.ts`): a `makeTab()` factory with an auto-incrementing ID counter lets each test construct minimal, valid `TabRecord` objects with only the fields relevant to the case under test.
 
@@ -43,13 +43,13 @@ Each test function gets a fresh in-memory SQLite database via the `client` fixtu
 - State is fully reset between test functions (fixture `scope="function"`)
 - Tests run in the same process without network I/O
 
-**No AI provider calls.** Tests never exercise the `/analyze` endpoint (which calls Claude Code CLI / Codex CLI) — that path requires authenticated external tools. All tests use `/url-analysis/import` to seed cache state when needed.
+**No live AI provider calls.** `/analyze` is now covered with monkeypatched provider functions so the fallback chain, retention logic, and batch behavior are exercised without invoking authenticated CLIs.
 
 ---
 
 ## 3. Test Cases
 
-### 3.1 TypeScript — url.ts (25 tests)
+### 3.1 TypeScript — url.ts, rules.ts, background helpers (55 tests)
 
 | ID | Function | Description |
 |---|---|---|
@@ -105,7 +105,7 @@ Each test function gets a fresh in-memory SQLite database via the `client` fixtu
 | R18 | Invalid URL | No exception thrown for non-URL string |
 | R19 | Invalid URL near-dup | Invalid URL tab not flagged as near-duplicate of valid tab |
 
-### 3.3 Python — FastAPI server (23 tests)
+### 3.3 Python — FastAPI server + runtime behavior (28 tests)
 
 | ID | Endpoint | Description |
 |---|---|---|
@@ -169,7 +169,7 @@ pytest tests/ --tb=short          # compact tracebacks
 
 | Excluded area | Reason | How to test manually |
 |---|---|---|
-| `/analyze` endpoint | Requires live CLI subprocess (Claude Code or Codex) | `curl -X POST localhost:8765/analyze` with real tabs |
+| Live CLI subprocess integration | Requires authenticated Claude Code / Codex sessions | `curl -X POST localhost:8765/analyze` with real tabs |
 | `/chat` endpoint | Requires live CLI subprocess | Use the Search panel in the extension |
 | `/analytics/refresh` | Requires live CLI subprocess | Use the Analytics ↻ button in the AI panel |
 | Chrome Extension UI | No headless Chrome driver set up | Load unpacked → manual walkthrough per SETUP.md |

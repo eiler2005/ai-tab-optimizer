@@ -61,10 +61,10 @@ The core promise: **you can safely clean up your browser because nothing importa
 - Per-tab recommendations: keep / close / group / read_later / archive
 - Theme-first topic clusters with names, descriptions, tags
 - Session summary and stats (estimated closable, main themes)
-- **SQLite-backed per-URL caching**: results stored in `tab_analysis.db` with a 7-day TTL
+- **SQLite-backed per-URL caching**: results stored in `tab_analysis.db` with a 180-day TTL
 - **SQLite-backed settings**: provider choice, fallback chain, model, and retention settings persist server-side in `app_settings`
 - Already-analyzed URLs are skipped server-side; only uncached tabs are sent to AI
-- Automatic provider failover: the server can retry a batch with Codex CLI if Claude Code CLI is unavailable or rate-limited
+- Automatic provider failover: the server can retry a batch with Codex CLI if Claude Code CLI is unavailable or rate-limited, then fall back to heuristic recommendations if both providers fail
 - Provider timeouts ensure a stuck CLI is abandoned and the batch can continue through the next provider
 - **Incremental batch analysis**: the service worker sends tabs in batches of 30 and updates the UI after every completed batch
 - **Fire-and-forget**: `ANALYZE_TABS` returns immediately, results come via broadcast events (no message channel timeout on 1000+ tabs)
@@ -151,7 +151,7 @@ The core promise: **you can safely clean up your browser because nothing importa
 ### Extension Infrastructure
 - Side Panel as primary UI (React + Zustand)
 - Popup (minimal — opens side panel + shows tab count)
-- Service worker with message routing (44 request types)
+- Service worker with message routing (45 request types)
 - 8 broadcast events
 - 8 views in side panel
 - 13 React components
@@ -167,7 +167,10 @@ The core promise: **you can safely clean up your browser because nothing importa
 ```
 extension/src/
 ├── background/
-│   └── service-worker.ts      # Chrome API bridge, AI proxy, history logging, auto-snapshots
+│   ├── service-worker.ts      # Chrome API bridge, listeners, router entrypoint
+│   ├── transport.ts           # Local server transport helpers
+│   ├── persistence.ts         # Settings/local persistence helpers
+│   └── analysis-helpers.ts    # Shared analysis state helpers
 ├── side-panel/
 │   ├── index.html
 │   ├── main.tsx               # React app entry
@@ -214,7 +217,7 @@ extension/src/
 
 | Component | Role |
 |---|---|
-| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (44 request types), SQLite-backed Search dialog bridge |
+| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (45 request types), SQLite-backed Search dialog bridge |
 | `side-panel` (React) | Primary UI — 8 views, state management via Zustand, 8 broadcast event types, Tab Insights dashboard, Smart Tab Groups, SQLite-backed Search dialog |
 | `popup` | Lightweight entry point — opens side panel |
 | `page-extractor.ts` | Content script injected on demand — extracts meta description, H1, body text excerpt |
@@ -233,8 +236,8 @@ All communication uses `chrome.runtime.sendMessage` / `chrome.runtime.onMessage`
 
 ### Message Types
 
-**Requests (44):**
-`GET_ALL_TABS`, `CLOSE_TABS`, `PIN_TAB`, `SET_USER_FLAG`, `CREATE_SNAPSHOT`, `GET_SNAPSHOTS`, `GET_SNAPSHOT`, `DELETE_SNAPSHOT`, `RESTORE_SNAPSHOT`, `GET_SETTINGS`, `SAVE_SETTINGS`, `GET_SERVER_DB_STATUS`, `GET_SERVER_RUNTIME_LOGS`, `SYNC_SERVER_PERSISTENCE`, `CLEAR_SERVER_DB`, `GET_TAB_HISTORY`, `GET_TAB_ANALYSIS_STATUS`, `ANALYZE_TABS`, `STOP_AI_ANALYSIS`, `GET_AI_RESULT`, `EXTRACT_PAGE`, `START_CLEANUP_SESSION`, `APPLY_CLEANUP_ACTION`, `GET_LLM_CALL_LOGS`, `GET_URL_CACHE_LIST`, `DELETE_URL_CACHE`, `GET_ANALYSIS_SESSIONS`, `DELETE_ANALYSIS_SESSION`, `GROUP_TABS_BY_CLUSTER`, `GET_TAB_INSIGHTS`, `GET_HABITS_SCORE`, `TRACK_RECOMMENDATION`, `GET_RECOMMENDATION_STATS`, `GET_ACTIVITY_HEATMAP`, `GET_PERSISTENT_CLUSTERS`, `MERGE_AI_CLUSTERS`, `RENAME_CLUSTER`, `DELETE_CLUSTER`, `FOCUS_ON_CLUSTER`, `EXIT_FOCUS_MODE`, `GET_CLUSTER_TAB_MATCHES`, `OPEN_URL`, `FOCUS_TAB`, `CHAT_SEARCH`
+**Requests (45):**
+`GET_ALL_TABS`, `CLOSE_TABS`, `PIN_TAB`, `SET_USER_FLAG`, `CREATE_SNAPSHOT`, `GET_SNAPSHOTS`, `GET_SNAPSHOT`, `DELETE_SNAPSHOT`, `RESTORE_SNAPSHOT`, `GET_SETTINGS`, `SAVE_SETTINGS`, `GET_SERVER_DB_STATUS`, `GET_SERVER_RUNTIME_LOGS`, `SYNC_SERVER_PERSISTENCE`, `CLEAR_SERVER_DB`, `GET_TAB_HISTORY`, `GET_TAB_ANALYSIS_STATUS`, `ANALYZE_TABS`, `STOP_AI_ANALYSIS`, `GET_AI_RESULT`, `EXTRACT_PAGE`, `START_CLEANUP_SESSION`, `APPLY_CLEANUP_ACTION`, `GET_LLM_CALL_LOGS`, `GET_URL_CACHE_LIST`, `DELETE_URL_CACHE`, `GET_ANALYSIS_SESSIONS`, `DELETE_ANALYSIS_SESSION`, `GROUP_TABS_BY_CLUSTER`, `GET_TAB_INSIGHTS`, `GET_HABITS_SCORE`, `TRACK_RECOMMENDATION`, `GET_RECOMMENDATION_STATS`, `GET_ACTIVITY_HEATMAP`, `GET_PERSISTENT_CLUSTERS`, `MERGE_AI_CLUSTERS`, `RENAME_CLUSTER`, `DELETE_CLUSTER`, `FOCUS_ON_CLUSTER`, `EXIT_FOCUS_MODE`, `GET_CLUSTER_TAB_MATCHES`, `OPEN_URL`, `FOCUS_TAB`, `CHAT_SEARCH`, `REFRESH_ANALYTICS`
 
 **Broadcasts (8):**
 `TABS_UPDATED`, `SNAPSHOT_CREATED`, `AI_ANALYSIS_COMPLETE`, `AI_ANALYSIS_ERROR`, `AI_ANALYSIS_CANCELED`, `AI_ANALYSIS_PROGRESS`, `AI_ANALYSIS_PARTIAL`, `HISTORY_UPDATED`
@@ -243,7 +246,7 @@ All communication uses `chrome.runtime.sendMessage` / `chrome.runtime.onMessage`
 
 ## Service Worker Architecture
 
-The service worker (`service-worker.ts`) is a single file containing all Chrome API logic. It is organized into functional sections:
+The service worker remains the runtime entrypoint, but low-risk helper modules now isolate transport, settings persistence, and analysis-state utilities. The entry file still owns listeners, alarms, orchestration, and the message switch.
 
 ### Sections
 1. **In-memory tab cache** — `Map<number, {url, title, domain}>` for `onRemoved` events (tab data unavailable after close)
@@ -259,7 +262,7 @@ The service worker (`service-worker.ts`) is a single file containing all Chrome 
 11. **Auto-snapshots** — `setupAutoSnapshot()` manages Chrome Alarm
 12. **Analytics helpers** — habits score, recommendation tracking, activity heatmap, persistent clusters, focus mode
 13. **Search dialog** — conversational retrieval over SQLite-backed AI results, history, and clusters using the same provider chain as AI analysis
-14. **Message handler** — `handleMessage()` switch on 44 request types
+14. **Message handler** — `handleMessage()` switch on 45 request types
 15. **Tab event listeners** — `onCreated`, `onRemoved`, `onActivated`, `onUpdated`, `onMoved`, `onAttached`, `onDetached`
 16. **Startup** — sets up auto-snapshot alarm + daily history cleanup alarm
 
@@ -686,7 +689,7 @@ FastAPI server wrapping local AI CLIs. Runs on port 8765 (configurable via `PORT
 ### Privacy Notes
 - `<all_urls>` is optional and only used when user explicitly triggers page content extraction
 - No tab data is sent anywhere without user action
-- AI analysis only goes to localhost (local server)
+- The extension only talks to the localhost server; downstream CLI providers may still use cloud-backed inference depending on the configured provider
 - API keys stored in `chrome.storage.local` (not sync)
 - No analytics or telemetry
 
