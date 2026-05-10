@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/eiler2005/ai-tab-optimizer/security/advisories/new
+    about: Please report security issues privately, not as a public issue. See SECURITY.md for the full policy.
+  - name: Question or discussion
+    url: https://github.com/eiler2005/ai-tab-optimizer/discussions
+    about: For open-ended questions, ideas, or design discussions, prefer GitHub Discussions over issues.

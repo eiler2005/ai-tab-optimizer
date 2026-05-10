@@ -1,5 +1,9 @@
 # AI Tab Optimizer — Project Documentation
 
+> **This is the full internal spec — every type, every endpoint, every component.** If you're new here, start with the [README](README.md) for the elevator pitch, then read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architectural tour. Use this file once you need the exhaustive view.
+
+---
+
 ## Product Vision
 
 AI Tab Optimizer is a Chrome Extension that acts as an intelligent browser workspace manager. It helps users with 100+ open tabs regain control of their browser without losing valuable context. The tool combines tab management, AI-driven analysis, and a persistent knowledge base in Obsidian to turn browser chaos into an organized, searchable archive of past work sessions.

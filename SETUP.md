@@ -1,5 +1,23 @@
 # SETUP — AI Tab Optimizer Development Guide
 
+> Looking for the elevator pitch? → [README](README.md). Want to contribute? → [CONTRIBUTING.md](CONTRIBUTING.md). Want the architectural tour? → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Project Structure](#project-structure)
+3. [Initial Setup](#initial-setup)
+4. [Development Build](#development-build)
+5. [Loading the Extension in Chrome](#loading-the-extension-in-chrome)
+6. [Production Build](#production-build)
+7. [AI Server (`agent.py`)](#ai-server-agentpy)
+8. [Automated Tests](#automated-tests)
+9. [Manual testing recipes](#testing-tab-management) — tab management, history, AI, snapshots, Obsidian, content script
+10. [Mandatory Steps Before First Run](#mandatory-steps-before-first-run)
+11. [Common Issues](#common-issues)
+
+---
+
 ## Prerequisites
 
 ### Required Tools
