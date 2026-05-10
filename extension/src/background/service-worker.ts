@@ -56,6 +56,7 @@ import {
   fetchServerJson as fetchServerJsonInternal,
   readServerError,
 } from './transport';
+import { closeChromeTabs } from './tab-actions';
 import { v4 as uuid } from 'uuid';
 
 // ─── In-memory tab info cache (for onRemoved, since tab data is gone after removal) ─
@@ -1949,7 +1950,16 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
     }
 
     case 'CLOSE_TABS': {
-      await Promise.all(msg.tabIds.map((id) => chrome.tabs.remove(id).catch(() => {})));
+      const result = await closeChromeTabs(msg.tabIds, (tabId) => chrome.tabs.remove(tabId));
+      if (result.failedTabIds.length > 0) {
+        console.warn('Failed to close some tabs', result);
+      }
+      if (result.closedTabIds.length === 0) {
+        return {
+          success: false,
+          error: result.errors[0] ?? 'Failed to close the requested tab(s).',
+        };
+      }
       return { success: true };
     }
 
@@ -2276,7 +2286,13 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
 
     case 'APPLY_CLEANUP_ACTION': {
       if (msg.action === 'close') {
-        await chrome.tabs.remove(msg.tabId).catch(() => {});
+        const result = await closeChromeTabs([msg.tabId], (tabId) => chrome.tabs.remove(tabId));
+        if (result.closedTabIds.length === 0) {
+          return {
+            success: false,
+            error: result.errors[0] ?? 'Failed to close the requested tab.',
+          };
+        }
       } else if (msg.action === 'group') {
         // Group action handled in side panel via Chrome tab groups API
       }

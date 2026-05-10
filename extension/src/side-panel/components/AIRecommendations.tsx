@@ -19,6 +19,7 @@ import type {
   WindowGroup,
 } from '@shared/types';
 import { exportTopicCluster } from '@shared/utils/obsidian';
+import { getLiveRecommendations, getRecommendationActionCounts } from '../recommendation-state';
 
 const ACTION_COLORS: Record<RecommendedAction, string> = {
   keep: 'bg-green-100 text-green-700',
@@ -472,6 +473,7 @@ function AnalyticsSnapshotCard({
 
 function SuggestedNextSteps({
   aiResult,
+  recommendations,
   statusSummary,
   pendingDomains,
   tabMap,
@@ -479,6 +481,7 @@ function SuggestedNextSteps({
   onStartCleanup,
 }: {
   aiResult: AIAnalysisResult;
+  recommendations: TabRecommendation[];
   statusSummary: TabAnalysisStatusSummary;
   pendingDomains: Array<[string, number]>;
   tabMap: Map<number, TabRecord>;
@@ -487,8 +490,9 @@ function SuggestedNextSteps({
 }) {
   const { t } = useI18n();
   const availableCluster = aiResult.topicClusters.find((cluster) => cluster.tabIds.some((tabId) => tabMap.has(tabId)));
-  const closeCount = aiResult.sessionStats.estimatedClosable;
-  const readLaterCount = aiResult.sessionStats.actionBreakdown?.read_later ?? 0;
+  const liveCounts = getRecommendationActionCounts(recommendations);
+  const closeCount = liveCounts.close ?? 0;
+  const readLaterCount = liveCounts.read_later ?? 0;
 
   const cards: Array<{
     id: string;
@@ -1158,9 +1162,14 @@ export function AIRecommendations() {
 
   const allTabs = windowGroups.flatMap((wg) => wg.tabs);
   const tabMap = new Map(allTabs.map((tab) => [tab.id, tab]));
+  const openTabIds = new Set(allTabs.map((tab) => tab.id));
   const statusByTabId = new Map(aiTabStatuses.map((status) => [status.tabId, status]));
   const statusSummary = aiStatusSummary ?? summarizeStatusesLocally(aiTabStatuses);
   const pendingDomains = getPendingDomainSummary(aiTabStatuses.filter((status) => status.status === 'pending'));
+  const liveRecommendations = aiResult
+    ? getLiveRecommendations(aiResult.tabRecommendations, openTabIds)
+    : [];
+  const liveActionBreakdown = getRecommendationActionCounts(liveRecommendations);
 
   function handleOpenTab(tabId: number, url: string) {
     void openOrFocusTab(tabMap, tabId, url);
@@ -1326,6 +1335,7 @@ export function AIRecommendations() {
 
               <SuggestedNextSteps
                 aiResult={aiResult}
+                recommendations={liveRecommendations}
                 statusSummary={statusSummary}
                 pendingDomains={pendingDomains}
                 tabMap={tabMap}
@@ -1336,10 +1346,10 @@ export function AIRecommendations() {
               <div className="rounded bg-surface-hover px-3 py-2 text-xs text-gray-700">
                 <p className="mb-1 font-medium">{t('ai.summary')}</p>
                 <p>{aiResult.summary}</p>
-                {aiResult.sessionStats.actionBreakdown && (
+                {liveRecommendations.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {(['close', 'archive', 'read_later', 'group', 'keep'] as RecommendedAction[]).map((action) => {
-                      const count = aiResult.sessionStats.actionBreakdown?.[action];
+                      const count = liveActionBreakdown[action];
                       if (!count) return null;
                       return (
                         <span key={action} className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${ACTION_COLORS[action]}`}>
@@ -1364,7 +1374,7 @@ export function AIRecommendations() {
               )}
 
               <RecommendationList
-                recommendations={aiResult.tabRecommendations}
+                recommendations={liveRecommendations}
                 tabMap={tabMap}
                 statusByTabId={statusByTabId}
                 onOpenTab={handleOpenTab}

@@ -38,6 +38,7 @@ import type {
   RefreshAnalyticsResponse,
 } from '@shared/types';
 import { runRules } from '@shared/utils/rules';
+import { getLiveRecommendations } from './recommendation-state';
 
 export type View =
   | 'tabs'
@@ -478,7 +479,8 @@ export const useStore = create<AppState>((set, get) => ({
     await sendMessage({ type: 'START_CLEANUP_SESSION' });
     const ai = get().aiResult;
     if (!ai) return;
-    const recs = ai.tabRecommendations.filter((r) => r.action !== 'keep');
+    const openTabIds = new Set(get().windowGroups.flatMap((group) => group.tabs.map((tab) => tab.id)));
+    const recs = getLiveRecommendations(ai.tabRecommendations, openTabIds).filter((r) => r.action !== 'keep');
     set({
       cleanupStep: 0,
       cleanupActions: new Map(),
@@ -494,6 +496,10 @@ export const useStore = create<AppState>((set, get) => ({
       cleanupActions: actions,
       cleanupStep: get().cleanupStep + 1,
     });
+    if (action === 'close') {
+      await get().loadTabs();
+      await get().loadAITabStatuses();
+    }
   },
   skipCleanupStep: () => {
     set({ cleanupStep: get().cleanupStep + 1 });
@@ -715,6 +721,8 @@ export const useStore = create<AppState>((set, get) => ({
     const selected = new Set(get().selectedTabIds);
     for (const id of ids) selected.delete(id);
     set({ selectedTabIds: selected });
+    await get().loadTabs();
+    await get().loadAITabStatuses();
   },
 
   pinTab: async (id, pinned) => {
