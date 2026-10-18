@@ -32,6 +32,11 @@ Library searches open pages, saved pages and notes together. Open one result or 
 its existing tab; a review date prompts inspection and never deletes content.
 Old collections remain compatible and appear as Reference. [Library guide](docs/WORKSPACE.md#library-and-task-collections).
 
+**Compare the library:** review open pages and saved collections together, with source
+labels and available evidence. Choose two URLs for a deeper, bounded comparison of
+accessible article text. Closed/discarded pages are never opened for this check.
+[Evidence and limits](docs/WORKSPACE.md#library-comparison-and-evidence).
+
 **New in 0.3:** [Offline workspace](docs/WORKSPACE.md) — review duplicates, merge windows, save/merge named collections, preserve notes, export/import JSON backups and undo successful tab operations without an AI server.
 
 **Content review:** Cleanup also separates cross-site content overlap from material

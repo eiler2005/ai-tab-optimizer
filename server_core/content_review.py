@@ -11,7 +11,7 @@ class ReviewPage(BaseModel):
     id: int = Field(ge=0)
     url: str = Field(max_length=8192, pattern=r"^https?://")
     title: str = Field(max_length=1000)
-    excerpt: str = Field(default="", max_length=1200)
+    excerpt: str = Field(default="", max_length=8000)
 
 
 class ContentReviewRequest(BaseModel):
@@ -22,6 +22,8 @@ class ContentReviewRequest(BaseModel):
     def distinct_ids(self):
         if len({tab.id for tab in self.tabs}) != len(self.tabs):
             raise ValueError("Tab IDs must be distinct")
+        if sum(len(tab.excerpt) > 1200 for tab in self.tabs) > 2:
+            raise ValueError("Deep review is limited to two pages")
         return self
 
 

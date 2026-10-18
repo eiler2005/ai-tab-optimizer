@@ -23,14 +23,14 @@ export function useReviewController() {
     return () => { disposed = true; clearInterval(timer); };
   }, []);
 
-  async function start(useAi = true) {
+  async function start(useAi = true, overrides: Partial<ContentReviewOptions> = {}) {
     setError(null);
     let readContent = options.readContent;
     if (readContent) {
       readContent = await chrome.permissions.request({ origins: ['http://*/*', 'https://*/*'] });
       setPermissionDenied(!readContent);
     }
-    const next = await workspaceMessage<ContentReviewJob>({ type: 'START_CONTENT_REVIEW', options: { ...options, readContent, useAi } });
+    const next = await workspaceMessage<ContentReviewJob>({ type: 'START_CONTENT_REVIEW', options: { ...options, includeSaved: false, ...overrides, readContent, useAi } });
     setJob(next); return next;
   }
   async function cancel() {

@@ -7,6 +7,8 @@ import { fetchServerJson } from './transport';
 import { closeOperationItems } from './workspace-operations';
 import { browserSessionId, readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-storage';
 import { isStatefulChat } from '@shared/utils/page-safety';
+import { readEvidence, storeEvidence } from './content-evidence';
+import { extractDeepText } from './deep-extraction';
 
 const KEY = 'aitab.content-review.preview';
 const MAX_AI_TABS = 600;
@@ -14,34 +16,59 @@ const MAX_AI_TABS = 600;
 export async function previewContentReview(options: ContentReviewOptions, extract?: (id: number) => Promise<PageExtraction>,
   signal?: AbortSignal, onProgress?: (progress: ReviewProgress) => Promise<void>): Promise<ContentReviewPreview> {
   signal?.throwIfAborted();
+  if (options.deepUrls && (options.deepUrls.length !== 2 || new Set(options.deepUrls).size !== 2)) throw new Error('Choose two distinct page URLs');
   const stored = await chrome.storage.local.get('settings');
   const settings = stored.settings as { protectedDomains?: string[]; localServerUrl?: string } | undefined;
   const domains = (settings?.protectedDomains ?? []).map((domain) => domain.trim().toLowerCase()).filter(Boolean);
   const tabs = (await readBrowserState()).filter((window) => options.windowId === undefined || window.windowId === options.windowId)
-    .flatMap((window) => window.tabs).filter((tab) => /^https?:\/\//i.test(tab.url));
+    .flatMap((window) => window.tabs).filter((tab) => /^https?:\/\//i.test(tab.url) && (!options.deepUrls || options.deepUrls.includes(tab.url)));
   const preview: ContentReviewPreview = { id: crypto.randomUUID(), createdAt: Date.now(), tabs,
     similarGroups: [], outdatedTabs: [], protectedDomains: domains,
     extractedCount: 0, extractionFailed: 0, aiTabCount: 0 };
+  preview.evidence = {};
+  if (options.includeSaved) {
+    preview.savedSources = {};
+    let nextId = Math.max(0, ...tabs.map((tab) => tab.id)) + 1;
+    for (const collection of (await readWorkspace()).collections.filter((entry) => !entry.deletedAt)) {
+      for (const window of collection.windows) for (const item of window.tabs) {
+        if (!/^https?:\/\//i.test(item.url) || (options.deepUrls && !options.deepUrls.includes(item.url))) continue;
+        const id = nextId++;
+        preview.savedSources[id] = { collectionId: collection.id, itemId: item.itemId, revision: collection.revision, collectionName: collection.name };
+        tabs.push({ id, windowId: -1, index: 0, url: item.url, title: item.title, domain: item.domain, active: false, pinned: item.pinned, userFlag: item.userFlag });
+      }
+    }
+  }
   const excerpts: Record<number, string> = {};
+  const cache = await readEvidence();
   // Bound extraction and AI payloads; local title scanning covers all tabs.
   const batch = tabs.filter((tab) => !isStatefulChat(tab.url)).slice(0, MAX_AI_TABS);
+  for (const tab of batch) {
+    const cached = cache[tab.url];
+    if (options.readContent && cached && cached.title === tab.title && Date.now() - cached.capturedAt < 86_400_000) {
+      excerpts[tab.id] = cached.text.slice(0, options.deepUrls ? 8000 : 1200);
+      preview.evidence[tab.id] = { text: excerpts[tab.id], capturedAt: cached.capturedAt, cached: true };
+    }
+  }
   preview.excludedChats = tabs.filter((tab) => isStatefulChat(tab.url)).length;
   await onProgress?.({ phase: options.readContent ? 'extract' : 'compare', processed: 0, total: batch.length });
   if (options.readContent && extract) {
     for (let offset = 0; offset < batch.length; offset += 5) {
       signal?.throwIfAborted();
       await Promise.all(batch.slice(offset, offset + 5).map(async (tab) => {
+      if (preview.savedSources?.[tab.id]) return;
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         const before = await chrome.tabs.get(tab.id);
         if (before.discarded || before.url !== tab.url) throw new Error('Unavailable page');
-        const data = await Promise.race([extract(tab.id), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Extraction timed out')), 3000); })]);
+        const data = await Promise.race([options.deepUrls ? extractDeepText(tab.id).then((excerpt) => ({ excerpt })) : extract(tab.id), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Extraction timed out')), 3000); })]);
         const after = await chrome.tabs.get(tab.id);
         if (after.url !== tab.url || after.incognito) throw new Error('Page changed');
-        const text = `${data.h1 ?? ''}\n${data.metaDescription ?? ''}\n${data.excerpt ?? ''}`.trim().slice(0, 1200);
+        const fields = data as Partial<PageExtraction>;
+        const text = `${fields.h1 ?? ''}\n${fields.metaDescription ?? ''}\n${fields.excerpt ?? ''}`.trim().slice(0, options.deepUrls ? 8000 : 1200);
         if (!text) throw new Error('No accessible excerpt');
         excerpts[tab.id] = text; preview.extractedCount++;
-      } catch { preview.extractionFailed++; }
+        preview.evidence![tab.id] = { text, capturedAt: Date.now(), cached: false };
+      } catch { delete excerpts[tab.id]; delete preview.evidence![tab.id]; preview.extractionFailed++; }
       finally { if (timeout !== undefined) clearTimeout(timeout); }
       }));
       signal?.throwIfAborted();
@@ -49,6 +76,7 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
     }
   }
   signal?.throwIfAborted();
+  await storeEvidence(batch.filter((tab) => !preview.savedSources?.[tab.id]), Object.fromEntries(Object.entries(excerpts).filter(([id]) => !preview.evidence?.[Number(id)]?.cached)), options.deepUrls ? 'deep' : 'excerpt');
   preview.excerptTabIds = Object.keys(excerpts).map(Number);
   await onProgress?.({ phase: 'compare', processed: batch.length, total: batch.length });
   preview.similarGroups = findSimilarContent(tabs, excerpts);
@@ -92,6 +120,7 @@ export async function executeContentReviewClose(previewId: string, decisions: Re
     const preview = stored[KEY] as ContentReviewPreview | undefined;
     if (!preview || preview.id !== previewId || Date.now() - preview.createdAt > 300_000) throw new Error('Preview expired. Scan again.');
     const selected = new Set(decisions.map((decision) => decision.tabId));
+    if (preview.savedSources) throw new Error('Library review is read-only. Save selected live pages through a collection preview.');
     if (!selected.size || selected.size !== decisions.length) throw new Error('Select distinct review candidates');
     const items: OperationItem[] = decisions.map((decision) => {
       const tab = preview.tabs.find((item) => item.id === decision.tabId);

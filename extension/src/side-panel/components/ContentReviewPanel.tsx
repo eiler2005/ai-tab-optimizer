@@ -15,7 +15,7 @@ export function ContentReviewPanel({ mode, busy, run, onResult }: {
 }) {
   const { locale } = useI18n(); const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
   const { job, start } = useWorkspaceReview();
-  const preview = job?.status === 'completed' ? job.preview : undefined;
+  const preview = job?.status === 'completed' && !job.preview?.savedSources ? job.preview : undefined;
   const running = job?.status === 'running';
   const [keepers, setKeepers] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Map<number, number | undefined>>(new Map());

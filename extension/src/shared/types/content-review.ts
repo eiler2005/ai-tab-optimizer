@@ -25,6 +25,8 @@ export interface ContentReviewPreview {
   warning?: string;
   excludedChats?: number;
   excerptTabIds?: number[];
+  savedSources?: Record<number, { collectionId: string; itemId: string; revision: number; collectionName: string }>;
+  evidence?: Record<number, { text: string; capturedAt: number; cached: boolean }>;
 }
 
 export interface ReviewProgress {
@@ -50,6 +52,8 @@ export interface ContentReviewOptions {
   useAi: boolean;
   readContent: boolean;
   focus?: string;
+  includeSaved?: boolean;
+  deepUrls?: string[];
 }
 
 export interface ReviewCloseDecision { tabId: number; keepTabId?: number }

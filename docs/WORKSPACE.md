@@ -17,6 +17,27 @@ Results are paged in batches of 50. Open page validates the saved collection/ite
 again and opens only that item; an existing non-chat exact URL is focused instead.
 Collection metadata is validated and preserved in portable backups.
 
+## Library comparison and evidence
+
+Cleanup → Library → **AI: compare library** includes non-trashed saved pages alongside
+the chosen open-window scope. **Compare locally** needs no server. The same background
+job/progress/cancellation mechanism applies. Live and saved entries have distinct review
+IDs; saved IDs never address browser tabs. Results identify their source collection,
+show overlap/unique-value explanations and expose available text with capture times.
+This review is read-only: saved records are never deleted and its synthetic IDs cannot
+be passed to the content-close operation. Exact live/saved URL matches are visible in
+the library's locations and live-copy counts, independently of semantic matches.
+
+Select two page URLs in the library and choose **Deep review selected pair** for up to
+8,000 characters of accessible main/article text and supplied publication/modification
+dates per live page. It does not fetch closed pages or wake discarded tabs. Standard
+reviews retain their 1,200-character evidence bound; AI still covers at most 600 entries.
+Accessible evidence is cached locally by exact URL/title for up to 24 hours, within a
+900 KB cache budget. Saved pages can use that labelled historical evidence. Live pages
+are re-read when excerpts are enabled; navigation/missing access discards their evidence.
+Disabling excerpts also disables cached text in provider requests. Evidence is derived
+cache data, excluded from portable backups. It is not proof of full-page equivalence.
+
 ## Unified optimization
 
 Cleanup opens on **Optimize**. Click **Optimize tabs — prepare plan** to see a
