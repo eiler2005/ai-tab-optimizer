@@ -63,13 +63,13 @@ export async function executeDuplicateClose(previewId: string, decisions: CloseD
   });
 }
 
-export async function closeOperationItems(workspace: WorkspaceData, operation: TabOperation): Promise<TabOperation> {
+export async function closeOperationItems(workspace: WorkspaceData, operation: TabOperation, allowProtected = false): Promise<TabOperation> {
     for (const item of operation.items) {
       try {
         const tab = await liveRecord(item.tab);
         if (item.keep) await liveRecord(item.keep);
         const protectedReason = tabProtectionReason(tab, await localProtection());
-        if (protectedReason) throw new Error('Protected: ' + protectedReason);
+        if (protectedReason && !allowProtected) throw new Error('Protected: ' + protectedReason);
         item.tab = { ...tab, index: item.tab.index };
       } catch (error) {
         item.state = 'skipped'; item.error = String(error);
@@ -85,6 +85,26 @@ export async function closeOperationItems(workspace: WorkspaceData, operation: T
     operation.status = operation.items.every((item) => item.state === 'done') ? 'completed' : 'partial';
     await saveWorkspace(workspace);
     return operation;
+}
+
+export async function closeRecordedTabs(tabIds: number[], allowProtected = false, expectedUrl?: string) {
+  return withWorkspaceLock(async () => {
+    const ids = [...new Set(tabIds.filter((id) => Number.isInteger(id) && id >= 0))];
+    const tabs = (await readBrowserState()).flatMap((window) => window.tabs);
+    const selected = tabs.filter((tab) => ids.includes(tab.id));
+    if (expectedUrl !== undefined && selected.some((tab) => tab.url !== expectedUrl)) throw new Error('Tab navigated before closing');
+    const missing = ids.filter((id) => !selected.some((tab) => tab.id === id));
+    if (!selected.length) return { closedTabIds: missing, failedTabIds: [], errors: [] };
+    const workspace = await readWorkspace();
+    const operation: TabOperation = { id: crypto.randomUUID(), kind: 'close', createdAt: Date.now(),
+      browserSessionId: await browserSessionId(), status: 'running', items: selected.map((tab) => ({ tab, state: 'pending' })) };
+    workspace.operations.push(operation);
+    await saveWorkspace(workspace);
+    await closeOperationItems(workspace, operation, allowProtected);
+    return { closedTabIds: [...missing, ...operation.items.filter((item) => item.state === 'done').map((item) => item.tab.id)],
+      failedTabIds: operation.items.filter((item) => item.state !== 'done').map((item) => item.tab.id),
+      errors: operation.items.flatMap((item) => item.error ? [`Tab ${item.tab.id}: ${item.error}`] : []) };
+  });
 }
 
 export async function workspaceOverview() {
@@ -160,7 +180,7 @@ export async function undoTabOperation(id: string): Promise<TabOperation> {
               } catch { /* The group may have disappeared with its last tab. */ }
             }
             if (groupId === undefined) {
-              groupId = await chrome.tabs.group({ tabIds: [restored.id] });
+              groupId = await chrome.tabs.group({ tabIds: [restored.id], createProperties: { windowId } });
               await chrome.tabGroups.update(groupId, { title: original.groupName ?? '', color: original.groupColor ?? 'grey', collapsed: original.groupCollapsed ?? false });
             } else await chrome.tabs.group({ tabIds: [restored.id], groupId });
             groups.set(key, groupId);

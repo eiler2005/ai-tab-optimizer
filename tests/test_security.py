@@ -13,6 +13,8 @@ def test_extension_and_native_clients_are_allowed(client):
     assert client.get('/settings', headers={'Origin': 'chrome-extension://' + 'a' * 32}).status_code == 200
     assert not trusted_origin('http://localhost.evil.example')
     assert not trusted_origin('null')
+    assert not trusted_origin('http://[')
+    assert not trusted_origin('http://localhost/extra-path')
 
 
 def test_optional_token(client, monkeypatch):

@@ -3,6 +3,8 @@ node_modules/
 
 # Build output
 extension/dist/
+extension/test-results/
+extension/playwright-report/
 
 # Environment
 .env
@@ -42,6 +44,7 @@ pnpm-debug.log*
 
 # Personal / dev artifacts
 .aitab-migration-backup
+.aitab-legacy-loader.json
 prompt.md
 image.png
 *.code-workspace

@@ -710,8 +710,9 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const data = await sendMessage<GetAllTabsResponse['data']>({ type: 'GET_ALL_TABS' });
 
-      const settingsRes = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
-      const staleDays = settingsRes?.data?.staleDaysThreshold ?? 7;
+      const stored = await chrome.storage.local.get('settings');
+      const localSettings = stored.settings as { staleDaysThreshold?: number } | undefined;
+      const staleDays = localSettings?.staleDaysThreshold ?? 7;
 
       const allTabs = data.windowGroups.flatMap((wg) => wg.tabs);
       const ruleResult = runRules(allTabs, staleDays);
@@ -736,7 +737,9 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   closeTabs: async (ids) => {
-    const result = await sendMessage<{ closedTabIds: number[]; failedTabIds: number[]; errors: string[] }>({ type: 'CLOSE_TABS', tabIds: ids });
+    let result: { closedTabIds: number[]; failedTabIds: number[]; errors: string[] };
+    try { result = await sendMessage({ type: 'CLOSE_TABS', tabIds: ids }); }
+    catch (error) { set({ actionError: String(error) }); return; }
     const selected = new Set(get().selectedTabIds);
     for (const id of result.closedTabIds) selected.delete(id);
     set({ actionError: result.errors.length ? result.errors.join('; ') : null });

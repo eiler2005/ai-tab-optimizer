@@ -1,5 +1,7 @@
 # AITab — Project Documentation
 
+> Current v0.3 workspace: [WORKSPACE.md](docs/WORKSPACE.md), [reliability](docs/RELIABILITY.md), [migration](docs/MIGRATION.md). The new offline workspace complements the original analysis/history architecture below.
+
 > **This is the full internal spec — every type, every endpoint, every component.** If you're new here, start with the [README](README.md) for the elevator pitch, then read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architectural tour. Use this file once you need the exhaustive view.
 
 ---
@@ -155,8 +157,8 @@ The core promise: **you can safely clean up your browser because nothing importa
 ### Extension Infrastructure
 - Side Panel as primary UI (React + Zustand)
 - Popup (minimal — opens side panel + shows tab count)
-- Service worker with message routing (45 request types)
-- 8 broadcast events
+- Service worker with message routing (60 request types)
+- 9 broadcast events
 - 8 views in side panel
 - 13 React components
 - i18n (English / Russian, ~345 keys)
@@ -221,7 +223,7 @@ extension/src/
 
 | Component | Role |
 |---|---|
-| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (45 request types), SQLite-backed Search dialog bridge |
+| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (60 request types), SQLite-backed Search dialog bridge |
 | `side-panel` (React) | Primary UI — 8 views, state management via Zustand, 8 broadcast event types, Tab Insights dashboard, Smart Tab Groups, SQLite-backed Search dialog |
 | `popup` | Lightweight entry point — opens side panel |
 | `page-extractor.ts` | Content script injected on demand — extracts meta description, H1, body text excerpt |
@@ -240,7 +242,7 @@ All communication uses `chrome.runtime.sendMessage` / `chrome.runtime.onMessage`
 
 ### Message Types
 
-**Requests (45):**
+**Requests (60):**
 `GET_ALL_TABS`, `CLOSE_TABS`, `PIN_TAB`, `SET_USER_FLAG`, `CREATE_SNAPSHOT`, `GET_SNAPSHOTS`, `GET_SNAPSHOT`, `DELETE_SNAPSHOT`, `RESTORE_SNAPSHOT`, `GET_SETTINGS`, `SAVE_SETTINGS`, `GET_SERVER_DB_STATUS`, `GET_SERVER_RUNTIME_LOGS`, `SYNC_SERVER_PERSISTENCE`, `CLEAR_SERVER_DB`, `GET_TAB_HISTORY`, `GET_TAB_ANALYSIS_STATUS`, `ANALYZE_TABS`, `STOP_AI_ANALYSIS`, `GET_AI_RESULT`, `EXTRACT_PAGE`, `START_CLEANUP_SESSION`, `APPLY_CLEANUP_ACTION`, `GET_LLM_CALL_LOGS`, `GET_URL_CACHE_LIST`, `DELETE_URL_CACHE`, `GET_ANALYSIS_SESSIONS`, `DELETE_ANALYSIS_SESSION`, `GROUP_TABS_BY_CLUSTER`, `GET_TAB_INSIGHTS`, `GET_HABITS_SCORE`, `TRACK_RECOMMENDATION`, `GET_RECOMMENDATION_STATS`, `GET_ACTIVITY_HEATMAP`, `GET_PERSISTENT_CLUSTERS`, `MERGE_AI_CLUSTERS`, `RENAME_CLUSTER`, `DELETE_CLUSTER`, `FOCUS_ON_CLUSTER`, `EXIT_FOCUS_MODE`, `GET_CLUSTER_TAB_MATCHES`, `OPEN_URL`, `FOCUS_TAB`, `CHAT_SEARCH`, `REFRESH_ANALYTICS`
 
 **Broadcasts (8):**
@@ -266,7 +268,7 @@ The service worker remains the runtime entrypoint, but low-risk helper modules n
 11. **Auto-snapshots** — `setupAutoSnapshot()` manages Chrome Alarm
 12. **Analytics helpers** — habits score, recommendation tracking, activity heatmap, persistent clusters, focus mode
 13. **Search dialog** — conversational retrieval over SQLite-backed AI results, history, and clusters using the same provider chain as AI analysis
-14. **Message handler** — `handleMessage()` switch on 45 request types
+14. **Message handler** — `handleMessage()` switch on 60 request types
 15. **Tab event listeners** — `onCreated`, `onRemoved`, `onActivated`, `onUpdated`, `onMoved`, `onAttached`, `onDetached`
 16. **Startup** — sets up auto-snapshot alarm + daily history cleanup alarm
 
@@ -787,3 +789,7 @@ All exports use YAML frontmatter + Markdown body with Obsidian tags.
 - Cross-device snapshot sync (chrome.storage.sync)
 - Obsidian plugin counterpart (read-only dashboard inside Obsidian)
 - Tab usage heatmap + analytics over time
+
+## Workspace protocol additions
+
+The canonical discriminated union and exhaustive router include workspace overview; duplicate preview/execute; operation Undo; window preview/execute; collection preview/save/open/update/merge; and backup export/preview/import. Previews expire after five minutes and confirmations revalidate current data. No AI result initiates browser mutations.

@@ -441,3 +441,9 @@ The page extractor content script is injected on demand:
 | Content script not injecting | Verify `scripting` in permissions and `<all_urls>` in optional_host_permissions |
 | Storage quota exceeded | Enable `unlimitedStorage` optional permission or reduce max snapshots |
 | Tab history empty | History starts recording from when the extension is loaded. Open/close/switch tabs to populate. |
+
+## Offline workspace and browser tests (v0.3)
+
+Cleanup, window merging, saved collections, JSON migration and Undo run entirely in the extension and work with the Python server stopped. Start the server for AI analysis and existing SQLite-backed history. See [WORKSPACE.md](docs/WORKSPACE.md) for the new flows. Use Node 22+ for the current development/test toolchain. Install the pinned extension dependencies with `pnpm --dir extension install --frozen-lockfile`. For browser checks run `pnpm --dir extension exec playwright install chromium`, build, then `pnpm --dir extension test:e2e`.
+
+The server binds to `127.0.0.1`. To require a token, export `LOCAL_API_KEY` before `pnpm server` and enter the same token in Settings. Optionally export `AITAB_EXTENSION_ORIGINS` to pin allowed extension origins. Environment files are examples; the launcher does not automatically load `.env`. For checkout/data migration see [MIGRATION.md](docs/MIGRATION.md).

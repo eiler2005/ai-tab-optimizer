@@ -13,6 +13,7 @@ import type {
   UserSettings,
 } from '@shared/types';
 import { DEFAULT_SETTINGS } from '@shared/types/messages';
+import { version as appVersion } from '../../../package.json';
 import { useI18n, type Locale } from '@shared/i18n';
 
 export function SettingsView() {
@@ -771,7 +772,7 @@ export function SettingsView() {
       )}
 
       <div className="text-2xs text-gray-300 pt-4">
-        AITab v0.3.0
+        AITab v{appVersion}
       </div>
     </div>
   );

@@ -13,11 +13,11 @@ The project has two execution surfaces — the TypeScript extension and the Pyth
 | **Behavioural** | pytest scenarios | Multi-step flows: provider failover, stop-and-resume, retention sweeps |
 | **Manual** | Documented in [SETUP.md](../SETUP.md) | Side-panel views, Chrome integration, Obsidian export |
 
-We don't have UI component tests yet — the extension's React surface is currently exercised manually. See [Gaps](#known-gaps) below.
+The extension now has real Chromium integration/UI tests in `extension/e2e/` in addition to unit tests with simulated Chrome APIs. Live provider CLIs remain stubbed in automated tests.
 
 ## TypeScript — Vitest
 
-**Where:** [`extension/src/**/__tests__/`](../extension/src) (6 files). Configuration: [`extension/vitest.config.ts`](../extension/vitest.config.ts).
+**Where:** [`extension/src/**/__tests__/`](../extension/src) (15 files). Configuration: [`extension/vitest.config.ts`](../extension/vitest.config.ts).
 
 | File | Covers |
 |---|---|
@@ -28,7 +28,7 @@ We don't have UI component tests yet — the extension's React surface is curren
 | [`extension/src/shared/utils/__tests__/rules.test.ts`](../extension/src/shared/utils/__tests__/rules.test.ts) | Rule engine (exact / near duplicate detection, stale heuristic) |
 | [`extension/src/side-panel/__tests__/recommendation-state.test.ts`](../extension/src/side-panel/__tests__/recommendation-state.test.ts) | Per-tab recommendation state machine |
 
-The Vitest config uses the `node` environment (no DOM) and only collects coverage from `src/shared/utils/**` and `src/background/**` — the layers where pure logic lives. UI components are excluded from coverage by design until we add component tests.
+The Vitest config uses the `node` environment (no DOM) and only collects coverage from `src/shared/utils/**` and `src/background/**` — the layers where pure logic lives. Unit coverage excludes UI components; Playwright separately exercises real extension UI and Chrome APIs.
 
 ### Running Vitest
 
@@ -95,7 +95,7 @@ A few rules-of-thumb the existing suites follow; new tests should match:
 - **Co-locate, don't centralize.** Each TypeScript module's tests live in a sibling `__tests__/` folder, not in a top-level `tests/` directory. This keeps "where do I add a test?" obvious.
 - **One concern per file.** `transport.test.ts` doesn't reach into `analysis-helpers.ts`, even though they're in the same folder.
 - **Stub at the boundary.** Python integration tests stub the CLI subprocess but exercise the full HTTP→SQLite path. TypeScript tests stub `fetch` and Chrome APIs but exercise real logic.
-- **Real database, isolated per test.** pytest creates a tmp SQLite file per test (see `conftest.py`). We don't mock SQLite — that would defeat the point of integration tests.
+- **Real database, isolated per test.** pytest creates an in-memory SQLite database per test (see `conftest.py`). We don't mock SQLite — that would defeat the point of integration tests.
 - **No flakiness budget.** A flaky test gets fixed or removed the same day. There is no "skip on CI" annotation in the suite.
 
 ## What good test coverage looks like (for new contributions)
@@ -115,8 +115,8 @@ These are tracked in [`docs/IMPROVEMENTS.md`](IMPROVEMENTS.md) and consciously d
 
 | Gap | Impact |
 |---|---|
-| No React component tests | Side-panel UI regressions are caught manually only |
-| No service-worker ↔ server end-to-end test | The Vitest layer stubs `fetch`; the pytest layer stubs the CLI; nothing tests the full path with both real |
+| No isolated React component suite | Core workspace UI is covered through real Chromium E2E |
+| No real-provider AI end-to-end test | Browser workspace tests run offline; Python tests stub provider CLIs |
 | No coverage threshold | We collect coverage but don't fail builds below a percentage |
 | No fuzz tests for the rule engine | URL normalization is the trickiest pure code in the repo and would benefit from property-based tests |
 
@@ -127,3 +127,7 @@ If you fix any of these, please update this section in the same PR.
 - [`docs/testing/TEST_PLAN.md`](testing/TEST_PLAN.md) — current test plan, scenarios, exit criteria.
 - [`docs/testing/TEST_REPORT.md`](testing/TEST_REPORT.md) — the most recent test run summary (Python integration: 23/23 passing at the time of writing).
 - [`SETUP.md`](../SETUP.md) — manual smoke-test scripts for each side-panel view.
+
+## Chromium extension E2E
+
+From `extension/`, run `pnpm exec playwright install chromium`, `pnpm build`, then `pnpm test:e2e`. Tests launch a separate temporary persistent Chromium profile, load the built MV3 extension and use real tab/window/group/storage APIs. User browser profiles and real AI accounts are not used. Fixtures serve isolated `.test` pages and configure the AI server to an unusable port. Tests cover worker stop/restart, duplicate close/Undo, intact group moves, recreated source windows, notes, JSON downloads/imports, multi-window collection restore, idempotent reopening, and English/Russian narrow layouts. CI installs Chromium and OS dependencies and uploads traces/screenshots on failure.

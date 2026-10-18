@@ -47,7 +47,7 @@ import { readBrowserState } from './browser-state';
 import { executeWindowMerge, previewWindowMerge } from './window-operations';
 import { executeCollectionMerge, openCollection, previewCollection, previewCollectionMerge, saveCollection, updateCollection } from './collections';
 import { executeBackupImport, exportWorkspaceBackup, previewBackupImport } from './workspace-backup';
-import { executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
+import { closeRecordedTabs, executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -62,7 +62,6 @@ import {
   fetchServerJson as fetchServerJsonInternal,
   readServerError,
 } from './transport';
-import { closeChromeTabs } from './tab-actions';
 import { v4 as uuid } from 'uuid';
 
 // ─── In-memory tab info cache (for onRemoved, since tab data is gone after removal) ─
@@ -429,11 +428,11 @@ async function getClusterTabMatches(clusterId: number): Promise<{ matchedTabIds:
   const cluster = clusters.find((c) => c.id === clusterId);
   if (!cluster) return { matchedTabIds: [], clusterName: '' };
 
-  const clusterUrlSet = new Set(cluster.tabUrls.map((u) => u.toLowerCase()));
+  const clusterUrlSet = new Set(cluster.tabUrls);
   const { windowGroups } = await getAllTabs();
   const allTabs = windowGroups.flatMap((wg) => wg.tabs);
   const matchedTabIds = allTabs
-    .filter((tab) => clusterUrlSet.has(tab.url.toLowerCase()))
+    .filter((tab) => clusterUrlSet.has(tab.url))
     .map((tab) => tab.id);
 
   return { matchedTabIds, clusterName: cluster.name };
@@ -488,7 +487,11 @@ async function exitFocusMode(): Promise<void> {
 
 async function groupTabsByCluster(tabIds: number[], name: string, color?: string): Promise<void> {
   if (tabIds.length === 0) return;
-  const groupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
+  const selected = new Set(tabIds);
+  const windows = await readBrowserState();
+  const found = windows.flatMap((window) => window.tabs).filter((tab) => selected.has(tab.id));
+  if (found.length !== selected.size) throw new Error('Some tabs are no longer open');
+  if (found.some((tab) => tab.pinned)) throw new Error('Unpin selected tabs before grouping them');
   const updateProps: chrome.tabGroups.UpdateProperties = { title: name };
   if (color) {
     const validColors = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'] as const;
@@ -497,7 +500,15 @@ async function groupTabsByCluster(tabIds: number[], name: string, color?: string
       updateProps.color = color as TabGroupColor;
     }
   }
-  await chrome.tabGroups.update(groupId, updateProps);
+  for (const window of windows) {
+    const ids = window.tabs.filter((tab) => selected.has(tab.id)).map((tab) => tab.id);
+    if (!ids.length) continue;
+    const existing = window.tabs.find((tab) => tab.groupId !== undefined && tab.groupName === name)?.groupId;
+    const groupId = existing === undefined
+      ? await chrome.tabs.group({ tabIds: ids as [number, ...number[]], createProperties: { windowId: window.windowId } })
+      : await chrome.tabs.group({ tabIds: ids as [number, ...number[]], groupId: existing });
+    await chrome.tabGroups.update(groupId, updateProps);
+  }
 }
 
 async function getTabInsights(): Promise<TabInsights> {
@@ -1969,7 +1980,8 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
     }
 
     case 'CLOSE_TABS': {
-      const result = await closeChromeTabs(msg.tabIds, (tabId) => chrome.tabs.remove(tabId));
+      const result = await closeRecordedTabs(msg.tabIds, true);
+      broadcast({ type: 'TAB_OPERATION_COMPLETE', ...result });
       if (result.failedTabIds.length > 0) {
         console.warn('Failed to close some tabs', result);
       }
@@ -2309,7 +2321,7 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
         return { success: false, error: `Tab is protected: ${protectedReason}` };
       }
       if (msg.action === 'close') {
-        const result = await closeChromeTabs([msg.tabId], (tabId) => chrome.tabs.remove(tabId));
+        const result = await closeRecordedTabs([msg.tabId], false, msg.expectedUrl);
         if (result.closedTabIds.length === 0) {
           return {
             success: false,
@@ -2330,8 +2342,10 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       return { success: true };
     }
 
-    default:
-      return { success: false, error: 'Unknown message type' };
+    default: {
+      const unhandled: never = msg;
+      return { success: false, error: 'Unknown message type: ' + String(unhandled) };
+    }
   }
 }
 

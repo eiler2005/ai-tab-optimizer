@@ -21,7 +21,7 @@ flowchart LR
     COX["Codex CLI"]
   end
 
-  SP <--> |chrome.runtime<br/>45 message types| SW
+  SP <--> |chrome.runtime<br/>60 message types| SW
   SW <--> |http :8765| SRV
   SW -.-> |chrome.scripting<br/>injects on demand| CS
   SRV <--> DB
@@ -39,7 +39,7 @@ The dashed arrow is the only cloud-bound path, and only when the user has explic
 | Component | Path | Responsibility |
 |---|---|---|
 | Side Panel | [`extension/src/side-panel/`](../extension/src/side-panel) | All UI: 8 views, Zustand store, broadcast event handlers |
-| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (45 request types), AI server proxy |
+| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (60 request types), AI server proxy |
 | Transport | [`extension/src/background/transport.ts`](../extension/src/background/transport.ts) | HTTP layer with timeouts, multi-candidate URL fallback, abort handling |
 | Persistence | [`extension/src/background/persistence.ts`](../extension/src/background/persistence.ts) | `chrome.storage.local` wrappers |
 | Analysis helpers | [`extension/src/background/analysis-helpers.ts`](../extension/src/background/analysis-helpers.ts) | Tab fingerprinting, status computation |
@@ -51,7 +51,7 @@ The dashed arrow is the only cloud-bound path, and only when the user has explic
 
 ## Type-driven message protocol
 
-Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (45 request types, 8 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
+Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (60 request types, 9 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
 
 ```ts
 // Sketch — see the actual file for the full union.
@@ -225,3 +225,7 @@ A few decisions that came up repeatedly during reviews and are worth stating exp
 - [docs/TESTING.md](TESTING.md) — what's tested, with which tools, and where the gaps are
 - [SECURITY.md](../SECURITY.md) — threat model and disclosure policy
 - [docs/IMPROVEMENTS.md](IMPROVEMENTS.md) — known limitations and proposed work
+
+## Offline workspace boundary (v0.3)
+
+`browser-state.ts` captures normal non-private windows. `workspace-storage.ts` owns the serialized queue and the versioned Chrome local state. `workspace-operations.ts` records closes before effects and reconciles interrupted work; `window-operations.ts` moves live tabs/groups and undoes layout. `collections.ts` stores detached UUID-addressed pages and merges exact URLs while retaining notes. `workspace-backup.ts` validates append-only migration. Session storage holds temporary previews and a browser-session identifier. SQLite remains the authority for analysis/history and existing server snapshots. See [WORKSPACE.md](WORKSPACE.md).

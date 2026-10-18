@@ -37,7 +37,7 @@ jobs:
       - run: cd extension && pnpm build
 
   python-check:
-    name: Python Syntax Check
+    name: Python Tests and Syntax
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,3 +47,24 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m py_compile agent.py
       - run: python -m pytest -q
+
+  browser-tests:
+    name: Chromium Extension E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: extension/pnpm-lock.yaml
+      - run: cd extension && pnpm install --frozen-lockfile
+      - run: cd extension && pnpm exec playwright install --with-deps chromium
+      - run: cd extension && pnpm build && pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: extension-browser-failure
+          path: extension/test-results/
+          retention-days: 7

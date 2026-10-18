@@ -3,7 +3,6 @@
 import hmac
 import os
 import re
-from urllib.parse import urlsplit
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -15,8 +14,7 @@ def trusted_origin(origin: str) -> bool:
         return origin in {value.strip() for value in configured}
     if re.fullmatch(r"chrome-extension://[a-p]{32}", origin):
         return True
-    parsed = urlsplit(origin)
-    return parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"} and not parsed.username
+    return re.fullmatch(r"http://(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?", origin) is not None
 
 
 class LocalApiGuard(BaseHTTPMiddleware):

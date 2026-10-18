@@ -41,7 +41,7 @@ async function restoreGroup(tab: TabRecord, tabId: number, windowId: number, gro
     } catch { /* Original group may have disappeared. */ }
   }
   if (groupId === undefined) {
-    groupId = await chrome.tabs.group({ tabIds: [tabId] });
+    groupId = await chrome.tabs.group({ tabIds: [tabId], createProperties: { windowId } });
     await chrome.tabGroups.update(groupId, { title: tab.groupName ?? '', color: tab.groupColor ?? 'grey', collapsed: tab.groupCollapsed ?? false });
   } else await chrome.tabs.group({ tabIds: [tabId], groupId });
   groups.set(key, groupId);

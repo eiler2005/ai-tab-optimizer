@@ -30,10 +30,18 @@ Import first validates and previews a file; confirmation appends data with new s
 
 Limits: 8 MB input JSON, 200 imported collections, 100 imported operation records, 20,000 saved/history tab entries, 20,000 characters per note. Canonical workspace storage is capped at 7 MB and imported legacy buffers at 2 MB. Previews use session storage, separate from durable workspace data, and expire after five minutes.
 
+## AI assistance
+
+The AI tab reuses the existing analysis workflow on explicit request. It shows topic descriptions and current matching pages, then offers a separate collection preview and save action. Suggestions match exact live URLs and include all current copies. Stale numeric IDs, hallucinated URLs and groups with fewer than two live tabs are ignored. AI prompts JSON-quote page metadata and instruct the provider to treat titles, URLs, group names and excerpts as untrusted data. AI suggestions never initiate closing; duplicate deletion always uses the deterministic review flow.
+
+Manual closes from the regular tab list and guided cleanup also enter the durable operation journal. Explicit manual closing may close a protected tab; automatic cleanup continues to honor protections. AI cleanup checks its original expected URL again before acting. Grouping related pages preserves separate windows by explicitly specifying each group's destination window.
+
 ## History and undo
 
 The history shows each tab's actual outcome. Undo restores only successful closes, preserving original windows when still available, pinning, order and groups. Retrying a completed Undo creates no additional tabs. The most recent 50 finished operations are retained; interrupted operations are kept separately. Workspace data is limited to 7 MB to leave room for other extension storage. Storage failure before an action prevents that action.
 
 A browser-session identifier in `chrome.storage.session` distinguishes worker restarts from a full browser restart. On recovery the extension reconciles unfinished actions without repeating side effects. Results that cannot be safely inferred are marked `uncertain` for manual review. Browser API calls and storage writes cannot be one atomic transaction, so an interrupted restore can require manual inspection. URLs/layout can be recovered; arbitrary unsaved page state cannot.
+
+Obsidian exports use a fresh UUID suffix for each version, avoiding collisions across multiple side-panel contexts.
 
 Private/incognito windows are excluded from workspace capture. Existing snapshot, history and Obsidian stores remain compatible. Workspace data has one authority in Chrome local storage; the Python database continues to serve analysis/history and existing snapshots.

@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- AI-assisted topic collections with exact live-URL matching, separate save previews and prompt-data isolation.
+- Real Chromium extension E2E tests covering native groups, worker restart, Undo, collection restore, backups and English/Russian UI.
 - Saved collections with save-before-close, notes, exact-URL merge previews, source preservation, missing-tab restore and reversible trash.
 - Validated versioned JSON backup/import, append-only migration and credential exclusion.
 - Window merge previews with per-tab/window selection, intact group moves, pinned-tab preservation and live-tab Undo.

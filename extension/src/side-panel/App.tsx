@@ -92,6 +92,8 @@ export function App() {
       } else if (message.type === 'HISTORY_UPDATED') {
         window.clearTimeout(historyUpdateTimer);
         historyUpdateTimer = window.setTimeout(() => void useStore.getState().loadHistory(), 200);
+      } else if (message.type === 'TAB_OPERATION_COMPLETE' && Array.isArray(message.errors) && message.errors.length) {
+        useStore.getState().setActionError(message.errors.join('; '));
       }
     };
     chrome.runtime.onMessage.addListener(listener);

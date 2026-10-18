@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { previewDuplicates, executeDuplicateClose, undoTabOperation, workspaceOverview } from '../workspace-operations';
+import { closeRecordedTabs, previewDuplicates, executeDuplicateClose, undoTabOperation, workspaceOverview } from '../workspace-operations';
 import { WORKSPACE_KEY } from '../workspace-storage';
 import { mockBrowser } from './mock-browser';
 import { makeTab } from '../../shared/utils/__tests__/fixtures';
@@ -9,6 +9,22 @@ afterEach(() => vi.unstubAllGlobals());
 const records = () => [1, 2, 3].map((id) => makeTab({ id, url: 'https://same.test/', windowId: 1 }));
 
 describe('offline duplicate operations', () => {
+  it('journals an explicit manual close while keeping automatic protection intact', async () => {
+    const browser = mockBrowser(records());
+    browser.tabs.get(2)!.pinned = true;
+    expect((await closeRecordedTabs([2], false)).failedTabIds).toEqual([2]);
+    expect((await closeRecordedTabs([2], true)).closedTabIds).toEqual([2]);
+    const workspace = await workspaceOverview();
+    await undoTabOperation(workspace.operations[workspace.operations.length - 1].id);
+    expect([...browser.tabs.values()].some((tab) => tab.pinned && tab.url === 'https://same.test/')).toBe(true);
+  });
+  it('refuses a stale AI cleanup URL and preserves tabs on journal failure', async () => {
+    const browser = mockBrowser(records());
+    await expect(closeRecordedTabs([2], false, 'https://old.test/')).rejects.toThrow('navigated');
+    browser.api.storage.local.set.mockRejectedValueOnce(new Error('Storage failure'));
+    await expect(closeRecordedTabs([2], true)).rejects.toThrow('Storage');
+    expect(browser.api.tabs.remove).not.toHaveBeenCalled();
+  });
   it('persists a journal before closing and makes retries idempotent', async () => {
     const browser = mockBrowser(records());
     const remove = browser.api.tabs.remove.getMockImplementation()!;

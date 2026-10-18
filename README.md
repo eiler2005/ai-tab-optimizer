@@ -67,7 +67,7 @@ flowchart LR
   CCC["Claude Code CLI"]
   COX["Codex CLI<br/>(fallback)"]
 
-  SP <--> |45 typed messages<br/>+ 8 broadcasts| SW
+  SP <--> |60 typed messages<br/>+ 9 broadcasts| SW
   SW <--> |loopback :8765| Srv
   Srv <--> DB
   Srv --> |subprocess| CCC
@@ -76,7 +76,7 @@ flowchart LR
 
 Three patterns worth flagging up front, each documented in detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
 
-- **Type-driven message protocol** — every message between the panel and the service worker is a member of a single discriminated union (45 request types, 8 broadcast events). Adding one without handling it doesn't compile.
+- **Type-driven message protocol** — every message between the panel and the service worker is a member of a single discriminated union (60 request types, 9 broadcast events). Adding one without handling it doesn't compile.
 - **Stop-and-resume long runs** — the `analysis_runs` table stores per-tab statuses, pending tabs, partial results, and accumulated metadata. A 1,200-tab analysis can be stopped, the extension can reload, and the user can resume from the same fingerprint.
 - **Per-batch provider failover** — Claude Code → Codex CLI → heuristic, decided per batch by a small policy module ([`server_core/provider_policy.py`](server_core/provider_policy.py)). A transient rate limit on one batch doesn't kill the run.
 
@@ -84,7 +84,7 @@ Three patterns worth flagging up front, each documented in detail in [`docs/ARCH
 
 | Layer | Choice | Why |
 |---|---|---|
-| Extension UI | React 19 + Zustand + Tailwind | Side panel needs ~10 views with shared state; Zustand keeps the store under 800 lines |
+| Extension UI | React 19 + Zustand + Tailwind | Side panel needs ~10 views with shared state; Zustand coordinates shared typed state |
 | Extension build | Vite (4 entry points) + TypeScript `strict` | Fast HMR, tiny bundles, zero `any` in source |
 | Background | MV3 service worker, modular | Split into `transport.ts`, `persistence.ts`, `analysis-helpers.ts`, `tab-actions.ts` |
 | Server | FastAPI + uvicorn + aiosqlite | HTTP boundary, async I/O, easy to extend with new endpoints |
@@ -92,7 +92,7 @@ Three patterns worth flagging up front, each documented in detail in [`docs/ARCH
 | AI providers | Claude Code CLI (primary), Codex CLI (fallback), heuristic | No API keys in code — the CLIs own their auth |
 | Tests | Vitest (TS) + pytest (Python) | Co-located unit tests, integration tests with real SQLite + stubbed subprocess |
 | Hooks | Husky pre-commit | TS typecheck on staged files + secret scan |
-| CI | GitHub Actions | Typecheck, build, Vitest, pytest, Python `py_compile` |
+| CI | GitHub Actions | Typecheck, build, Vitest, pytest, Chromium E2E, Python `py_compile` |
 
 See [Reliability and migration contract](docs/RELIABILITY.md) for exact URL matching, partial failures, snapshot restore, server authentication and data compatibility.
 
@@ -124,7 +124,11 @@ aitab/
 │   │   │   ├── transport.ts           #   HTTP layer with timeout + fallback
 │   │   │   ├── persistence.ts         #   chrome.storage.local helpers
 │   │   │   ├── analysis-helpers.ts    #   tab fingerprinting, status math
-│   │   │   └── tab-actions.ts         #   typed Chrome tab API wrappers
+│   │   │   ├── tab-actions.ts         #   typed Chrome tab API wrappers
+│   │   │   ├── workspace-operations.ts #   durable close journal and recovery
+│   │   │   ├── window-operations.ts    #   live window/group moves and Undo
+│   │   │   ├── collections.ts          #   saved sets, notes and merge previews
+│   │   │   └── workspace-backup.ts     #   validated portable JSON backups
 │   │   ├── side-panel/                # React app: 8 views, Zustand store, components
 │   │   ├── popup/                     # Minimal popup that opens the side panel
 │   │   ├── content/page-extractor.ts  # On-demand meta/H1/excerpt extractor
@@ -164,7 +168,7 @@ aitab/
 | v0.1 | ✅ Shipped | Tab list, rule-based analysis, manual snapshots, Obsidian export |
 | v0.2 | ✅ Shipped | AI analysis with batching, tab history, topic clusters, cleanup session, auto-snapshots |
 | v0.2.1 | ✅ Shipped | Analytics, focus mode, resumable analysis, per-tab status, chat search |
-| **v0.3** | Planned | Provider health UI, snapshot comparison, additional CLI adapters, expanded test coverage |
+| **v0.3** | Current source | Offline duplicate review, window merging, collections, JSON migration, durable Undo and browser tests |
 | v1.0 | Planned | Onboarding, keyboard shortcuts, Chrome Web Store release |
 | v2.0 | Planned | Cross-device sync, Obsidian plugin, broader local-model support |
 

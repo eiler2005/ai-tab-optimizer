@@ -10,11 +10,29 @@ import {
 describe('background transport helpers', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('normalizes the server URL and preserves a trailing slash', () => {
     expect(normalizeServerUrl('http://localhost:8765').toString()).toBe('http://localhost:8765/');
     expect(normalizeServerUrl('http://localhost:8765/api').toString()).toBe('http://localhost:8765/api/');
+  });
+
+  it.each(['https://remote.example/', 'http://user:password@localhost:8765/', 'httpfake://localhost/'])('rejects unsafe server URL %s', (url) => {
+    expect(() => normalizeServerUrl(url)).toThrow('Invalid AI server URL');
+  });
+
+  it('rejects endpoints that escape the configured origin', () => {
+    expect(() => buildServerEndpointCandidates('http://localhost:8765', 'https://remote.example/')).toThrow('loopback origin');
+  });
+
+  it('adds the local token without replacing request headers', async () => {
+    vi.stubGlobal('chrome', { storage: { local: { get: async () => ({ localServerToken: 'test-local-token' }) } } });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}'));
+    await fetchLocalServer('http://localhost:8765', '/settings', { headers: { 'X-Test': 'kept' } });
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(headers.get('X-API-Key')).toBe('test-local-token');
+    expect(headers.get('X-Test')).toBe('kept');
   });
 
   it('builds localhost fallback candidates', () => {

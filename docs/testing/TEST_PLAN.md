@@ -62,9 +62,9 @@ Each test function gets a fresh in-memory SQLite database via the `client` fixtu
 | U07 | `normalizeUrl` | Removes `gclid` tracking param |
 | U08 | `normalizeUrl` | Strips tracking params and keeps non-tracking params |
 | U09 | `normalizeUrl` | Sorts remaining query params alphabetically |
-| U10 | `normalizeUrl` | Removes trailing slash from non-root pathname |
+| U10 | `normalizeUrl` | Preserves trailing slash from non-root pathname |
 | U11 | `normalizeUrl` | Preserves root trailing slash |
-| U12 | `normalizeUrl` | Strips hash fragment |
+| U12 | `normalizeUrl` | Preserves hash fragment |
 | U13 | `normalizeUrl` | Returns original string for invalid URL |
 | U14 | `normalizeUrl` | Returns empty string unchanged |
 | U15 | `normalizeUrl` | Two URLs with different tracking params are equal after normalizing |
@@ -89,8 +89,8 @@ Each test function gets a fresh in-memory SQLite database via the `client` fixtu
 | R02 | Single tab | No flags set on a single, unique tab |
 | R03 | Exact duplicates | Second tab is marked as exact duplicate of first |
 | R04 | Exact duplicates (×3) | All subsequent tabs marked; count = 2 |
-| R05 | Tracking param duplicates | URLs differing only in UTM params treated as duplicates |
-| R06 | Hash duplicates | URLs differing only in hash treated as duplicates |
+| R05 | Tracking param duplicates | UTM variants appear as review candidates, not exact duplicates |
+| R06 | Hash duplicates | URLs differing in hash routes remain distinct |
 | R07 | Different domains | Tabs on different domains not marked as duplicates |
 | R08 | Near duplicates | Tabs on same domain with 5/6 path segments matching are near-duplicates |
 | R09 | Near-dup: different domains | Tabs on different domains not near-duplicates |
@@ -176,3 +176,7 @@ pytest tests/ --tb=short          # compact tracebacks
 | Chrome Extension UI | No headless Chrome driver set up | Load unpacked → manual walkthrough per SETUP.md |
 | Obsidian export | Requires File System Access API | Manual test per SETUP.md §Testing Obsidian Integration |
 | Auto-snapshot alarm | Chrome Alarms API, needs browser | Manual test per SETUP.md §Testing Snapshots |
+
+## Offline workspace acceptance (2026-10-18)
+
+Automated coverage includes journal-before-effect, stale URL/survivor/protection checks, quota errors, partial outcomes, idempotent confirmations, interrupted workers, browser-session ID isolation, live moves and Undo, saved notes/source retention, schema-validated imports and credential exclusion. Real Chromium tests additionally cover native group placement and restored window boundaries. See [TEST_REPORT.md](TEST_REPORT.md) for the current result.

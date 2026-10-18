@@ -295,6 +295,7 @@ export interface RefreshAnalyticsResponse {
 // --- Events (Service Worker → Side Panel, broadcast) ---
 
 export type BroadcastEvent =
+  | { type: 'TAB_OPERATION_COMPLETE'; closedTabIds: number[]; failedTabIds: number[]; errors: string[] }
   | { type: 'TABS_UPDATED' }
   | { type: 'SNAPSHOT_CREATED'; snapshot: SnapshotRecord }
   | { type: 'AI_ANALYSIS_COMPLETE'; result: AIAnalysisResult; metadata?: AIAnalysisMetadata; fromCache?: boolean; tabStatuses?: TabAnalysisStatus[]; statusSummary?: TabAnalysisStatusSummary }

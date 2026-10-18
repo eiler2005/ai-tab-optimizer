@@ -56,7 +56,7 @@ export async function restoreWindows(windows: WindowSnapshot[], skipExisting = t
     }
     for (const { info, ids } of groups.values()) {
       try {
-        const groupId = await chrome.tabs.group({ tabIds: ids as [number, ...number[]] });
+        const groupId = await chrome.tabs.group({ tabIds: ids as [number, ...number[]], createProperties: { windowId } });
         await chrome.tabGroups.update(groupId, { title: info.groupName ?? '',
           color: info.groupColor ?? 'grey', collapsed: info.groupCollapsed ?? false });
       } catch (error) { result.errors.push(String(error)); }

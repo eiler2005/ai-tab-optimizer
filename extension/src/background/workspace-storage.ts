@@ -22,8 +22,9 @@ export async function readWorkspace(): Promise<WorkspaceData> {
 
 export async function saveWorkspace(data: WorkspaceData, extra: Record<string, unknown> = {}): Promise<void> {
   const active = data.operations.filter((operation) => ['running', 'interrupted', 'undoing'].includes(operation.status));
-  const recent = data.operations.filter((operation) => !active.includes(operation)).slice(-50);
-  data.operations = [...active, ...recent].sort((a, b) => a.createdAt - b.createdAt);
+  const recent = data.operations.filter((operation) => !active.includes(operation)).sort((a, b) => a.createdAt - b.createdAt).slice(-50);
+  const retained = new Set([...active, ...recent].map((operation) => operation.id));
+  data.operations = data.operations.filter((operation) => retained.has(operation.id)).sort((a, b) => a.createdAt - b.createdAt);
   if (new TextEncoder().encode(JSON.stringify(data)).length > 7_000_000) {
     throw new Error('Workspace is too large. Export and remove old collections before continuing.');
   }

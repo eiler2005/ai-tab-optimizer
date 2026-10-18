@@ -12,8 +12,10 @@ export function normalizeServerUrl(serverUrl: string): URL {
 
   try {
     const url = new URL(trimmed);
-    if (!url.protocol.startsWith('http')) {
-      throw new Error('AI server URL must use http or https.');
+    if (!['http:', 'https:'].includes(url.protocol)
+      || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+      || url.username || url.password) {
+      throw new Error('AI server URL must use a loopback HTTP(S) address without embedded credentials.');
     }
     if (!url.pathname.endsWith('/')) {
       url.pathname = `${url.pathname}/`;
@@ -27,6 +29,7 @@ export function normalizeServerUrl(serverUrl: string): URL {
 export function buildServerEndpointCandidates(serverUrl: string, endpoint: string): string[] {
   const base = normalizeServerUrl(serverUrl);
   const target = new URL(endpoint, base);
+  if (target.origin !== base.origin) throw new Error('Server endpoint must stay on the configured loopback origin');
   const hosts = [base.hostname];
 
   if (base.hostname === 'localhost') {
@@ -60,7 +63,7 @@ export async function fetchLocalServer(
 
   for (const candidate of candidates) {
     try {
-      return await fetch(candidate, init);
+      return await fetch(candidate, { ...init, signal: init.signal ?? AbortSignal.timeout(10_000) });
     } catch (error) {
       if (isAbortError(error)) {
         throw error;

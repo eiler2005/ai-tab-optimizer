@@ -37,7 +37,7 @@ export function WindowMergePanel({ busy, run, onResult }: Props) {
               const checked = event.target.checked;
               setSelected((previous) => { const next = new Set(previous); for (const tab of window.tabs) { if (checked) next.add(tab.id); else next.delete(tab.id); } return next; }); setPreview(null);
             }} />
-          {tr('Из окна', 'From window')} {window.windowId} · {window.tabs.length}
+          {tr('Из окна', 'From window')} {windows.findIndex((item) => item.windowId === window.windowId) + 1} · {window.tabs.length}
         </summary>
         <div className="mt-2 space-y-1">{window.tabs.map((tab) => <label key={tab.id} className="flex gap-2 items-start">
           <input type="checkbox" disabled={busy} checked={selected.has(tab.id)} onChange={(event) => {
@@ -50,7 +50,7 @@ export function WindowMergePanel({ busy, run, onResult }: Props) {
         setPreview(await workspaceMessage<WindowMergePreview>({ type: 'PREVIEW_WINDOW_MERGE', targetWindowId: targetId!, tabIds: [...selected] }));
       })} className="px-3 py-2 bg-gray-100 rounded text-xs disabled:opacity-50">{tr('Просмотреть перенос', 'Preview move')} ({selected.size})</button>
       {preview && <div className="border border-blue-200 rounded p-2 space-y-2 text-xs">
-        <p>{tr('Будет перенесено вкладок', 'Tabs to move')}: {preview.tabs.length} → {tr('окно', 'window')} {preview.targetWindowId}.</p>
+        <p>{tr('Будет перенесено вкладок', 'Tabs to move')}: {preview.tabs.length} → {tr('окно', 'window')} {windows.findIndex((window) => window.windowId === preview.targetWindowId) + 1}.</p>
         <ul className="max-h-36 overflow-y-auto text-[10px] space-y-1">{preview.tabs.map((tab) => <li className="break-all" key={tab.id}>{tab.pinned ? '📌 ' : ''}{tab.groupName ? `[${tab.groupName}] ` : ''}{tab.url}</li>)}</ul>
         <button disabled={busy} onClick={() => void run(async () => {
           onResult(await workspaceMessage<TabOperation>({ type: 'EXECUTE_WINDOW_MERGE', previewId: preview.id }));

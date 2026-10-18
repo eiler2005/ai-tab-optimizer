@@ -61,11 +61,13 @@ export function mockBrowser(records: TabRecord[]) {
       update: vi.fn(async (id: number, properties: { pinned?: boolean; active?: boolean }) => {
         const tab = getTab(id); Object.assign(tab, properties); return { ...tab };
       }),
-      group: vi.fn(async (properties: { tabIds: number[]; groupId?: number }) => {
+      group: vi.fn(async (properties: { tabIds: number[]; groupId?: number; createProperties?: { windowId?: number } }) => {
         const id = properties.groupId ?? ++nextId;
         const first = getTab(properties.tabIds[0]);
-        if (!groups.has(id)) groups.set(id, { id, windowId: first.windowId, title: '', color: 'grey', collapsed: false });
-        for (const tabId of properties.tabIds) getTab(tabId).groupId = id;
+        const destination = groups.get(id)?.windowId ?? properties.createProperties?.windowId ?? [...windows.values()].find((window) => window.focused)?.id ?? first.windowId;
+        if (!groups.has(id)) groups.set(id, { id, windowId: destination, title: '', color: 'grey', collapsed: false });
+        for (const tabId of properties.tabIds) { const tab = getTab(tabId); tab.groupId = id; tab.windowId = destination; }
+        removeEmptyWindowsAndGroups();
         return id;
       }),
     },
