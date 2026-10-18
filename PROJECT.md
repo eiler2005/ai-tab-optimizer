@@ -14,6 +14,13 @@
 > without blocking local actions. Stateful chats and complementary material are
 > retained. Numeric optimization reports survive validated backup/import.
 
+> Task collections and Library now connect live and saved pages, notes and task context.
+> Library comparison uses isolated saved-source IDs, timestamped evidence and explicit
+> two-URL deep review. Remembered user decisions are bound to evidence/focus for 30 days.
+> Topics and clusters can retain a working minimum or save/close the rest with Undo.
+> Exact-host rules and Inbox commands save idempotently. Full local backup bundles
+> combine workspace JSON, consistent SQLite and SHA-256 manifests with optional scheduling.
+
 > **This is the full internal spec — every type, every endpoint, every component.** If you're new here, start with the [README](README.md) for the elevator pitch, then read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architectural tour. Use this file once you need the exhaustive view.
 
 ---
@@ -22,7 +29,7 @@
 
 AITab is a Chrome Extension that acts as an intelligent browser workspace manager. It helps users with 100+ open tabs regain control of their browser without losing valuable context. The tool combines tab management, AI-driven analysis, and a persistent knowledge base in Obsidian to turn browser chaos into an organized, searchable archive of past work sessions.
 
-The core promise: **you can safely clean up your browser because nothing important will be lost.**
+The core promise: **reduce open tabs while preserving access to useful sources and explaining proposed closures.** URL/layout recovery cannot guarantee preservation of unsaved page state or complete content equivalence.
 
 ---
 
@@ -169,10 +176,10 @@ The core promise: **you can safely clean up your browser because nothing importa
 ### Extension Infrastructure
 - Side Panel as primary UI (React + Zustand)
 - Popup (minimal — opens side panel + shows tab count)
-- Service worker with message routing (67 request types)
+- Service worker with message routing (76 request types)
 - 9 broadcast events
-- 8 views in side panel
-- 13 React components
+- 9 views in side panel
+- React view and workspace components
 - i18n (English / Russian, ~345 keys)
 - Manifest V3 compliant
 
@@ -194,7 +201,7 @@ extension/src/
 │   ├── main.tsx               # React app entry
 │   ├── App.tsx                # Root component (view routing, broadcast listener)
 │   ├── store.ts               # Zustand store (9 state slices incl. Search)
-│   └── components/            # 13 React components
+│   └── components/            # React view and workspace components
 │       ├── AIRecommendations.tsx
 │       ├── BulkActions.tsx
 │       ├── ChatSearch.tsx
@@ -235,8 +242,8 @@ extension/src/
 
 | Component | Role |
 |---|---|
-| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (67 request types), SQLite-backed Search dialog bridge |
-| `side-panel` (React) | Primary UI — 8 views, state management via Zustand, 8 broadcast event types, Tab Insights dashboard, Smart Tab Groups, SQLite-backed Search dialog |
+| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (76 request types), SQLite-backed Search dialog bridge |
+| `side-panel` (React) | Primary UI — 9 views, state management via Zustand, 9 broadcast event types, Tab Insights dashboard, Smart Tab Groups, SQLite-backed Search dialog |
 | `popup` | Lightweight entry point — opens side panel |
 | `page-extractor.ts` | Content script injected on demand — extracts meta description, H1, body text excerpt |
 | `agent.py` | FastAPI server — routes AI requests to Claude Code CLI or Codex CLI, persists cache/history/snapshots/settings in SQLite, and powers Search over SQLite memory |
@@ -254,11 +261,11 @@ All communication uses `chrome.runtime.sendMessage` / `chrome.runtime.onMessage`
 
 ### Message Types
 
-**Requests (60):**
+**Requests (76; legacy base list below, additions at end):**
 `GET_ALL_TABS`, `CLOSE_TABS`, `PIN_TAB`, `SET_USER_FLAG`, `CREATE_SNAPSHOT`, `GET_SNAPSHOTS`, `GET_SNAPSHOT`, `DELETE_SNAPSHOT`, `RESTORE_SNAPSHOT`, `GET_SETTINGS`, `SAVE_SETTINGS`, `GET_SERVER_DB_STATUS`, `GET_SERVER_RUNTIME_LOGS`, `SYNC_SERVER_PERSISTENCE`, `CLEAR_SERVER_DB`, `GET_TAB_HISTORY`, `GET_TAB_ANALYSIS_STATUS`, `ANALYZE_TABS`, `STOP_AI_ANALYSIS`, `GET_AI_RESULT`, `EXTRACT_PAGE`, `START_CLEANUP_SESSION`, `APPLY_CLEANUP_ACTION`, `GET_LLM_CALL_LOGS`, `GET_URL_CACHE_LIST`, `DELETE_URL_CACHE`, `GET_ANALYSIS_SESSIONS`, `DELETE_ANALYSIS_SESSION`, `GROUP_TABS_BY_CLUSTER`, `GET_TAB_INSIGHTS`, `GET_HABITS_SCORE`, `TRACK_RECOMMENDATION`, `GET_RECOMMENDATION_STATS`, `GET_ACTIVITY_HEATMAP`, `GET_PERSISTENT_CLUSTERS`, `MERGE_AI_CLUSTERS`, `RENAME_CLUSTER`, `DELETE_CLUSTER`, `FOCUS_ON_CLUSTER`, `EXIT_FOCUS_MODE`, `GET_CLUSTER_TAB_MATCHES`, `OPEN_URL`, `FOCUS_TAB`, `CHAT_SEARCH`, `REFRESH_ANALYTICS`
 
-**Broadcasts (8):**
-`TABS_UPDATED`, `SNAPSHOT_CREATED`, `AI_ANALYSIS_COMPLETE`, `AI_ANALYSIS_ERROR`, `AI_ANALYSIS_CANCELED`, `AI_ANALYSIS_PROGRESS`, `AI_ANALYSIS_PARTIAL`, `HISTORY_UPDATED`
+**Broadcasts (9):**
+`TAB_OPERATION_COMPLETE`, `TABS_UPDATED`, `SNAPSHOT_CREATED`, `AI_ANALYSIS_COMPLETE`, `AI_ANALYSIS_ERROR`, `AI_ANALYSIS_CANCELED`, `AI_ANALYSIS_PROGRESS`, `AI_ANALYSIS_PARTIAL`, `HISTORY_UPDATED`
 
 ---
 
@@ -280,7 +287,7 @@ The service worker remains the runtime entrypoint, but low-risk helper modules n
 11. **Auto-snapshots** — `setupAutoSnapshot()` manages Chrome Alarm
 12. **Analytics helpers** — habits score, recommendation tracking, activity heatmap, persistent clusters, focus mode
 13. **Search dialog** — conversational retrieval over SQLite-backed AI results, history, and clusters using the same provider chain as AI analysis
-14. **Message handler** — `handleMessage()` switch on 67 request types
+14. **Message handler** — `handleMessage()` switch on 76 request types
 15. **Tab event listeners** — `onCreated`, `onRemoved`, `onActivated`, `onUpdated`, `onMoved`, `onAttached`, `onDetached`
 16. **Startup** — sets up auto-snapshot alarm + daily history cleanup alarm
 
@@ -289,7 +296,7 @@ The service worker remains the runtime entrypoint, but low-risk helper modules n
 ## Zustand Store (Side Panel)
 
 ### Views
-`'tabs' | 'snapshots' | 'snapshot-detail' | 'settings' | 'history' | 'ai-recommendations' | 'chat' | 'cleanup-session'`
+`'tabs' | 'snapshots' | 'snapshot-detail' | 'settings' | 'history' | 'ai-recommendations' | 'chat' | 'cleanup-session' | 'workspace'`
 
 ### State Slices
 1. **Navigation** — `currentView`, `setView()`
@@ -694,7 +701,8 @@ FastAPI server wrapping local AI CLIs. Runs on port 8765 (configurable via `PORT
     "alarms",         // scheduled auto-snapshots + history cleanup
     "sessions",       // access recently closed tabs
     "sidePanel",      // use side panel UI
-    "scripting"       // inject content script on demand
+    "scripting",      // inject content script on demand
+    "contextMenus"    // save a page link to Inbox
   ],
   "host_permissions": [
     "http://localhost/*"   // for local AI server communication
@@ -730,7 +738,7 @@ Side Panel
 ```
 
 ### Navigation
-Top bar with 6 nav items: Tabs, History, AI, Search, Snapshots, Settings. Sub-views (`snapshot-detail`, `cleanup-session`) alias back to their parent nav item.
+Top bar with 7 nav items: Cleanup, Tabs, History, AI, Search, Snapshots, Settings. Sub-views (`snapshot-detail`, `cleanup-session`) alias back to their parent nav item.
 
 ### Tab List Item
 Each tab shows:
@@ -806,3 +814,22 @@ All exports use YAML frontmatter + Markdown body with Obsidian tags.
 ## Workspace protocol additions
 
 The canonical discriminated union and exhaustive router include workspace overview; duplicate preview/execute; operation Undo; window preview/execute; collection preview/save/open/update/merge; and backup export/preview/import. Previews expire after five minutes and confirmations revalidate current data. No AI result initiates browser mutations.
+
+Current additions: `OPEN_COLLECTION_ITEM`, `REMEMBER_REVIEW_DECISION`, `COLLAPSE_TOPIC`,
+`SAVE_URL_RULES`, `SAVE_PAGE_TO_COLLECTION`, `GET_FULL_BACKUP_STATUS`, `CONFIGURE_BACKUPS`,
+`CREATE_FULL_BACKUP`, `PREVIEW_FULL_BACKUP_RESTORE`. `SAVE_COLLECTION` accepts optional
+validated task metadata; `UPDATE_COLLECTION` edits it. The complete canonical union is
+[messages.ts](extension/src/shared/types/messages.ts).
+
+Additional server routes: `GET/POST /workspace-backups`, `GET /workspace-backups/{id}`.
+They inherit the loopback origin/token guard. Backup creation accepts a version-1
+workspace envelope and retention 1–30; no client-provided filesystem destination.
+`AITAB_BACKUP_DIR` selects the server-owned root. Restore checks SHA-256 and returns
+the workspace envelope for explicit append-import; it never overwrites the live DB.
+
+Additional local keys: `aitab.workspace.v1` (collections, journal, review decisions and
+URL rules); `aitab.content-evidence` (derived 900 KB cache); `aitab.review-focus`;
+`aitab.backups` (schedule/status); `aitab.automation-error` (last background save error).
+Session keys hold review jobs, previews and the browser-session identifier. Provider
+authentication is external to these stores. See [WORKSPACE.md](docs/WORKSPACE.md) for
+storage limits, stale evidence, source revisions and recovery semantics.

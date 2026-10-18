@@ -7,6 +7,9 @@ import { tabProtectionReason } from './rules';
 import { chooseContentSurvivor } from './content-review';
 
 export function buildOptimizationPlan(tabs: TabRecord[], duplicates: DuplicatePreview, review?: ContentReviewPreview): OptimizationPlan {
+  // Saved-source review IDs can later collide with newly assigned live Chrome IDs.
+  // Library suggestions are informational, never live close evidence.
+  if (review?.savedSources) review = undefined;
   const candidates = new Map<number, OptimizationCandidate>();
   const defaults = new Set<number>();
   const roots = new Set<number>();

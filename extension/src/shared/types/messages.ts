@@ -22,6 +22,10 @@ export type MessageRequest =
   | { type: 'COLLAPSE_TOPIC'; tabIds: number[]; name: string; collapsed: boolean }
   | { type: 'SAVE_URL_RULES'; rules: NonNullable<import('./workspace').WorkspaceData['urlRules']> }
   | { type: 'SAVE_PAGE_TO_COLLECTION'; tabId: number; collectionId?: string }
+  | { type: 'GET_FULL_BACKUP_STATUS' }
+  | { type: 'CONFIGURE_BACKUPS'; settings: import('./backup').BackupSettings }
+  | { type: 'CREATE_FULL_BACKUP' }
+  | { type: 'PREVIEW_FULL_BACKUP_RESTORE'; backupId: string }
   | { type: 'UPDATE_COLLECTION'; collectionId: string; change: import('./workspace').CollectionChange }
   | { type: 'PREVIEW_COLLECTION_MERGE'; collectionIds: string[]; name: string }
   | { type: 'MERGE_COLLECTIONS'; previewId: string }

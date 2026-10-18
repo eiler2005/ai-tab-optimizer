@@ -23,8 +23,8 @@
 ### Required Tools
 | Tool | Version | Purpose |
 |---|---|---|
-| Node.js | 20+ | JS runtime |
-| pnpm | 9+ | Package manager (preferred over npm) |
+| Node.js | 22+ | Current development/browser-test runtime |
+| pnpm | 10.32.1 | Pinned package manager (see packageManager) |
 | TypeScript | 5.4+ | Type checking |
 | Chrome / Chromium | 114+ | MV3 + Side Panel support |
 | Python | 3.11+ | AI server backend |
@@ -128,7 +128,7 @@ This starts Vite in watch mode and outputs to `dist/`. Every file change trigger
 When using `pnpm dev` (watch mode):
 - Most changes apply automatically after Vite rebuilds
 - For service worker changes: click the **reload** icon on the extension card at `chrome://extensions`
-- For manifest changes: click **Remove**, then **Load unpacked** again
+- For manifest changes: reload the existing extension at the same path and review any new permission prompt. Removing/reinstalling can discard profile-local collections and change installation identity; export a backup before a deliberate reinstall.
 
 ### Opening the Side Panel
 - Click the extension icon in the toolbar
@@ -460,7 +460,7 @@ The page extractor content script is injected on demand:
 | AI server won't start | Ensure `pip install -r requirements.txt` succeeded and required CLIs (`claude`, `codex`) are installed as needed |
 | Obsidian export no file | Check file system permission was granted (first export shows a folder picker) |
 | Content script not injecting | Verify `scripting` in permissions and `<all_urls>` in optional_host_permissions |
-| Storage quota exceeded | Enable `unlimitedStorage` optional permission or reduce max snapshots |
+| Storage quota exceeded | Export a JSON backup, then remove unneeded saved collections/history. The manifest does not declare `unlimitedStorage`. |
 | Tab history empty | History starts recording from when the extension is loaded. Open/close/switch tabs to populate. |
 
 ## Offline workspace and browser tests (v0.3)
@@ -468,3 +468,38 @@ The page extractor content script is injected on demand:
 Exact duplicate cleanup, window merging, saved collections, JSON migration and Undo run entirely in the extension and work with the Python server stopped. Start the server for AI content/relevance review, AI analysis and existing SQLite-backed history. See [WORKSPACE.md](docs/WORKSPACE.md) for the new flows. Use Node 22+ for the current development/test toolchain. Install the pinned extension dependencies with `pnpm --dir extension install --frozen-lockfile`. For browser checks run `pnpm --dir extension exec playwright install chromium`, build, then `pnpm --dir extension test:e2e`.
 
 The server binds to `127.0.0.1`. To require a token, export `LOCAL_API_KEY` before `pnpm server` and enter the same token in Settings. Optionally export `AITAB_EXTENSION_ORIGINS` to pin allowed extension origins. Environment files are examples; the launcher does not automatically load `.env`. For checkout/data migration see [MIGRATION.md](docs/MIGRATION.md).
+
+## Product workspace and full local backups
+
+The [README](README.md) explains the current collection/library/topic workflows with
+Mermaid diagrams. Library search, exact cleanup, collections and Inbox saves work
+without the server. Pair-level deep review can capture up to 8,000 characters of
+accessible text; normal review uses 1,200. There are no hidden opens of saved pages.
+The page context menu requires `contextMenus`; reload the existing extension to load
+the new manifest. Assign `save-current-to-library` in `chrome://extensions/shortcuts`.
+
+Full backups require the server but no AI provider. In Collections expand Automatic
+backups and restore. Defaults: disabled, 24 hours, 10 versions. Each local bundle
+contains workspace JSON, a committed SQLite snapshot with provider settings purged,
+and a SHA-256 manifest. Configure a different root before starting the server:
+
+```bash
+AITAB_BACKUP_DIR=/absolute/path/to/aitab-backups pnpm server
+```
+
+The path is server-owned; a browser cannot request an arbitrary destination. To check
+a bundle without modifying data:
+
+```bash
+.venv/bin/python scripts/verify-workspace-backup.py /absolute/path/to/bundle
+```
+
+Recovery details: [WORKSPACE.md](docs/WORKSPACE.md#full-local-backup-and-recovery).
+JSON append restore does not replace the live SQLite DB. Schedules run in Chrome
+and require the server to be reachable when the alarm fires; sleep can delay them.
+The configured server URL/port remains local to the extension profile when provider
+settings synchronize.
+
+The Chromium suite also launches a real isolated FastAPI server and temporary SQLite.
+Install Python requirements before `pnpm --dir extension test:e2e`. CI installs both
+toolchains; these tests never use the user's actual database or AI login.

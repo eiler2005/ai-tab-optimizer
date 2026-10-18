@@ -11,6 +11,11 @@ const review = (relation: 'redundant' | 'related', withExcerpts: boolean): Conte
 });
 
 describe('quality-preserving optimization planning', () => {
+  it('never converts saved-source IDs into live close proof even when Chrome later assigns matching IDs', () => {
+    const data = review('redundant', true);
+    data.savedSources = { 2: { collectionId: 'saved', itemId: 'item', revision: 1, collectionName: 'Research' } };
+    expect(buildOptimizationPlan(tabs, buildDuplicatePreview(tabs), data).candidates).toEqual([]);
+  });
   it('never recommends closing complementary authors or title-only matches', () => {
     expect(buildOptimizationPlan(tabs, buildDuplicatePreview(tabs), review('related', true)).candidates).toEqual([]);
     expect(buildOptimizationPlan(tabs, buildDuplicatePreview(tabs), review('redundant', false)).candidates[0].recommended).toBe(false);

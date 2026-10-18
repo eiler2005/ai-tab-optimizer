@@ -29,6 +29,7 @@ export interface ContentReviewPreview {
   evidence?: Record<number, { text: string; capturedAt: number; cached: boolean }>;
   focus?: string;
   retainedByUser?: number;
+  reviewEligibleCount?: number;
 }
 
 export interface ReviewProgress {

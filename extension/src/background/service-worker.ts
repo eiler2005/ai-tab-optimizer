@@ -53,6 +53,7 @@ import { startReviewJob, getReviewJob, cancelReviewJob } from './review-jobs';
 import { previewOptimization, executeOptimization } from './optimization';
 import { collapseTopic } from './topic-actions';
 import { registerLibraryAutomation, savePageToCollection, saveUrlRules } from './library-automation';
+import { configureBackups, createFullBackup, getFullBackupStatus, previewFullBackupRestore, setupBackupAlarm } from './library-backups';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -1890,7 +1891,9 @@ async function setupAutoSnapshot(): Promise<void> {
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'auto-snapshot') {
+  if (alarm.name === 'aitab-full-backup') {
+    try { await createFullBackup(); } catch (error) { console.warn('Scheduled backup failed', error); }
+  } else if (alarm.name === 'auto-snapshot') {
     const snapshot = await createSnapshot(undefined, 'auto');
     broadcast({ type: 'SNAPSHOT_CREATED', snapshot });
   } else if (alarm.name === 'cleanup-history') {
@@ -1970,6 +1973,14 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       await saveUrlRules(msg.rules); return { success: true };
     case 'SAVE_PAGE_TO_COLLECTION':
       return { success: true, data: await savePageToCollection(msg.tabId, msg.collectionId) };
+    case 'GET_FULL_BACKUP_STATUS':
+      return { success: true, data: await getFullBackupStatus() };
+    case 'CONFIGURE_BACKUPS':
+      await configureBackups(msg.settings); return { success: true };
+    case 'CREATE_FULL_BACKUP':
+      return { success: true, data: await createFullBackup() };
+    case 'PREVIEW_FULL_BACKUP_RESTORE':
+      return { success: true, data: await previewFullBackupRestore(msg.backupId) };
     case 'UPDATE_COLLECTION':
       await updateCollection(msg.collectionId, msg.change);
       return { success: true };
@@ -2465,6 +2476,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 setupAutoSnapshot();
 registerLibraryAutomation();
+void setupBackupAlarm().catch((error) => console.warn('Could not set up backup schedule', error));
 void ensureServerPersistenceSync().catch(() => {});
 
 // History cleanup alarm (daily)

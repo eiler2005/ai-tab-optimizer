@@ -4,7 +4,7 @@
 
 ## At a glance
 
-AITab is a Chrome MV3 extension paired with a localhost FastAPI server that orchestrates AI CLIs and persists everything in SQLite. The extension stays small and reactive; the heavy lifting (LLM calls, retention, analytics, search) lives in the server. They communicate over loopback HTTP through the service worker, so nothing leaves the user's machine unless an explicitly-configured CLI does so.
+AITab is a Chrome MV3 extension with an optional loopback FastAPI server. The extension owns collections, the operation journal, flags and local library search. SQLite owns server-side analysis, history, persistent clusters and snapshots. The server orchestrates configured AI CLIs and writes versioned local backup bundles; provider requests may leave the machine.
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
     COX["Codex CLI"]
   end
 
-  SP <--> |chrome.runtime<br/>67 message types| SW
+  SP <--> |chrome.runtime<br/>76 message types| SW
   SW <--> |http :8765| SRV
   SW -.-> |chrome.scripting<br/>injects on demand| CS
   SRV <--> DB
@@ -40,7 +40,7 @@ Both configured CLIs can relay prompts to their model provider; local execution 
 | Component | Path | Responsibility |
 |---|---|---|
 | Side Panel | [`extension/src/side-panel/`](../extension/src/side-panel) | All UI: 8 views, Zustand store, broadcast event handlers |
-| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (67 request types), AI server proxy |
+| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (76 request types), AI server proxy |
 | Transport | [`extension/src/background/transport.ts`](../extension/src/background/transport.ts) | HTTP layer with timeouts, multi-candidate URL fallback, abort handling |
 | Persistence | [`extension/src/background/persistence.ts`](../extension/src/background/persistence.ts) | `chrome.storage.local` wrappers |
 | Analysis helpers | [`extension/src/background/analysis-helpers.ts`](../extension/src/background/analysis-helpers.ts) | Tab fingerprinting, status computation |
@@ -52,7 +52,7 @@ Both configured CLIs can relay prompts to their model provider; local execution 
 
 ## Type-driven message protocol
 
-Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (67 request types, 9 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
+Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (76 request types, 9 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
 
 ```ts
 // Sketch — see the actual file for the full union.
@@ -77,7 +77,7 @@ The server keeps everything in a single SQLite database (`tab_analysis.db`), 10 
 | `analysis_runs` | Full snapshot of a run's state | Enables stop-and-resume across extension reloads |
 | `tab_history_events` | Append-only event stream (`opened`/`closed`/`activated`) | Backbone of the History panel and the activity heatmap |
 | `snapshots` | Saved browser sessions | Survive extension reload/uninstall |
-| `app_settings` | Server-side authoritative settings | Single source of truth across reloads |
+| `app_settings` | Server-side provider/analysis settings | Mirrored locally; the profile's loopback connection URL stays authoritative |
 | `runtime_logs` | Provider/analysis/database diagnostic stream | Server-side observability without a full logging stack |
 | `llm_call_logs` | Individual LLM call records | Cost/latency forensics per call |
 | `recommendation_actions` | Accepted / skipped / modified cleanup actions | Feeds the acceptance-rate analytics |
@@ -186,7 +186,8 @@ The extension takes the smallest set of permissions that supports the feature sc
 
 | Permission | Required by | Notes |
 |---|---|---|
-| `tabs`, `tabGroups`, `sessions` | Tab list, history, recently closed | Read-only for tab metadata |
+| `tabs`, `tabGroups`, `sessions` | Tab list, selected actions, history, recently closed | Browser changes require explicit actions |
+| `contextMenus` | Save an ordinary page link to Inbox | Never closes a tab |
 | `storage` | Settings, offline buffers, user flags | `chrome.storage.local` only |
 | `alarms` | Auto-snapshot, history cleanup sweeps | |
 | `sidePanel` | Primary UI surface | Chrome 114+ |
@@ -246,3 +247,46 @@ content review into a reviewed plan; a separate execution path journals and
 revalidates selected closures and persists actual outcome counters. Action footers
 render outside the scrolling content. Chat routes are excluded from automatic
 closure. Python `review_runtime.py` cancels provider work on client disconnect.
+
+## Library, evidence and backup boundaries
+
+`library.ts` indexes live and saved locations for local search. Collection details are
+optional additive workspace-v1 fields. `content-review.ts` assigns saved sources review-only
+IDs and balances live/saved unique URLs in its 600-entry AI budget. Library previews cannot
+be executed through the live close operation. Deep extraction is restricted to a chosen
+pair of URLs, at most 8,000 characters each; standard evidence stays bounded to 1,200.
+
+`content-evidence.ts` holds up to 900 KB of derived text with capture times and a 24-hour
+TTL. Navigation/load/title events invalidate entries; deep review attempts a fresh read.
+`review-decisions.ts` hashes URL/title/evidence/focus and applies remembered user decisions
+for 30 days. `library-automation.ts` handles idempotent exact-host saves and context commands.
+`topic-actions.ts` groups live pages within their existing windows. Optimization revalidates
+saved collection revisions before offering a persisted page as a close candidate.
+
+```mermaid
+sequenceDiagram
+  participant Panel
+  participant Worker
+  participant Server
+  participant DB as SQLite writer
+  participant Disk as Local backup folder
+  Panel->>Worker: CREATE_FULL_BACKUP or scheduled alarm
+  Worker->>Worker: Export consistent extension workspace snapshot
+  Worker->>Server: POST /workspace-backups
+  Server->>DB: Locate primary SQLite file
+  Server->>Server: Separate read connection + SQLite backup API
+  Server->>Disk: Stage workspace.json and database.sqlite
+  Server->>Disk: Purge provider settings; write SHA-256 manifest
+  Server->>Disk: Publish bundle, rotate complete owned versions
+  Server-->>Worker: Bundle ID, path and scope
+  Worker-->>Panel: Last successful backup and status
+```
+
+`library-backups.ts` manages an opt-in Chrome alarm, preserves an existing matching alarm
+across worker restarts, and records success/failure locally. `workspace_backups.py` validates
+the envelope, serializes backup requests and uses a separate SQLite reader so a concurrent
+writer can commit. The extension and SQLite snapshots are captured at separate moments;
+they are not one distributed transaction. SQL backups securely remove provider settings.
+Restore verifies both file checksums and feeds the existing append-import preview. Live
+SQLite replacement is deliberately a stopped-server recovery procedure, documented in
+[WORKSPACE.md](WORKSPACE.md). No new SQLite tables are introduced.

@@ -5,9 +5,9 @@ Date: 2026-10-18 (Europe/Moscow). Local environment: macOS, Node 22.14.0, Python
 | Check | Result |
 |---|---|
 | TypeScript strict check and production build | Pass |
-| Vitest unit/integration tests | 135 passed across 20 files |
-| Python API/runtime/security/prompt tests | 45 passed |
-| Real Chromium extension E2E | 7 passed |
+| Vitest unit/integration tests | 150 passed across 25 files |
+| Python API/runtime/security/prompt/backup tests | 51 passed |
+| Real Chromium extension E2E | 11 passed |
 | Whitespace/conflict-marker check | Pass |
 
 ## Browser scenarios
@@ -20,6 +20,10 @@ Date: 2026-10-18 (Europe/Moscow). Local environment: macOS, Node 22.14.0, Python
    Verify an unused group's survivor does not silently disable selection in another group.
 6. Prepare/apply a local optimization plan with two same-address synthetic ChatGPT pages. Verify chats are retained, the action footer stays in the viewport after scrolling, actual reduction is reported, Markdown downloads include actual outcomes and Undo restores closed copies.
 7. Hold a synthetic AI response pending, observe the AI phase, switch to duplicates and verify selection/closing controls stay enabled. Cancel the review and verify review controls become available again.
+8. Search saved notes with a purpose filter in Library, open one missing page, focus it again without duplication and preserve task/review metadata in JSON. Inspect the 420 px screenshot.
+9. Use Topics to retain a working page, collapse a browser group, preview/save/close the remainder and Undo. Verify source collections remain.
+10. Save a page to Inbox twice, enable a hostname save rule, navigate/reload and verify only one saved copy per exact URL with live tabs retained.
+11. Launch an actual FastAPI subprocess with temporary SQLite/backup roots. Read two live loopback pages through the real deep-extraction Chrome API. Create a JSON + SQLite bundle, run the read-only checksum/integrity verifier, append its collections without opening tabs and configure the actual Chrome backup alarm. Stop and remove the isolated server/profile afterward.
 
 The browser harness uses actual Chrome APIs, isolated `.test` pages and temporary profiles removed after each test. It does not use the user's browser profile, browsing data or live AI account.
 
@@ -36,6 +40,12 @@ The browser harness uses actual Chrome APIs, isolated `.test` pages and temporar
 - Chat roots and distinct conversation IDs are handled conservatively; automatic closes refuse chat state. Missing AI relation labels default to complementary material. Planning requires excerpts for default AI redundancy selection and leaves obsolete material to manual choice.
 - Review-job tests cover immediate acknowledgement, persisted completion, cancellation, local actions during an AI wait and interruption after worker restart. Python tests cover client-disconnect cancellation and termination of the owned Codex subprocess.
 - Optimization tests cover partial outcomes, survivor preservation, storage failure before effects, idempotent confirmation and Undo, changed-title rejection and forecast/report generation.
+- Library tests cover note/task search, purpose filters, separate chat states, single-item focus/open, optional old-schema metadata and portable task fields.
+- Saved-source review IDs never serve as live close proof, even if Chrome later allocates a matching numeric ID. Saved collection revisions are revalidated for manual archive candidates.
+- Review decisions are keyed to URL/title/evidence/focus, expire after 30 days, survive backup and do not suppress materially changed reviews.
+- Evidence tests cover excerpt reuse, invalidation, deep URL selection and payload bounds; saved pages are never opened for extraction.
+- Rule/Inbox tests cover idempotence, exact-host matching, deleted targets, imported-rule remapping to suggestion mode, and chat exclusion.
+- Full backup tests verify SQLite integrity, provider-setting removal without changing the source DB, SHA-256 mismatch rejection, version rotation without touching unrelated folders, invalid requests and an uncommitted concurrent writer. Schedule tests preserve an existing matching alarm across worker restarts and surface failed attempts while retaining last success.
 
 ## Performance observation
 
@@ -58,6 +68,18 @@ git diff --check
 ```
 
 CI runs TypeScript, Vitest, Python and Chromium checks. Browser failure artifacts contain traces/screenshots. The first five implementation commits were independently verified as successful in GitHub Actions; the final workflow run is linked from the repository's CI badge.
+
+The product-workspace package was built and synchronized to the owned legacy Chrome
+loader. The detached loopback server was restarted and its health, backup routes and
+8,000-character deep-excerpt schema verified. The README now contains three Mermaid
+diagrams; Markdown links, code fences and protocol counts (76 requests / 9 broadcasts)
+were checked. English library and Russian review screenshots were visually inspected.
+
+Automated checks establish mechanics and conservative guards, not semantic accuracy
+on the user's entire corpus. Closed pages can have only metadata/cached evidence;
+there is no external web verification or full-document equivalence guarantee. The
+600-entry library AI budget balances unique live/saved URLs; remaining coverage is
+explicit. Excerpt reuse is not full incremental recomputation of semantic AI groups.
 
 Live Claude/Codex calls and recovery of arbitrary unsaved form/application state are outside the automated checks. Provider orchestration remains covered by stubbed-provider tests. The historical pre-workspace report is available in Git history.
 

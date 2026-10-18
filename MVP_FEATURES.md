@@ -321,6 +321,14 @@ Deeper analytics to surface tab management habits, persistent knowledge from AI 
 
 ---
 
+## Current v0.3 product workspace
+
+The current v0.3 workspace also ships task collections and unified library search;
+live/saved content review and pair-level deep evidence; remembered relevance decisions;
+topic save/close and per-window collapse; duplicate hints, idempotent URL rules and
+Inbox shortcuts; and opt-in full JSON + SQLite backup bundles with retention/checksums.
+See [the current user guide](docs/WORKSPACE.md) and [product plan](docs/plans/product-development.md).
+
 ## Not Yet Implemented (v0.3+)
 
 ### Additional AI Providers (v0.3)

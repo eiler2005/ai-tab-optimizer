@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Task collections (Working now / Read later / Reference), reasons, saved focus and review dates; unified live/saved library search and single-page open/focus.
+- Library-wide semantic review with source labels, timestamped evidence, bounded cache and explicit two-URL deep extraction; saved review IDs cannot close browser tabs.
+- Evidence/focus-bound user decisions for useful or complementary materials, retained for 30 days and preserved in portable backups.
+- Topic workspaces from collections, Chrome groups, AI and persistent clusters: retain a working minimum, group/collapse within windows, or preview/save/close with Undo.
+- Exact-host save rules, duplicate/saved-page hints, idempotent Inbox capture through context menu or configurable keyboard command; imported rules become suggestions.
+- Opt-in scheduled full local backups containing extension JSON, a consistent SQLite snapshot with provider settings purged, a SHA-256 manifest and bounded version rotation; append-only collection restore.
+- Real Chromium/FastAPI/temporary-SQLite integration coverage in CI alongside library, topic and rule browser scenarios.
 - Unified optimization plans with conservative defaults, before/after forecasts, persistent action footers, actual outcome reports, Markdown download and Undo.
 - Background review progress with extraction counts, elapsed time, cancellation, panel-reopen results and worker-interruption handling.
 - Separate similar-content and topical-obsolescence reviews with current-focus input, opt-in excerpts, evidence validation, coverage counts, explicit bulk selection and journalled Undo. Visit age is not used to classify obsolete content.
@@ -23,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 
 ### Fixed
+- A custom loopback server URL is preserved when synchronizing provider settings; loading persisted focus keeps a stable accessible field label.
 - Chat routes/drafts are no longer auto-selected as duplicate content. Distinct authors and approaches default to complementary material. AI waiting no longer disables local duplicate controls; disabled rows explain survivor/protection constraints.
 - Codex ChatGPT-subscription support defaults to GPT-5.6 Terra with low reasoning and a read-only sandbox. Large review prompts use stdin instead of exceeding process argument limits.
 - Conservative exact URL identity, indexed similarity rules, protected survivors and URL-based user flags.

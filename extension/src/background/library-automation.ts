@@ -34,7 +34,8 @@ export async function savePageToCollection(tabId: number, collectionId?: string,
       workspace.collections.push(collection);
     }
     if (collection.windows.some((saved) => saved.tabs.some((tab) => tab.url === live.url))) return { collectionId: collection.id, added: false };
-    const record: TabRecord = { id: tabId, windowId: live.windowId, index: live.index, url: live.url, title: live.title ?? live.url, domain: extractDomain(live.url), pinned: live.pinned, active: live.active };
+    const flags = (await chrome.storage.local.get('userFlagsV2')).userFlagsV2 as Record<string, TabRecord['userFlag']> ?? {};
+    const record: TabRecord = { id: tabId, windowId: live.windowId, index: live.index, url: live.url, title: live.title ?? live.url, domain: extractDomain(live.url), pinned: live.pinned, active: live.active, userFlag: flags[live.url] };
     const saved = detachWindows([{ windowId: live.windowId, focused: window.focused, tabs: [record] }])[0];
     if (collection.windows[0]) collection.windows[0].tabs.push(...saved.tabs); else collection.windows.push(saved);
     collection.updatedAt = Date.now(); collection.revision += 1;

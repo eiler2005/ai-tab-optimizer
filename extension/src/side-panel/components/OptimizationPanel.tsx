@@ -32,7 +32,7 @@ export function OptimizationPanel({ busy, run }: { busy: boolean; run: (action: 
   async function prepare() {
     setPreparing(true);
     try {
-      const reusable = job?.status === 'completed' && job.preview && Date.now() - job.preview.createdAt <= 300_000
+      const reusable = job?.status === 'completed' && job.preview && !job.preview.savedSources && Date.now() - job.preview.createdAt <= 300_000
         && job.options.windowId === options.windowId && job.options.focus === options.focus && job.options.readContent === options.readContent;
       // Request excerpt permission directly from this click, before asynchronous work.
       const nextJob = includeAi && !reusable && job?.status !== 'running' ? start(true).catch((failure) => { error(failure); return null; }) : undefined;

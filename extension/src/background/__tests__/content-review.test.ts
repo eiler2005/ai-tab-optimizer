@@ -17,10 +17,12 @@ describe('reviewed content closes', () => {
     const trash = (await saveCollection((await previewCollection('Trash')).id, false)).collection;
     await updateCollection(trash.id, { deleted: true });
     await storeEvidence(seed(), { 1: 'Cached article body' });
+    browser.tabs.delete(1);
     const extract = vi.fn(async (id: number) => ({ tabId: id, h1: 'Current article', metaDescription: '', excerpt: 'Live evidence' }));
     const preview = await previewContentReview({ useAi: false, readContent: true, includeSaved: true }, extract);
-    expect(preview.tabs).toHaveLength(6);
-    expect(new Set(preview.tabs.map((tab) => tab.id)).size).toBe(6);
+    expect(preview.tabs).toHaveLength(5);
+    expect(preview.reviewEligibleCount).toBe(3);
+    expect(new Set(preview.tabs.map((tab) => tab.id)).size).toBe(5);
     expect(extract).toHaveBeenCalledTimes(2);
     const savedId = Number(Object.keys(preview.savedSources!)[0]);
     expect(preview.savedSources![savedId].collectionId).toBe(saved.id);

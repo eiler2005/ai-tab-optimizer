@@ -202,9 +202,59 @@ Import first validates and previews a file; confirmation appends data with new s
 
 Limits: 8 MB input JSON, 200 imported collections, 100 imported operation records, 20,000 saved/history tab entries, 20,000 characters per note. Canonical workspace storage is capped at 7 MB and imported legacy buffers at 2 MB. Previews use session storage, separate from durable workspace data, and expire after five minutes.
 
+## Full local backup and recovery
+
+In Collections expand **Automatic backups and restore**. **Create full backup now**
+exports the extension's validated portable scope to the configured loopback server,
+which adds a consistent committed SQLite snapshot. The bundle is published only after
+both files and its manifest exist. The two stores are captured at separate moments;
+there is no cross-store transaction. Provider settings are removed from the SQL copy
+with secure deletion/VACUUM; CLI credentials, local API token, evidence cache, folder
+handles and unsaved application state are outside the backup scope.
+
+Default root: `~/.local/share/aitab/backups/workspace/`. Override it on the server with
+`AITAB_BACKUP_DIR`; clients cannot choose arbitrary destinations. Each version contains
+`workspace.json`, `database.sqlite`, `manifest.json` with SHA-256 hashes and scope.
+Directories/files are created with restrictive permissions. Rotation removes only
+recognized complete bundles in this root. Automatic backups are off by default;
+enable an interval of 1–168 hours and retention of 1–30 versions. The matching Chrome
+alarm is retained across worker restarts. Failed attempts show an error and preserve
+the last successful backup. An unavailable server does not delete local workspace
+data; manual JSON export still works offline. The schedule runs while Chrome is
+running, and may be delayed by browser sleep/suspension. Backup status lists the
+actual path and success time. Copy bundles to separate storage for disk-loss recovery.
+
+**Restore collections:** choose a complete bundle, preview its contents, then explicitly
+append. Both file checksums are verified before preview. Current collections remain;
+tabs do not open. Rules from imported backups become suggestions, with new target IDs.
+This action does not replace SQLite or import provider settings/schedules.
+
+**Restore server SQLite:**
+
+1. Stop the server and keep a separate copy of the current `tab_analysis.db` and any
+   matching `-wal`/`-shm` files before replacing anything.
+2. Verify the chosen bundle, from the repository root:
+
+   ```bash
+   .venv/bin/python scripts/verify-workspace-backup.py /absolute/path/to/bundle
+   ```
+
+3. Move the old database and its matching sidecars aside together. Copy the verified
+   bundle's `database.sqlite` to the repository as `tab_analysis.db`; do not attach old
+   WAL/SHM sidecars to that restored file.
+4. Start the server with `pnpm server`, verify database status and configure its provider
+   settings again. Existing CLI authentication remains managed by the CLI.
+5. Separately append the bundle's extension workspace through the restore preview if
+   that profile lost its collections. Verify notes and open only the material needed.
+
+The server routes are `GET/POST /workspace-backups` and `GET /workspace-backups/{id}`;
+they inherit the existing origin/token guard. API restore never overwrites a live DB.
+The extension keeps the configured loopback URL authoritative when loading server
+settings, including a custom port.
+
 ## AI assistance
 
-Cleanup → AI starts with **Topics and clusters**: collections, existing browser groups
+Cleanup → Topics starts with **Topics and clusters**: collections, existing browser groups
 and current AI topics are matched to exact live URLs. **Load my persistent clusters**
 adds existing server-side clusters when the local server is available. Choose pages
 to keep in current work, then **Preview save and close** for the rest. Chat/protected

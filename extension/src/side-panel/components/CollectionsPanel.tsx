@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useI18n } from '@shared/i18n';
 import type { CollectionDetails, CollectionMergePreview, CollectionPreview, SavedCollection, TabOperation, WorkspaceData } from '@shared/types/workspace';
 import { CollectionDetailsEditor } from './CollectionDetailsEditor';
+import { FullBackupsPanel } from './FullBackupsPanel';
 import type { ImportPreview } from '../../background/workspace-backup';
 import type { RestoreResult } from '../../background/session-actions';
 import { useStore } from '../store';
@@ -39,6 +40,7 @@ export function CollectionsPanel({ workspace, busy, run, onResult, onFeedback }:
   }
 
   return <section className="space-y-4">
+    <details><summary className="text-xs font-semibold">{tr('Автобэкапы и восстановление', 'Automatic backups and restore')}</summary><FullBackupsPanel busy={busy} run={run} onFeedback={onFeedback} /></details>
     <div className="space-y-2">
       <h3 className="font-semibold text-xs">{tr('Сохранить вкладки в коллекцию', 'Save tabs as a collection')}</h3>
       <input aria-label={tr('Название коллекции', 'Collection name')} maxLength={120} value={name} placeholder={tr('Название коллекции', 'Collection name')}

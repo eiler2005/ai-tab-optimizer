@@ -46,6 +46,7 @@ from server_core.security import LocalApiGuard
 from server_core.codex_command import build_codex_command
 from server_core.content_review import ContentReviewRequest, REVIEW_SCHEMA, REVIEW_SYSTEM_PROMPT, normalize_content_review
 from server_core.review_runtime import await_review_call
+from server_core.workspace_backups import router as workspace_backup_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -627,6 +628,7 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(title="AITab Server", lifespan=lifespan)
+app.include_router(workspace_backup_router)
 
 app.add_middleware(
     CORSMiddleware,

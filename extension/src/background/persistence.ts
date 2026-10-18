@@ -15,7 +15,7 @@ export async function getSettings(): Promise<UserSettings> {
   const local = await getLocalSettingsMirror();
   try {
     const data = await fetchServerJson<{ settings: UserSettings }>('/settings', {}, local.localServerUrl);
-    const merged = { ...DEFAULT_SETTINGS, ...data.settings } as UserSettings;
+    const merged = { ...DEFAULT_SETTINGS, ...data.settings, localServerUrl: local.localServerUrl } as UserSettings;
     await saveLocalSettingsMirror(merged);
     return merged;
   } catch {
@@ -33,7 +33,7 @@ export async function saveSettings(partial: Partial<UserSettings>): Promise<User
       method: 'POST',
       body: JSON.stringify({ settings: updated }),
     }, updated.localServerUrl);
-    const merged = { ...DEFAULT_SETTINGS, ...data.settings } as UserSettings;
+    const merged = { ...DEFAULT_SETTINGS, ...data.settings, localServerUrl: updated.localServerUrl } as UserSettings;
     await saveLocalSettingsMirror(merged);
     return merged;
   } catch {

@@ -99,7 +99,12 @@ export async function openCollectionItem(id: string, itemId: string): Promise<{ 
       await chrome.windows.update(existing.windowId, { focused: true });
       return { tabId: existing.id, reused: true };
     }
-    const tab = await chrome.tabs.create({ url: item.url, active: true });
+    if (item.userFlag) {
+      const stored = await chrome.storage.local.get('userFlagsV2');
+      const flags = stored.userFlagsV2 as Record<string, TabRecord['userFlag']> ?? {};
+      if (!flags[item.url]) await chrome.storage.local.set({ userFlagsV2: { ...flags, [item.url]: item.userFlag } });
+    }
+    const tab = await chrome.tabs.create({ url: item.url, active: true, pinned: item.pinned });
     if (tab.id === undefined) throw new Error('Browser did not return a tab ID');
     return { tabId: tab.id, reused: false };
   });

@@ -1,232 +1,252 @@
-<div align="center">
-
 # AITab
 
-**A local-first Chrome extension that turns 100+ tabs into structured, searchable knowledge — with local storage and optional AI providers.**
+**Меньше открытых вкладок, актуальные материалы и доступная библиотека без повторов.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/eiler2005/ai-tab-optimizer/ci.yml?branch=master&label=CI&logo=github)](https://github.com/eiler2005/ai-tab-optimizer/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.3.0-blue)](CHANGELOG.md)
-[![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange)](https://developer.chrome.com/docs/extensions/mv3/)
-[![Chrome](https://img.shields.io/badge/Chrome-114%2B-4285F4?logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](extension/tsconfig.json)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange)](extension/public/manifest.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
-</div>
+AITab помогает разобрать сотни вкладок: найти точные копии, сравнить пересечение
+содержания, проверить актуальность относительно задачи и убрать полезные материалы
+в коллекции. Сначала расширение показывает предложение и расчёт, затем пользователь
+отдельно применяет действие. Успешные закрытия можно отменить через историю.
 
----
+Расширение работает локально с Chrome. Сервер FastAPI нужен для AI, истории и
+аналитики SQLite, сохранённых кластеров и полного резервного копирования.
+Базовая очистка и коллекции доступны без сервера. Настроенный AI-провайдер получает
+данные только при запуске соответствующего анализа; локальный сервер не означает
+локальное выполнение самой модели. Телеметрии и обязательной облачной учётной записи нет.
 
-## Why this exists
+## Установка и обновление
 
-If you live with 100+ open tabs, two things are true at the same time: you can't find anything, and you can't bring yourself to close anything because *something might be useful later*. AITab is the toolkit I wanted for that exact problem — it understands what's open, groups it by topic, gives you per-tab recommendations with reasons, lets you safely clean up through a guided session, and remembers everything in a local database so the work isn't lost when you close the tab.
-
-It's deliberately **local-first**: a Chrome MV3 extension talks to a FastAPI server on `localhost`, which orchestrates AI CLIs (Claude Code, Codex) and persists everything in SQLite. Nothing leaves your machine unless an explicitly-configured CLI does so. There is no backend service, no telemetry, and no account.
-
-This repo is also a deliberate engineering exercise. It's structured to be reviewable: typed end-to-end, modular, testable, with the trade-offs documented openly in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-## Demo
-
-**Library and task collections:** Cleanup → Collections saves a set as **Working now**,
-**Read later** or **Reference**, with a reason, task and optional review date. Cleanup →
-Library searches open pages, saved pages and notes together. Open one result or focus
-its existing tab; a review date prompts inspection and never deletes content.
-Old collections remain compatible and appear as Reference. [Library guide](docs/WORKSPACE.md#library-and-task-collections).
-
-**Compare the library:** review open pages and saved collections together, with source
-labels and available evidence. Choose two URLs for a deeper, bounded comparison of
-accessible article text. Closed/discarded pages are never opened for this check.
-[Evidence and limits](docs/WORKSPACE.md#library-comparison-and-evidence).
-
-**Relevance decisions:** review focus is remembered and can be loaded from a collection.
-Mark an obsolete-content suggestion **Still useful**, or a group **Complementary**,
-to avoid repeating it for 30 days while the supplied evidence and focus stay unchanged.
-Dates prompt a review; visit age never establishes topical obsolescence.
-
-**New in 0.3:** [Offline workspace](docs/WORKSPACE.md) — review duplicates, merge windows, save/merge named collections, preserve notes, export/import JSON backups and undo successful tab operations without an AI server.
-
-**Content review:** Cleanup also separates cross-site content overlap from material
-that has become obsolete by topic, date or replacement. Supply your current focus,
-review reasons and quoted evidence, then close selected candidates with Undo.
-Visit age is not an obsolescence signal. Optional excerpts and explicit coverage
-counts support reviews of up to 600 tabs. See [the workflow](docs/WORKSPACE.md#similar-content-and-topical-obsolescence).
-
-**Optimize:** one action prepares a combined local/AI reduction plan with a
-before/after forecast; a separate persistent **Apply plan** button closes the
-selected candidates. Chats and complementary material are retained, progress
-shows measured stages/time, and downloadable reports distinguish forecasts from
-actual closes/skips/failures. [Optimization guide](docs/WORKSPACE.md#unified-optimization).
-
-> Screenshots and a short walkthrough are coming. The capture conventions and the eight views to capture are documented in [`docs/screenshots/README.md`](docs/screenshots/README.md).
-
-| View | What's there |
-|---|---|
-| **Tab List** | All open tabs across windows; filter, bulk close, duplicate badges |
-| **AI Analysis** | Per-tab recommendations (keep / group / read later / archive / close) with confidence and reason |
-| **Topic Clusters** | AI-grouped themes; one click creates a Chrome tab group |
-| **Analytics** | Habits score, 7×24 activity heatmap, LLM-generated browsing insights |
-| **Search** | Conversational search over tab history and analysis results |
-| **Cleanup Session** | Guided step-by-step: review, accept/skip, close in bulk |
-| **Snapshots** | Save and restore full browser sessions |
-| **Settings** | AI provider, LLM call logs, URL cache browser, Obsidian vault path |
-
-## Quick start
-
-For topic-level cleanup, use **Cleanup → AI → Topics and clusters**. Collections,
-browser groups and AI topics show their currently open pages. Select the working
-minimum to retain, preview the rest, then save and close with Undo. **Group and collapse**
-only reduces visual clutter; **Save and close** reduces the number of open tabs.
-Optimize can also close already-saved pages after a manual choice and reports that
-category separately from duplicates and outdated content.
+Нужны Node.js/pnpm, Python 3.11+ и Chrome с поддержкой Side Panel.
 
 ```bash
 git clone https://github.com/eiler2005/ai-tab-optimizer.git aitab
 cd aitab
-
-cd extension && pnpm install && pnpm build && cd ..   # builds extension/dist/
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
-pnpm server                                           # FastAPI on http://localhost:8765
+cd extension
+pnpm install --frozen-lockfile
+pnpm build
+cd ..
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+pnpm server
 ```
 
-Then open `chrome://extensions`, enable Developer mode, click **Load unpacked**, and select `extension/dist/`. Click the extension icon to open the side panel.
+Откройте `chrome://extensions`, включите режим разработчика и загрузите
+**`extension/dist/`** как распакованное расширение. Сервер слушает
+`http://127.0.0.1:8765`. Нажатие на значок открывает боковую панель.
 
-For the long version (CLI provider setup, troubleshooting, manual test flows for every view) see [SETUP.md](SETUP.md).
+Если расширение уже установлено, обновите исходники, выполните сборку и нажмите
+**Reload / Обновить** у существующей установки. При локальном переименовании
+`firstai_agentproj → aitab` используйте прежнюю установку и совместимую папку
+загрузки: смена пути может изменить ID расширения и отделить старые данные.
+Подробности: [SETUP.md](SETUP.md), [миграция](docs/MIGRATION.md).
 
-## How it works
+В Settings выберите CLI-провайдер и проверьте соединение. Codex CLI может использовать
+существующий вход через ChatGPT; настройка описана в SETUP. Текущая модель Codex по
+умолчанию — `gpt-5.6-terra` с низкой глубиной рассуждений. Ключи и авторизацию
+хранят инструменты провайдера.
 
-**Prevent repeats:** Tabs hints when the active page already exists in an open tab or
-collection. Library rules can suggest a destination or save links automatically by
-exact hostname. Repeated loads add no copies and never close pages. Right-click a page
-to save it to Inbox, or assign the command in `chrome://extensions/shortcuts`.
+## С чего начать
+
+1. **Cleanup → Optimize.** Подготовьте план, при необходимости включив AI.
+   Посмотрите прогноз, оставляемые страницы и причины. Кнопка **Apply plan (N)**
+   применяет только выбранные предложения; прогресс и отмена доступны отдельно.
+2. **Cleanup → Collections.** Сохраните тему как «Нужно сейчас», «Прочитать позже»
+   или «Справочник». Добавьте задачу и причину сохранения. **Save and close**
+   сначала записывает коллекцию, затем закрывает допустимые страницы.
+3. **Cleanup → Library.** Найдите сохранённый материал по заголовку, URL, заметке
+   или задаче. Откройте одну страницу либо переключитесь на её открытую копию.
+4. **Cleanup → Topics → Topics and clusters.** Отметьте рабочий минимум, который
+   останется открытым. Остальное можно сохранить и закрыть после просмотра.
+   **Group and collapse** только сворачивает группы браузера и не уменьшает число вкладок.
+5. **Cleanup → History.** Проверьте фактические результаты и выполните Undo.
+   Для переноса данных скачайте JSON; для комплекта со SQLite настройте полные бэкапы.
+
+```mermaid
+flowchart TD
+  Tabs["Открытые вкладки"] --> Review["Локальная проверка / AI по запросу"]
+  Review --> Plan["План: причины, сохраняемые страницы, прогноз"]
+  Plan --> Choice{"Выбор пользователя"}
+  Choice --> Keep["Оставить в работе"]
+  Choice --> Collapse["Сгруппировать и свернуть"]
+  Choice --> Save["Сохранить в коллекцию"]
+  Save --> Journal["Записать журнал до закрытия"]
+  Choice --> Journal
+  Journal --> Close["Закрыть допустимые страницы"]
+  Close --> Report["Фактический отчёт и Undo"]
+  Save --> Library["Библиотека: поиск и открытие одной страницы"]
+```
+
+## Кластеры, группы и коллекции
+
+| Понятие | Назначение | Где хранится | Сокращает открытые вкладки |
+|---|---|---|---|
+| Тематический кластер | Связывает материалы по задаче или теме; разные источники могут дополнять друг друга | AI-результат; постоянные кластеры — SQLite | Через отдельное действие сохранения и закрытия |
+| Группа браузера | Организует живые вкладки в окне Chrome | Chrome | Сворачивание меняет только отображение |
+| Коллекция | Хранит ссылки, заметки, назначение и контекст задачи независимо от открытых вкладок | Локальные данные расширения | Да, через Save and close |
+| Снимок | Сохраняет набор URL и расположение окон/групп для восстановления | SQLite или локальный буфер | Сам по себе ничего не закрывает |
+
+Коллекции можно переименовывать, объединять в новый набор без точных URL-повторов
+и перемещать в обратимую корзину. Исходники объединения сохраняются, заметки
+объединяются. Полезная подборка может перейти из текущей работы в справочник;
+это не означает, что её содержание устарело.
+
+```mermaid
+stateDiagram-v2
+  state "Нужно сейчас" as Now
+  state "Прочитать позже" as Later
+  state "Справочник" as Reference
+  state "Корзина" as Trash
+  [*] --> Later: Сохранить подборку
+  Later --> Now: Вернуться к задаче
+  Now --> Reference: Сохранить для обращения
+  Reference --> Now: Снова нужно в работе
+  Now --> Later: Отложить
+  Later --> Trash: Убрать коллекцию
+  Reference --> Trash: Убрать коллекцию
+  Trash --> Later: Восстановить и выбрать назначение
+```
+
+## Что умеет каждый раздел
+
+| Раздел | Как использовать |
+|---|---|
+| Optimize | Общий прогноз сокращения, выбор кандидатов, применение, отчёт Markdown и Undo |
+| Duplicates | Точные копии и tracking-варианты; радиокнопка выбирает сохраняемую копию, галочки — закрываемые |
+| Similar content | Пересечение информации с объяснением различий; дополняющие источники сохраняются |
+| Outdated content | Истёкшие события/сроки, заменённые инструкции и материалы вне явно указанной задачи |
+| Collections | Сохранение, назначение, заметки, объединение, корзина, JSON и полные бэкапы |
+| Library | Общий поиск открытого и сохранённого; сравнение библиотеки и углубление выбранной пары |
+| Cleanup → Topics | Темы из коллекций, групп Chrome, AI и постоянных кластеров; рабочий минимум и сохранение остатка |
+| Windows | Перенос выбранных живых вкладок и групп между окнами с Undo |
+| Tabs | Обзор, фильтры, флаги и массовые действия; подсказка об уже открытом/сохранённом материале |
+| AI / Analytics | Длительный анализ, возобновление, история рекомендаций, темы и статистика |
+| Search | Диалоговый поиск по SQLite: история, результаты анализа и постоянные кластеры |
+| Snapshots / Settings | Восстановление наборов, провайдеры, диагностика и экспорт в Obsidian |
+
+### Поиск и предотвращение повторов
+
+Library ищет также по заметкам, причинам сохранения и задачам коллекций.
+Пример: `migration status:reference collection:"React notes"`.
+Фильтры: `collection:`, `domain:`, `status:open|now|later|reference`.
+Корзина исключена; у результата видны сохранённые местоположения и открытые копии.
+
+В Library настраиваются правила по точному домену: предложить коллекцию либо
+автоматически сохранить ссылку. Первое подходящее правило побеждает. Повторная
+загрузка не создаёт новую запись; правила не закрывают страницы.
+Контекстное меню **AITab: save page to Inbox** сохраняет обычную страницу во
+«Входящие». Горячую клавишу можно назначить в `chrome://extensions/shortcuts`.
+
+### Содержание и актуальность
+
+Общая тема не делает источники дублями. В сравнении показываются пересечение,
+уникальная ценность и доступные доказательства с датой чтения. В Library можно
+сравнить открытое с сохранённым; для закрытых страниц используются заголовки
+и доступные сохранённые фрагменты, без автоматического открытия ссылок.
+
+Обычная проверка использует до 1 200 символов на страницу. Углублённое сравнение
+двух выбранных URL читает до 8 000 символов доступного основного текста и дат.
+AI охватывает до 600 страниц за проверку; локальные и сохранённые источники
+чередуются, одинаковые URL не расходуют места повторно в проверке библиотеки.
+Спящие вкладки не пробуждаются. Недостаток текста виден в результатах.
+
+Фокус проверки сохраняется и может быть взят из коллекции. Решения «это всё ещё
+нужно» и «источники дополняют друг друга» учитываются до 30 дней при тех же
+доступных доказательствах и задаче. Дата пересмотра напоминает проверить подборку.
+**Давность посещения не доказывает неактуальность.** Проверка по вашим страницам
+не является поиском самой свежей информации в интернете.
+
+### Безопасность действий и отчёт
+
+Точные копии и подтверждённые AI как избыточные материалы с достаточными выдержками
+могут входить в первоначальный выбор плана. Tracking-варианты, неактуальность и
+страницы, уже сохранённые в коллекциях, требуют ручного выбора. Обязателен отдельный
+клик применения. Процент уверенности модели не гарантирует отсутствие потерь.
+
+Закреплённые, активные, звучащие, важные и защищённые вкладки исключены из
+автоматической очистки. Поддерживаемые чаты, включая ChatGPT, обрабатываются
+отдельно: одинаковый URL может содержать разные черновики или состояние.
+
+План проверяет актуальные URL, защиту, сохраняемые копии и ревизии коллекций.
+Журнал записывается до закрытия. Отчёт различает прогноз и факт, повторы,
+сохранённые материалы, неактуальные страницы, пропуски и ошибки.
+Undo восстанавливает успешные закрытия один раз. **URL и расположение можно
+восстановить; несохранённый текст и произвольное состояние приложения — не всегда.**
+
+## Данные, резервные копии и AI
 
 ```mermaid
 flowchart LR
-  SP["Side Panel<br/>(React + Zustand)"]
-  SW["Service Worker<br/>(MV3 background)"]
-  Srv["FastAPI server<br/>agent.py"]
-  DB[("SQLite<br/>10 tables")]
-  CCC["Claude Code CLI"]
-  COX["Codex CLI<br/>(fallback)"]
-
-  SP <--> |67 typed messages<br/>+ 9 broadcasts| SW
-  SW <--> |loopback :8765| Srv
-  Srv <--> DB
-  Srv --> |subprocess| CCC
-  Srv -.-> |fallback subprocess| COX
+  Panel["Боковая панель"] <--> Worker["Service Worker"]
+  Worker <--> Local[("Коллекции, журнал, флаги")]
+  Worker --> Chrome["Вкладки и группы Chrome"]
+  Worker -->|"loopback HTTP"| Server["FastAPI"]
+  Server <--> DB[("SQLite: история, анализ, кластеры, снимки")]
+  Server --> CLI["Настроенный CLI"]
+  CLI --> Provider["AI-провайдер"]
+  Worker -->|"JSON workspace"| Server
+  Server --> Backup["Локальный комплект бэкапа + manifest"]
+  DB --> Backup
 ```
 
-Three patterns worth flagging up front, each documented in detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
+- **JSON-бэкап расширения** переносит коллекции, заметки, историю операций,
+  безопасные настройки, фокус и решения проверки. Импорт сначала показывает
+  состав, затем добавляет данные, сохраняя существующие. Вкладки не открываются.
+- **Полный локальный бэкап** добавляет согласованный снимок SQLite. В Collections
+  откройте **Automatic backups and restore**: создайте копию сейчас или включите
+  расписание 1–168 часов, с хранением 1–30 версий. По умолчанию расписание выключено.
+- Комплект содержит `workspace.json`, `database.sqlite` и `manifest.json`
+  с SHA-256. По умолчанию папка —
+  `~/.local/share/aitab/backups/workspace/`; серверная переменная
+  `AITAB_BACKUP_DIR` меняет её. Проверка контрольных сумм предшествует импорту.
+- Настройки провайдеров и их авторизация, производный кэш текста, разрешения
+  на папку Obsidian и черновики страниц не переносятся. Полная копия SQLite
+  очищается от настроек провайдеров.
+- Облачная синхронизация не требуется. Папка копий находится на том же компьютере;
+  для защиты от потери диска сохраните её также на другом носителе.
+- AI по явному запросу получает заголовки, URL, задачу и включённые фрагменты.
+  Контент страниц считается недоверенными данными; модель не выполняет
+  браузерные действия.
 
-- **Type-driven message protocol** — every message between the panel and the service worker is a member of a single discriminated union (67 request types, 9 broadcast events). Adding one without handling it doesn't compile.
-- **Stop-and-resume long runs** — the `analysis_runs` table stores per-tab statuses, pending tabs, partial results, and accumulated metadata. A 1,200-tab analysis can be stopped, the extension can reload, and the user can resume from the same fingerprint.
-- **Per-batch provider failover** — Claude Code → Codex CLI → heuristic, decided per batch by a small policy module ([`server_core/provider_policy.py`](server_core/provider_policy.py)). A transient rate limit on one batch doesn't kill the run.
+Пошаговое восстановление и границы атомарности:
+[WORKSPACE.md](docs/WORKSPACE.md). Описание доступа:
+[SECURITY.md](SECURITY.md). Экспорт в Obsidian:
+[OBSIDIAN_INTEGRATION.md](OBSIDIAN_INTEGRATION.md).
 
-## Tech stack
+## Разработка и проверки
 
-| Layer | Choice | Why |
-|---|---|---|
-| Extension UI | React 19 + Zustand + Tailwind | Side panel needs ~10 views with shared state; Zustand coordinates shared typed state |
-| Extension build | Vite (4 entry points) + TypeScript `strict` | Fast HMR, tiny bundles, zero `any` in source |
-| Background | MV3 service worker, modular | Split into `transport.ts`, `persistence.ts`, `analysis-helpers.ts`, `tab-actions.ts` |
-| Server | FastAPI + uvicorn + aiosqlite | HTTP boundary, async I/O, easy to extend with new endpoints |
-| Storage | SQLite (10 tables) | Cheap aggregation for analytics, queryable for the chat search; survives extension reload |
-| AI providers | Claude Code CLI (primary), Codex CLI (fallback), heuristic | No API keys in code — the CLIs own their auth |
-| Tests | Vitest (TS) + pytest (Python) | Co-located unit tests, integration tests with real SQLite + stubbed subprocess |
-| Hooks | Husky pre-commit | TS typecheck on staged files + secret scan |
-| CI | GitHub Actions | Typecheck, build, Vitest, pytest, Chromium E2E, Python `py_compile` |
+```bash
+cd extension
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+cd ..
+.venv/bin/pytest -q
+.venv/bin/python -m py_compile agent.py server_core/*.py
+```
 
-See [Reliability and migration contract](docs/RELIABILITY.md) for exact URL matching, partial failures, snapshot restore, server authentication and data compatibility.
+E2E использует отдельные временные профили Chromium и синтетические страницы.
+Сквозной тест запускает настоящий FastAPI с временной SQLite и проверяет полный
+бэкап и импорт; пользовательские вкладки, база и AI-аккаунт не используются.
+CI выполняет проверки TypeScript, сборку, Vitest, pytest и Chromium E2E.
 
-## Privacy and security
-
-| Aspect | Behaviour |
+| Документ | Содержание |
 |---|---|
-| Where data lives | `tab_analysis.db` (local SQLite) and `chrome.storage.local`. Nothing in the cloud. |
-| Network calls from the extension | API requests target the configured loopback server. Fallback icons are embedded; original site favicon URLs can still be loaded by Chrome. |
-| Network calls from the server | Configured AI providers receive prompts through their CLIs. Claude Code also sends prompts to its model provider; local execution is not offline inference. |
-| Permissions | Minimum necessary. `<all_urls>` is **optional** and granted only when the user triggers page extraction. |
-| Authentication | The CLIs handle their own auth. The repo never reads or stores their credentials. |
-| Telemetry | None. |
-| Pre-commit secret scan | `.husky/pre-commit` blocks commits that look like they leak a key. |
+| [SETUP.md](SETUP.md) | Окружение, CLI-провайдеры, запуск и диагностика |
+| [docs/WORKSPACE.md](docs/WORKSPACE.md) | Подробные сценарии и ограничения текущей реализации |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Компоненты, потоки данных и решения |
+| [PROJECT.md](PROJECT.md) | Внутренняя спецификация и протокол |
+| [docs/testing/TEST_REPORT.md](docs/testing/TEST_REPORT.md) | Результаты проверок и их границы |
+| [docs/plans/product-development.md](docs/plans/product-development.md) | Ревью TabMerger, выполненные направления и дальнейшее развитие |
+| [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) | Инженерный backlog |
+| [CHANGELOG.md](CHANGELOG.md) | История изменений |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Правила разработки |
 
-The full threat model and the responsible-disclosure process are in [SECURITY.md](SECURITY.md).
+## Лицензия
 
-## Project structure
-
-```
-aitab/
-├── agent.py                           # FastAPI server entrypoint
-├── server_core/                       # Provider policy, runtime state, retention constants
-├── tests/                             # pytest integration & behaviour tests
-├── extension/
-│   ├── src/
-│   │   ├── background/                # MV3 service worker, split into modules
-│   │   │   ├── service-worker.ts      #   listeners + message router
-│   │   │   ├── transport.ts           #   HTTP layer with timeout + fallback
-│   │   │   ├── persistence.ts         #   chrome.storage.local helpers
-│   │   │   ├── analysis-helpers.ts    #   tab fingerprinting, status math
-│   │   │   ├── tab-actions.ts         #   typed Chrome tab API wrappers
-│   │   │   ├── workspace-operations.ts #   durable close journal and recovery
-│   │   │   ├── window-operations.ts    #   live window/group moves and Undo
-│   │   │   ├── collections.ts          #   saved sets, notes and merge previews
-│   │   │   └── workspace-backup.ts     #   validated portable JSON backups
-│   │   ├── side-panel/                # React app: 8 views, Zustand store, components
-│   │   ├── popup/                     # Minimal popup that opens the side panel
-│   │   ├── content/page-extractor.ts  # On-demand meta/H1/excerpt extractor
-│   │   └── shared/                    # Types (incl. message union), utils, i18n
-│   └── public/manifest.json           # MV3 manifest
-├── docs/
-│   ├── ARCHITECTURE.md                # Architectural tour with Mermaid diagrams
-│   ├── TESTING.md                     # Test strategy, runners, gaps
-│   ├── IMPROVEMENTS.md                # Honest backlog of known limitations
-│   ├── screenshots/                   # Capture conventions for README screenshots
-│   └── testing/                       # TEST_PLAN.md and TEST_REPORT.md
-├── PROJECT.md                         # Full product spec (every type, every endpoint)
-├── SETUP.md                           # Detailed dev environment guide
-├── OBSIDIAN_INTEGRATION.md            # Vault export entity spec
-├── SECURITY.md                        # Threat model + disclosure policy
-├── CONTRIBUTING.md                    # How to contribute
-└── CHANGELOG.md                       # Versioned history (Keep-a-Changelog)
-```
-
-## Documentation map
-
-| If you want to... | Read |
-|---|---|
-| Get the project running locally | [SETUP.md](SETUP.md) |
-| Understand the architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| See the full product spec, types, and endpoints | [PROJECT.md](PROJECT.md) |
-| Know what's tested and how | [docs/TESTING.md](docs/TESTING.md) |
-| See known limitations and proposed work | [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) |
-| Review the product development plan and TabMerger comparison | [docs/plans/product-development.md](docs/plans/product-development.md) |
-| Report a security issue | [SECURITY.md](SECURITY.md) |
-| Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| See what changed in each release | [CHANGELOG.md](CHANGELOG.md) |
-
-## Roadmap
-
-| Version | Status | Highlights |
-|---|---|---|
-| v0.1 | ✅ Shipped | Tab list, rule-based analysis, manual snapshots, Obsidian export |
-| v0.2 | ✅ Shipped | AI analysis with batching, tab history, topic clusters, cleanup session, auto-snapshots |
-| v0.2.1 | ✅ Shipped | Analytics, focus mode, resumable analysis, per-tab status, chat search |
-| **v0.3** | Current source | Offline duplicate review, window merging, collections, JSON migration, durable Undo and browser tests |
-| v1.0 | Planned | Onboarding, keyboard shortcuts, Chrome Web Store release |
-| v2.0 | Planned | Cross-device sync, Obsidian plugin, broader local-model support |
-
-Detailed feature breakdown by version: [MVP_FEATURES.md](MVP_FEATURES.md). Honest list of what's missing today: [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
-
-## Contributing
-
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the short version (TL;DR commands, code style, where to put things, what gates to pass). Be sure to read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and the threat model in [SECURITY.md](SECURITY.md) before contributing security-sensitive code.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
-
----
-
-<div align="center">
-
-Built by <a href="https://github.com/eiler2005">Denis Ermilov</a> · React · FastAPI · SQLite · Claude Code · Codex CLI
-
-</div>
+MIT — [LICENSE](LICENSE). Идеи организации материалов реализованы самостоятельно;
+исходники, тексты и оформление TabMerger в продукт не переносились.

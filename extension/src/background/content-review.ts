@@ -43,7 +43,23 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
   const excerpts: Record<number, string> = {};
   const cache = await readEvidence();
   // Bound extraction and AI payloads; local title scanning covers all tabs.
-  const batch = tabs.filter((tab) => !isStatefulChat(tab.url)).slice(0, MAX_AI_TABS);
+  const eligible = tabs.filter((tab) => !isStatefulChat(tab.url));
+  preview.reviewEligibleCount = options.includeSaved || options.deepUrls ? new Set(eligible.map((tab) => tab.url)).size : eligible.length;
+  const ordered: TabRecord[] = [];
+  if (options.includeSaved && !options.deepUrls) {
+    const live = eligible.filter((tab) => !preview.savedSources?.[tab.id]);
+    const saved = eligible.filter((tab) => preview.savedSources?.[tab.id]);
+    for (let index = 0; index < Math.max(live.length, saved.length); index++) {
+      if (live[index]) ordered.push(live[index]);
+      if (saved[index]) ordered.push(saved[index]);
+    }
+  } else ordered.push(...eligible);
+  const seenUrls = new Set<string>();
+  const batch = ordered.filter((tab) => {
+    if (!options.includeSaved && !options.deepUrls) return true;
+    if (seenUrls.has(tab.url)) return false;
+    seenUrls.add(tab.url); return true;
+  }).slice(0, MAX_AI_TABS);
   for (const tab of batch) {
     const cached = cache[tab.url];
     if (options.readContent && cached && cached.title === tab.title && Date.now() - cached.capturedAt < 86_400_000) {
@@ -79,7 +95,9 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
     }
   }
   signal?.throwIfAborted();
-  await storeEvidence(batch.filter((tab) => !preview.savedSources?.[tab.id]), Object.fromEntries(Object.entries(excerpts).filter(([id]) => !preview.evidence?.[Number(id)]?.cached)), options.deepUrls ? 'deep' : 'excerpt');
+  try {
+    await storeEvidence(batch.filter((tab) => !preview.savedSources?.[tab.id]), Object.fromEntries(Object.entries(excerpts).filter(([id]) => !preview.evidence?.[Number(id)]?.cached)), options.deepUrls ? 'deep' : 'excerpt');
+  } catch (error) { preview.warning = 'Evidence cache could not be saved: ' + String(error); }
   preview.excerptTabIds = Object.keys(excerpts).map(Number);
   await onProgress?.({ phase: 'compare', processed: batch.length, total: batch.length });
   preview.similarGroups = findSimilarContent(tabs, excerpts);
