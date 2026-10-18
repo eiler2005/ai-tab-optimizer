@@ -26,6 +26,12 @@ This repo is also a deliberate engineering exercise. It's structured to be revie
 
 ## Demo
 
+**Library and task collections:** Cleanup → Collections saves a set as **Working now**,
+**Read later** or **Reference**, with a reason, task and optional review date. Cleanup →
+Library searches open pages, saved pages and notes together. Open one result or focus
+its existing tab; a review date prompts inspection and never deletes content.
+Old collections remain compatible and appear as Reference. [Library guide](docs/WORKSPACE.md#library-and-task-collections).
+
 **New in 0.3:** [Offline workspace](docs/WORKSPACE.md) — review duplicates, merge windows, save/merge named collections, preserve notes, export/import JSON backups and undo successful tab operations without an AI server.
 
 **Content review:** Cleanup also separates cross-site content overlap from material

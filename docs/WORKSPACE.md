@@ -1,5 +1,22 @@
 # Offline workspace
 
+## Library and task collections
+
+Cleanup → Collections supports Working now (`now`), Read later (`later`) and Reference
+(`reference`). Add an optional reason, current task/relevance criteria and review date;
+save these details when creating a collection or edit them on its card. Dates only mark
+the collection due for review and never imply obsolescence or trigger deletion. Missing
+metadata in older collections is read as Reference; no destructive migration occurs.
+
+Cleanup → Library searches all normal open HTTP(S) pages and non-trashed collections,
+including page notes, collection reasons and tasks. Combine words with `collection:`,
+`domain:` and `status:open|now|later|reference`; quoted collection names are supported.
+Matching exact addresses share a result with all saved locations and live-copy count.
+Chat addresses retain separate results because their page state can differ.
+Results are paged in batches of 50. Open page validates the saved collection/item IDs
+again and opens only that item; an existing non-chat exact URL is focused instead.
+Collection metadata is validated and preserved in portable backups.
+
 ## Unified optimization
 
 Cleanup opens on **Optimize**. Click **Optimize tabs — prepare plan** to see a

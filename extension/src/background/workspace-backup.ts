@@ -3,6 +3,8 @@ import type { CollectionWindow, SavedCollection, SavedTab, TabOperation } from '
 import { extractDomain } from '@shared/utils/url';
 import { isRestorableUrl } from './session-actions';
 import { readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-storage';
+import { collectionDetails } from '@shared/utils/library';
+import type { CollectionDetails } from '@shared/types/workspace';
 
 const IMPORT_PREVIEW_KEY = 'aitab.import-preview.v1';
 const LEGACY_KEYS = ['settings', 'snapshots', 'tabHistory', 'userFlagsV2', 'exportedUrls', 'locale'];
@@ -97,7 +99,8 @@ export function parseBackup(json: string): ImportPreview {
     const windows = parseWindows(entry.windows, counter);
     if (!windows.length) { counter.skipped += 1; continue; }
     collections.push({ id: crypto.randomUUID(), name: text(entry.name, 120), createdAt: timestamp(entry.createdAt),
-      updatedAt: Date.now(), revision: 1, deletedAt: typeof entry.deletedAt === 'number' ? timestamp(entry.deletedAt) : undefined, windows });
+      updatedAt: Date.now(), revision: 1, deletedAt: typeof entry.deletedAt === 'number' ? timestamp(entry.deletedAt) : undefined,
+      ...collectionDetails({ purpose: entry.purpose, reason: entry.reason, focus: entry.focus, reviewAt: entry.reviewAt } as CollectionDetails), windows });
   }
   const operations: TabOperation[] = [];
   if (Array.isArray(raw.operations)) {

@@ -1,5 +1,7 @@
 import type { TabRecord, WindowGroup } from '@shared/types';
-import type { CollectionMergePreview, CollectionPreview, CollectionWindow, SavedCollection, SavedTab, TabOperation } from '@shared/types/workspace';
+import type { CollectionChange, CollectionDetails, CollectionMergePreview, CollectionPreview, CollectionWindow, SavedCollection, SavedTab, TabOperation } from '@shared/types/workspace';
+import { collectionDetails } from '@shared/utils/library';
+import { isStatefulChat } from '@shared/utils/page-safety';
 import { readBrowserState } from './browser-state';
 import { closeOperationItems } from './workspace-operations';
 import { browserSessionId, readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-storage';
@@ -43,7 +45,7 @@ export async function previewCollection(name: string, tabIds?: number[]): Promis
   });
 }
 
-export async function saveCollection(previewId: string, closeAfter: boolean): Promise<{ collection: SavedCollection; operation?: TabOperation }> {
+export async function saveCollection(previewId: string, closeAfter: boolean, details: CollectionDetails = {}): Promise<{ collection: SavedCollection; operation?: TabOperation }> {
   return withWorkspaceLock(async () => {
     const workspace = await readWorkspace();
     const previous = workspace.collections.find((collection) => collection.id === previewId);
@@ -53,7 +55,7 @@ export async function saveCollection(previewId: string, closeAfter: boolean): Pr
     if (!preview || preview.id !== previewId || Date.now() - preview.createdAt > 300_000) throw new Error('Collection preview expired');
     const now = Date.now();
     const collection: SavedCollection = { id: preview.id, name: preview.name, createdAt: now, updatedAt: now,
-      revision: 1, windows: detachWindows(preview.windows) };
+      revision: 1, purpose: 'later', ...collectionDetails(details), windows: detachWindows(preview.windows) };
     workspace.collections.push(collection);
     const operation: TabOperation | undefined = closeAfter ? { id: preview.id, kind: 'close', createdAt: now,
       browserSessionId: await browserSessionId(), status: 'running',
@@ -85,7 +87,25 @@ export async function openCollection(id: string) {
   });
 }
 
-export async function updateCollection(id: string, change: { name?: string; deleted?: boolean; itemId?: string; note?: string; permanent?: boolean }): Promise<void> {
+export async function openCollectionItem(id: string, itemId: string): Promise<{ tabId: number; reused: boolean }> {
+  return withWorkspaceLock(async () => {
+    const collection = (await readWorkspace()).collections.find((entry) => entry.id === id && !entry.deletedAt);
+    const item = collection?.windows.flatMap((window) => window.tabs).find((tab) => tab.itemId === itemId);
+    if (!item || !isRestorableUrl(item.url)) throw new Error('Saved page not found');
+    // Chat addresses may represent different unsaved sessions; never silently choose a copy.
+    const existing = !isStatefulChat(item.url) ? (await readBrowserState()).flatMap((window) => window.tabs).find((tab) => tab.url === item.url) : undefined;
+    if (existing) {
+      await chrome.tabs.update(existing.id, { active: true });
+      await chrome.windows.update(existing.windowId, { focused: true });
+      return { tabId: existing.id, reused: true };
+    }
+    const tab = await chrome.tabs.create({ url: item.url, active: true });
+    if (tab.id === undefined) throw new Error('Browser did not return a tab ID');
+    return { tabId: tab.id, reused: false };
+  });
+}
+
+export async function updateCollection(id: string, change: CollectionChange): Promise<void> {
   return withWorkspaceLock(async () => {
     const workspace = await readWorkspace();
     const collection = workspace.collections.find((entry) => entry.id === id);
@@ -94,6 +114,7 @@ export async function updateCollection(id: string, change: { name?: string; dele
       if (!collection.deletedAt) throw new Error('Move the collection to trash first');
       workspace.collections = workspace.collections.filter((entry) => entry.id !== id);
     } else {
+      Object.assign(collection, collectionDetails(change));
       if (change.name !== undefined) collection.name = collectionName(change.name);
       if (change.deleted !== undefined) collection.deletedAt = change.deleted ? Date.now() : undefined;
       if (change.itemId !== undefined) {

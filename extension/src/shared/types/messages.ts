@@ -15,9 +15,10 @@ export type MessageRequest =
   | { type: 'PREVIEW_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
   | { type: 'EXECUTE_CONTENT_REVIEW'; previewId: string; decisions: import('./content-review').ReviewCloseDecision[] }
   | { type: 'PREVIEW_COLLECTION'; name: string; tabIds?: number[] }
-  | { type: 'SAVE_COLLECTION'; previewId: string; closeAfter: boolean }
+  | { type: 'SAVE_COLLECTION'; previewId: string; closeAfter: boolean; details?: import('./workspace').CollectionDetails }
   | { type: 'OPEN_COLLECTION'; collectionId: string }
-  | { type: 'UPDATE_COLLECTION'; collectionId: string; change: { name?: string; deleted?: boolean; itemId?: string; note?: string; permanent?: boolean } }
+  | { type: 'OPEN_COLLECTION_ITEM'; collectionId: string; itemId: string }
+  | { type: 'UPDATE_COLLECTION'; collectionId: string; change: import('./workspace').CollectionChange }
   | { type: 'PREVIEW_COLLECTION_MERGE'; collectionIds: string[]; name: string }
   | { type: 'MERGE_COLLECTIONS'; previewId: string }
   | { type: 'EXPORT_WORKSPACE_BACKUP' }

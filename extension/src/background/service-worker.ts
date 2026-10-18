@@ -45,7 +45,7 @@ import { runRules, tabProtectionReason } from '@shared/utils/rules';
 import { restoreWindows } from './session-actions';
 import { readBrowserState } from './browser-state';
 import { executeWindowMerge, previewWindowMerge } from './window-operations';
-import { executeCollectionMerge, openCollection, previewCollection, previewCollectionMerge, saveCollection, updateCollection } from './collections';
+import { executeCollectionMerge, openCollection, openCollectionItem, previewCollection, previewCollectionMerge, saveCollection, updateCollection } from './collections';
 import { executeBackupImport, exportWorkspaceBackup, previewBackupImport } from './workspace-backup';
 import { closeRecordedTabs, executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
 import { previewContentReview, executeContentReviewClose } from './content-review';
@@ -1948,7 +1948,7 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
     case 'PREVIEW_COLLECTION':
       return { success: true, data: await previewCollection(msg.name, msg.tabIds) };
     case 'SAVE_COLLECTION': {
-      const result = await saveCollection(msg.previewId, msg.closeAfter);
+      const result = await saveCollection(msg.previewId, msg.closeAfter, msg.details);
       broadcastUpdate();
       return { success: true, data: result };
     }
@@ -1957,6 +1957,8 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       broadcastUpdate();
       return { success: true, data: result };
     }
+    case 'OPEN_COLLECTION_ITEM':
+      return { success: true, data: await openCollectionItem(msg.collectionId, msg.itemId) };
     case 'UPDATE_COLLECTION':
       await updateCollection(msg.collectionId, msg.change);
       return { success: true };

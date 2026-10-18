@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '@shared/i18n';
-import type { CollectionMergePreview, CollectionPreview, SavedCollection, TabOperation, WorkspaceData } from '@shared/types/workspace';
+import type { CollectionDetails, CollectionMergePreview, CollectionPreview, SavedCollection, TabOperation, WorkspaceData } from '@shared/types/workspace';
+import { CollectionDetailsEditor } from './CollectionDetailsEditor';
 import type { ImportPreview } from '../../background/workspace-backup';
 import type { RestoreResult } from '../../background/session-actions';
 import { useStore } from '../store';
@@ -20,6 +21,7 @@ export function CollectionsPanel({ workspace, busy, run, onResult, onFeedback }:
   const windows = useStore((state) => state.windowGroups);
   const selectedTabs = useStore((state) => state.selectedTabIds);
   const [name, setName] = useState('');
+  const [details, setDetails] = useState<CollectionDetails>({ purpose: 'later' });
   const [scope, setScope] = useState('all');
   const [preview, setPreview] = useState<CollectionPreview | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -30,7 +32,7 @@ export function CollectionsPanel({ workspace, busy, run, onResult, onFeedback }:
 
   async function save(closeAfter: boolean) {
     if (!preview) return;
-    const result = await workspaceMessage<{ collection: SavedCollection; operation?: TabOperation }>({ type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter });
+    const result = await workspaceMessage<{ collection: SavedCollection; operation?: TabOperation }>({ type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter, details });
     setPreview(null); setName('');
     if (result.operation) onResult(result.operation);
     else onFeedback(tr('Коллекция сохранена.', 'Collection saved.'));
@@ -46,6 +48,7 @@ export function CollectionsPanel({ workspace, busy, run, onResult, onFeedback }:
         <option value="selected" disabled={!selectedTabs.size}>{tr('Выделенные вкладки', 'Selected tabs')} ({selectedTabs.size})</option>
         {windows.map((window, index) => <option key={window.windowId} value={window.windowId}>{tr('Окно', 'Window')} {index + 1} ({window.tabs.length})</option>)}
       </select>
+      <CollectionDetailsEditor value={details} onChange={setDetails} disabled={busy} />
       <button disabled={busy || !name.trim()} onClick={() => void run(async () => {
         const ids = scope === 'all' ? undefined : scope === 'selected' ? [...selectedTabs] : windows.find((window) => window.windowId === Number(scope))?.tabs.map((tab) => tab.id) ?? [];
         setPreview(await workspaceMessage<CollectionPreview>({ type: 'PREVIEW_COLLECTION', name, tabIds: ids }));
@@ -123,9 +126,13 @@ function CollectionCard({ collection, busy, run, onFeedback, selected, onSelect 
   const { locale } = useI18n();
   const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
   const [name, setName] = useState(collection.name);
+  const [details, setDetails] = useState<CollectionDetails>({ purpose: collection.purpose ?? 'reference', reason: collection.reason, focus: collection.focus, reviewAt: collection.reviewAt });
   return <details className="border rounded p-2 space-y-2 text-xs">
     <summary className="flex gap-2 items-start"><input type="checkbox" checked={selected} disabled={busy} aria-label={tr('Выбрать коллекцию', 'Select collection') + ' ' + collection.name} onChange={(event) => onSelect(event.target.checked)} /><span className="flex-1 break-words">{collection.name} · {collection.windows.reduce((sum, window) => sum + window.tabs.length, 0)}</span></summary>
     <div className="space-y-2 mt-2">
+      {collection.reviewAt && collection.reviewAt <= Date.now() ? <p className="text-amber-800">{tr('Пора пересмотреть подборку. Дата не означает, что материалы устарели.', 'Review is due. The date does not mean the content is obsolete.')}</p> : null}
+      <CollectionDetailsEditor value={details} onChange={setDetails} disabled={busy} />
+      <button disabled={busy} className="border rounded p-2" onClick={() => void run(async () => { await workspaceMessage({ type: 'UPDATE_COLLECTION', collectionId: collection.id, change: details }); onFeedback(tr('Назначение и задача сохранены.', 'Purpose and task saved.')); })}>{tr('Сохранить назначение', 'Save purpose')}</button>
       <div className="flex gap-1"><input aria-label={tr('Переименовать коллекцию', 'Rename collection')} maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className="border rounded p-1 min-w-0 flex-1" />
         <button disabled={busy || name === collection.name || !name.trim()} onClick={() => void run(async () => { await workspaceMessage({ type: 'UPDATE_COLLECTION', collectionId: collection.id, change: { name } }); })} className="px-2 bg-gray-100 rounded disabled:opacity-50">{tr('Сохранить имя', 'Save name')}</button></div>
       <div className="flex gap-2 flex-wrap">

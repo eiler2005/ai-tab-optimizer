@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { previewCollection, saveCollection, previewCollectionMerge, executeCollectionMerge, openCollection, updateCollection } from '../collections';
+import { previewCollection, saveCollection, previewCollectionMerge, executeCollectionMerge, openCollection, openCollectionItem, updateCollection } from '../collections';
+import { exportWorkspaceBackup, parseBackup } from '../workspace-backup';
 import { mockBrowser } from './mock-browser';
 import { makeTab } from '../../shared/utils/__tests__/fixtures';
 import { WORKSPACE_KEY } from '../workspace-storage';
@@ -15,6 +16,22 @@ function setup() {
 }
 
 describe('saved collections', () => {
+  it('persists purpose and task through backup and opens just one saved item without duplicates', async () => {
+    const browser = setup();
+    const saved = (await saveCollection((await previewCollection('Task')).id, false, { purpose: 'now', focus: 'React 19', reason: 'Migration', reviewAt: 1000 })).collection;
+    const imported = parseBackup(await exportWorkspaceBackup()).collections[0];
+    expect(imported).toMatchObject({ purpose: 'now', focus: 'React 19', reviewAt: 1000 });
+    const item = saved.windows[0].tabs[1];
+    expect(await openCollectionItem(saved.id, item.itemId)).toEqual({ tabId: 2, reused: true });
+    expect(browser.api.tabs.create).not.toHaveBeenCalled();
+    browser.tabs.delete(2);
+    expect((await openCollectionItem(saved.id, item.itemId)).reused).toBe(false);
+    expect(browser.api.tabs.create).toHaveBeenCalledTimes(1);
+    expect((await openCollectionItem(saved.id, item.itemId)).reused).toBe(true);
+    expect(browser.api.tabs.create).toHaveBeenCalledTimes(1);
+    await updateCollection(saved.id, { deleted: true });
+    await expect(openCollectionItem(saved.id, item.itemId)).rejects.toThrow('not found');
+  });
   it('persists detached copies before closing, protects pinned tabs and is idempotent', async () => {
     const browser = setup();
     const preview = await previewCollection('Research');

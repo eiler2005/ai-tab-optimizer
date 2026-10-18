@@ -6,6 +6,7 @@ import { useStore } from '../store';
 import { workspaceMessage } from '../workspace-api';
 import { WindowMergePanel } from './WindowMergePanel';
 import { CollectionsPanel } from './CollectionsPanel';
+import { LibraryPanel } from './LibraryPanel';
 import { AIWorkspacePanel } from './AIWorkspacePanel';
 import { ContentReviewPanel } from './ContentReviewPanel';
 import { OptimizationPanel } from './OptimizationPanel';
@@ -28,7 +29,7 @@ export function WorkspaceView() {
   const review = useReviewController();
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [section, setSection] = useState<'optimize' | 'duplicates' | 'similar' | 'outdated' | 'windows' | 'collections' | 'ai' | 'history'>('optimize');
+  const [section, setSection] = useState<'optimize' | 'duplicates' | 'similar' | 'outdated' | 'windows' | 'collections' | 'library' | 'ai' | 'history'>('optimize');
 
   const refresh = async () => setWorkspace(await workspaceMessage<WorkspaceData>({ type: 'WORKSPACE_OVERVIEW' }));
   useEffect(() => {
@@ -95,7 +96,7 @@ export function WorkspaceView() {
     <div className="flex-none p-3 space-y-2 border-b bg-white">
     <h2 className="font-semibold text-sm">{tr('Очистка и оптимизация', 'Cleanup and optimization')}</h2>
     <nav className="flex gap-1 flex-wrap" aria-label={tr('Раздел очистки', 'Cleanup section')}>
-      {([['optimize', tr('Оптимизация', 'Optimize')], ['duplicates', tr('Повторы', 'Duplicates')], ['similar', tr('Похожий контент', 'Similar content')], ['outdated', tr('Устарело по смыслу', 'Outdated content')], ['windows', tr('Окна', 'Windows')], ['collections', tr('Коллекции', 'Collections')], ['ai', 'AI'], ['history', tr('История', 'History')]] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
+      {([['optimize', tr('Оптимизация', 'Optimize')], ['duplicates', tr('Повторы', 'Duplicates')], ['similar', tr('Похожий контент', 'Similar content')], ['outdated', tr('Устарело по смыслу', 'Outdated content')], ['windows', tr('Окна', 'Windows')], ['collections', tr('Коллекции', 'Collections')], ['library', tr('Библиотека', 'Library')], ['ai', 'AI'], ['history', tr('История', 'History')]] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
     </nav>
     <ReviewProgress />
     {busy && <p role="status" className="text-xs text-blue-800">{tr('Выполняем действие и сохраняем результат…', 'Applying action and saving the result…')}</p>}
@@ -149,6 +150,7 @@ export function WorkspaceView() {
     {section === 'windows' && <WindowMergePanel busy={busy} run={run} onResult={showResult} />}
     {(section === 'similar' || section === 'outdated') && <ContentReviewPanel mode={section} busy={busy} run={run} onResult={showResult} />}
     {section === 'collections' && <CollectionsPanel workspace={workspace} busy={busy} run={run} onResult={showResult} onFeedback={setFeedback} />}
+    {section === 'library' && <LibraryPanel workspace={workspace} busy={busy} run={run} />}
     {section === 'ai' && <AIWorkspacePanel busy={busy} run={run} onFeedback={setFeedback} onReviewDuplicates={() => setSection('duplicates')} />}
     {section === 'history' && <section className="space-y-2 border-t pt-3">
       <h3 className="font-semibold text-xs">{tr('История операций', 'Operation history')}</h3>

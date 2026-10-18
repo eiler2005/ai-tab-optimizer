@@ -52,7 +52,18 @@ export interface TabOperation {
   optimizationReport?: import('./optimization').OptimizationReport;
 }
 
-export interface SavedCollection {
+export type CollectionPurpose = 'now' | 'later' | 'reference';
+export interface CollectionDetails {
+  purpose?: CollectionPurpose;
+  reason?: string;
+  focus?: string;
+  reviewAt?: number | null;
+}
+export interface CollectionChange extends CollectionDetails {
+  name?: string; deleted?: boolean; itemId?: string; note?: string; permanent?: boolean;
+}
+
+export interface SavedCollection extends CollectionDetails {
   id: string;
   name: string;
   createdAt: number;
