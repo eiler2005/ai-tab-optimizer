@@ -5,6 +5,7 @@ import { buildLibrary, searchLibrary } from '@shared/utils/library';
 import { useStore } from '../store';
 import { workspaceMessage } from '../workspace-api';
 import { LibraryReview } from './LibraryReview';
+import { LibraryRulesPanel } from './LibraryRulesPanel';
 
 export function LibraryPanel({ workspace, busy, run }: { workspace: WorkspaceData | null; busy: boolean; run: (action: () => Promise<void>) => Promise<void> }) {
   const { locale } = useI18n();
@@ -21,6 +22,7 @@ export function LibraryPanel({ workspace, busy, run }: { workspace: WorkspaceDat
     <p className="text-gray-500">{tr('Фильтры', 'Filters')}: collection:, domain:, status:open / now / later / reference. {tr('Корзина исключена. Открывается одна страница; существующая вкладка получает фокус.', 'Trash is excluded. Opens one page or focuses an existing tab.')}</p>
     <p role="status">{tr('Найдено', 'Found')}: {results.length} / {pages.length}</p>
     <LibraryReview selectedUrls={selectedUrls} />
+    <LibraryRulesPanel workspace={workspace} busy={busy} run={run} />
     {results.slice(0, limit).map((page) => <article key={page.key} className="border rounded p-2 space-y-2">
       <h4 className="font-medium break-words">{page.title || page.url}</h4><p className="break-all text-gray-500">{page.url}</p>
       <label className="flex gap-2"><input type="checkbox" aria-label={tr('Сравнить страницу', 'Compare page') + ' ' + page.url} checked={selectedUrls.includes(page.url)} disabled={!selectedUrls.includes(page.url) && selectedUrls.length >= 2} onChange={() => setSelectedUrls((current) => current.includes(page.url) ? current.filter((url) => url !== page.url) : [...current, page.url])} />{tr('Выбрать для углублённого сравнения', 'Select for deep comparison')}</label>

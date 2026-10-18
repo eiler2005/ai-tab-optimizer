@@ -12,6 +12,7 @@ import { AIRecommendations } from './components/AIRecommendations';
 import { CleanupSession } from './components/CleanupSession';
 import { ChatSearch } from './components/ChatSearch';
 import { WorkspaceView } from './components/WorkspaceView';
+import { LibraryHintBanner } from './components/LibraryHintBanner';
 
 export function App() {
   const actionError = useStore((state) => state.actionError);
@@ -120,6 +121,7 @@ export function App() {
       {view === 'tabs' && (
         <>
           <StatsBar />
+          <LibraryHintBanner />
           <TabList />
           <BulkActions />
         </>

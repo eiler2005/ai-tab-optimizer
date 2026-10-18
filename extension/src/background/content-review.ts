@@ -58,6 +58,7 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
       signal?.throwIfAborted();
       await Promise.all(batch.slice(offset, offset + 5).map(async (tab) => {
       if (preview.savedSources?.[tab.id]) return;
+      if (!options.deepUrls && preview.evidence?.[tab.id]?.cached) return;
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         const before = await chrome.tabs.get(tab.id);

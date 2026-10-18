@@ -17,3 +17,8 @@ export async function storeEvidence(tabs: TabRecord[], excerpts: Record<number, 
   }
   await chrome.storage.local.set({ [KEY]: result });
 }
+
+export async function invalidateEvidence(url: string) {
+  const cache = await readEvidence();
+  if (cache[url]) { delete cache[url]; await chrome.storage.local.set({ [KEY]: cache }); }
+}

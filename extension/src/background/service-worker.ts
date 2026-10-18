@@ -52,6 +52,7 @@ import { previewContentReview, executeContentReviewClose, rememberReviewDecision
 import { startReviewJob, getReviewJob, cancelReviewJob } from './review-jobs';
 import { previewOptimization, executeOptimization } from './optimization';
 import { collapseTopic } from './topic-actions';
+import { registerLibraryAutomation, savePageToCollection, saveUrlRules } from './library-automation';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -1965,6 +1966,10 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       return { success: true, data: await openCollectionItem(msg.collectionId, msg.itemId) };
     case 'COLLAPSE_TOPIC':
       return { success: true, data: await collapseTopic(msg.tabIds, msg.name, msg.collapsed) };
+    case 'SAVE_URL_RULES':
+      await saveUrlRules(msg.rules); return { success: true };
+    case 'SAVE_PAGE_TO_COLLECTION':
+      return { success: true, data: await savePageToCollection(msg.tabId, msg.collectionId) };
     case 'UPDATE_COLLECTION':
       await updateCollection(msg.collectionId, msg.change);
       return { success: true };
@@ -2459,6 +2464,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 // ─── Startup: setup alarms ──────────────────────────────
 
 setupAutoSnapshot();
+registerLibraryAutomation();
 void ensureServerPersistenceSync().catch(() => {});
 
 // History cleanup alarm (daily)

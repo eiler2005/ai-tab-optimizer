@@ -19,6 +19,7 @@ export interface ImportPreview {
   legacy: Record<string, unknown>;
   skipped: number;
   reviewDecisions?: WorkspaceData['reviewDecisions'];
+  urlRules?: WorkspaceData['urlRules'];
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -96,6 +97,7 @@ export function parseBackup(json: string): ImportPreview {
   if (raw.collections.length > 200) throw new Error('Backup exceeds 200 collections');
   const counter = { skipped: 0, tabs: 0 };
   const collections: SavedCollection[] = [];
+  const collectionIds = new Map<string, string>();
   for (const entry of raw.collections) {
     if (!record(entry) || typeof entry.name !== 'string' || !entry.name.trim()) { counter.skipped += 1; continue; }
     const windows = parseWindows(entry.windows, counter);
@@ -103,6 +105,7 @@ export function parseBackup(json: string): ImportPreview {
     collections.push({ id: crypto.randomUUID(), name: text(entry.name, 120), createdAt: timestamp(entry.createdAt),
       updatedAt: Date.now(), revision: 1, deletedAt: typeof entry.deletedAt === 'number' ? timestamp(entry.deletedAt) : undefined,
       ...collectionDetails({ purpose: entry.purpose, reason: entry.reason, focus: entry.focus, reviewAt: entry.reviewAt } as CollectionDetails), windows });
+    if (typeof entry.id === 'string') collectionIds.set(entry.id, collections[collections.length - 1].id);
   }
   const operations: TabOperation[] = [];
   if (Array.isArray(raw.operations)) {
@@ -165,7 +168,13 @@ export function parseBackup(json: string): ImportPreview {
       reviewDecisions.push({ key: item.key, kind: item.kind, createdAt: item.createdAt });
     }
   }
-  return { id: crypto.randomUUID(), createdAt: Date.now(), collections, operations, legacy, reviewDecisions, skipped: counter.skipped };
+  const urlRules: NonNullable<WorkspaceData['urlRules']> = [];
+  if (Array.isArray(raw.urlRules)) for (const rule of raw.urlRules.slice(0, 50)) {
+    if (!record(rule) || typeof rule.hostname !== 'string' || !/^[a-z0-9][a-z0-9.-]{0,252}$/i.test(rule.hostname) || typeof rule.collectionId !== 'string') continue;
+    const collectionId = collectionIds.get(rule.collectionId);
+    if (collectionId) urlRules.push({ id: crypto.randomUUID(), hostname: rule.hostname.toLowerCase(), collectionId, mode: 'suggest' });
+  }
+  return { id: crypto.randomUUID(), createdAt: Date.now(), collections, operations, legacy, reviewDecisions, urlRules, skipped: counter.skipped };
 }
 
 export async function exportWorkspaceBackup(): Promise<string> {
@@ -173,7 +182,7 @@ export async function exportWorkspaceBackup(): Promise<string> {
     const workspace = await readWorkspace();
     const legacy = await chrome.storage.local.get(LEGACY_KEYS);
     legacy.settings = safeSettings(legacy.settings);
-    return JSON.stringify({ format: 'aitab-backup', version: 1, exportedAt: Date.now(), collections: workspace.collections, operations: workspace.operations, reviewDecisions: workspace.reviewDecisions, legacy }, null, 2);
+    return JSON.stringify({ format: 'aitab-backup', version: 1, exportedAt: Date.now(), collections: workspace.collections, operations: workspace.operations, reviewDecisions: workspace.reviewDecisions, urlRules: workspace.urlRules, legacy }, null, 2);
   });
 }
 
@@ -194,6 +203,7 @@ export async function executeBackupImport(previewId: string): Promise<{ imported
     if (workspace.importedBackupIds?.includes(previewId)) return { imported: 0, skipped: preview.skipped };
     workspace.collections.push(...preview.collections); workspace.operations.push(...preview.operations);
     workspace.reviewDecisions = [...new Map([...(preview.reviewDecisions ?? []), ...(workspace.reviewDecisions ?? [])].map((entry) => [entry.key, entry])).values()].slice(-500);
+    workspace.urlRules = [...(workspace.urlRules ?? []), ...(preview.urlRules ?? [])].slice(0, 50);
     workspace.importedBackupIds = [...(workspace.importedBackupIds ?? []), previewId].slice(-100);
     const current = await chrome.storage.local.get(LEGACY_KEYS);
     const extra: Record<string, unknown> = {};

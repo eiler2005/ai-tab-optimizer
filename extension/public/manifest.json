@@ -10,7 +10,8 @@
     "alarms",
     "sessions",
     "sidePanel",
-    "scripting"
+    "scripting",
+    "contextMenus"
   ],
   "host_permissions": [
     "http://localhost/*",
@@ -57,5 +58,10 @@
       ]
     }
   ],
+  "commands": {
+    "save-current-to-library": {
+      "description": "Save the current page to the AITab Inbox"
+    }
+  },
   "minimum_chrome_version": "114"
 }

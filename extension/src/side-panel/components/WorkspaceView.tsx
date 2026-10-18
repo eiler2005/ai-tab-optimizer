@@ -36,8 +36,10 @@ export function WorkspaceView() {
   useEffect(() => {
     const reload = () => { void refresh().catch((failure) => setError(String(failure))); };
     const listener = (message: { type?: string }) => { if (message.type === 'TAB_OPERATION_COMPLETE') reload(); };
+    const changed = (changes: Record<string, chrome.storage.StorageChange>) => { if (changes['aitab.workspace.v1']) reload(); };
     reload(); chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
+    chrome.storage.onChanged.addListener(changed);
+    return () => { chrome.runtime.onMessage.removeListener(listener); chrome.storage.onChanged.removeListener(changed); };
   }, []);
 
   const stateLabel = (value: string) => {

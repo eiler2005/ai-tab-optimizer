@@ -100,4 +100,5 @@ export interface WorkspaceData {
   collections: SavedCollection[];
   importedBackupIds?: string[];
   reviewDecisions?: { key: string; kind: 'keep' | 'complementary'; createdAt: number }[];
+  urlRules?: { id: string; hostname: string; collectionId: string; mode: 'suggest' | 'save' }[];
 }

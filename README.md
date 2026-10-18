@@ -93,6 +93,11 @@ For the long version (CLI provider setup, troubleshooting, manual test flows for
 
 ## How it works
 
+**Prevent repeats:** Tabs hints when the active page already exists in an open tab or
+collection. Library rules can suggest a destination or save links automatically by
+exact hostname. Repeated loads add no copies and never close pages. Right-click a page
+to save it to Inbox, or assign the command in `chrome://extensions/shortcuts`.
+
 ```mermaid
 flowchart LR
   SP["Side Panel<br/>(React + Zustand)"]

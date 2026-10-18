@@ -20,6 +20,8 @@ export type MessageRequest =
   | { type: 'OPEN_COLLECTION'; collectionId: string }
   | { type: 'OPEN_COLLECTION_ITEM'; collectionId: string; itemId: string }
   | { type: 'COLLAPSE_TOPIC'; tabIds: number[]; name: string; collapsed: boolean }
+  | { type: 'SAVE_URL_RULES'; rules: NonNullable<import('./workspace').WorkspaceData['urlRules']> }
+  | { type: 'SAVE_PAGE_TO_COLLECTION'; tabId: number; collectionId?: string }
   | { type: 'UPDATE_COLLECTION'; collectionId: string; change: import('./workspace').CollectionChange }
   | { type: 'PREVIEW_COLLECTION_MERGE'; collectionIds: string[]; name: string }
   | { type: 'MERGE_COLLECTIONS'; previewId: string }

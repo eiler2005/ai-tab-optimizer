@@ -21,7 +21,7 @@ describe('reviewed content closes', () => {
     const preview = await previewContentReview({ useAi: false, readContent: true, includeSaved: true }, extract);
     expect(preview.tabs).toHaveLength(6);
     expect(new Set(preview.tabs.map((tab) => tab.id)).size).toBe(6);
-    expect(extract).toHaveBeenCalledTimes(3);
+    expect(extract).toHaveBeenCalledTimes(2);
     const savedId = Number(Object.keys(preview.savedSources!)[0]);
     expect(preview.savedSources![savedId].collectionId).toBe(saved.id);
     expect(preview.evidence![savedId]).toMatchObject({ text: 'Cached article body', cached: true });

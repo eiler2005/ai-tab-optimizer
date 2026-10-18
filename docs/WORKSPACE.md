@@ -33,8 +33,9 @@ Select two page URLs in the library and choose **Deep review selected pair** for
 dates per live page. It does not fetch closed pages or wake discarded tabs. Standard
 reviews retain their 1,200-character evidence bound; AI still covers at most 600 entries.
 Accessible evidence is cached locally by exact URL/title for up to 24 hours, within a
-900 KB cache budget. Saved pages can use that labelled historical evidence. Live pages
-are re-read when excerpts are enabled; navigation/missing access discards their evidence.
+900 KB cache budget. Saved pages can use that labelled historical evidence. Unchanged
+live pages reuse cached excerpts; navigation, reload and title changes invalidate them.
+Deep comparison always attempts a fresh read. Missing access is shown explicitly.
 Disabling excerpts also disables cached text in provider requests. Evidence is derived
 cache data, excluded from portable backups. It is not proof of full-page equivalence.
 
@@ -174,6 +175,24 @@ Cleanup → Collections saves all normal windows, one window, or tabs selected i
 Saved pages have independent UUIDs, notes, timestamps, page flags and logical group keys; they never address live Chrome tab IDs. Opening a collection only opens missing URLs and restores layout/group metadata. Same-URL page flags are reapplied to newly opened pages without replacing current flags.
 
 Select one collection to create a deduplicated copy, or several collections to combine them. Preview reports before/after counts and resulting URLs. Only full URL matches are merged. Different notes are combined, stronger flags and pinning are retained, and all source collections remain unchanged. Source revisions are checked again on confirmation. Collections can be renamed, edited and moved to reversible trash. Permanent deletion requires a separate confirmation from trash.
+
+## Preventing repeated accumulation
+
+Tabs shows a local hint for the focused normal-window page if an exact non-chat copy
+is already open/saved, or its hostname matches a collection rule. The hint can focus
+an existing copy or save to the suggested collection. It never closes a page.
+Cleanup → Library → **Duplicate prevention and save rules** manages up to 50 exact-host
+rules. First matching valid rule wins. `suggest` shows a hint; opt-in `save` saves the
+loaded link once, preserving existing records and notes, without closing the tab.
+Repeated loads are idempotent. Chats, private windows and unavailable targets are skipped.
+
+The page context menu **AITab: save page to Inbox** and the configurable
+`save-current-to-library` command save an ordinary HTTP(S) link to the Inbox Read later
+collection. Configure the command in `chrome://extensions/shortcuts`; no global key
+combination is imposed. This adds the `contextMenus` permission. Background automation
+errors are retained locally as `aitab.automation-error` for diagnostics. Workspace views
+refresh on local data changes, including background saves. Imported URL rules are
+remapped to imported collection IDs and become suggestions until explicitly enabled.
 
 ## Portable JSON backups
 
