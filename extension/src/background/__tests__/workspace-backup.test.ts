@@ -10,6 +10,12 @@ afterEach(() => vi.unstubAllGlobals());
 const backup = (extra: object = {}) => JSON.stringify({ format: 'aitab-backup', version: 1, collections: [{ name: 'Imported', windows: [{ focused: true, tabs: [{ url: 'https://example.test/#/one', title: 'Saved', pinned: true, note: 'User notes' }] }] }], ...extra });
 
 describe('portable backup boundary', () => {
+  it('preserves numeric optimization summaries while excluding malformed report fields', () => {
+    const report = { tabsBefore: 10, tabsAfter: 8, requested: 3, closed: 2, skipped: 1, failed: 0 };
+    const operation = { kind: 'close', optimizationReport: report, items: [{ state: 'done', tab: { url: 'https://example.test/' } }] };
+    expect(parseBackup(backup({ operations: [operation] })).operations[0].optimizationReport).toEqual(report);
+    expect(parseBackup(backup({ operations: [{ ...operation, optimizationReport: { ...report, closed: -1 } }] })).operations[0].optimizationReport).toBeUndefined();
+  });
   it('round-trips notes, regenerates identities and never exports credentials', async () => {
     const browser = mockBrowser([makeTab({ id: 1 })]);
     browser.local.settings = { apiKey: 'sensitive-provider-secret', protectedDomains: ['example.com'] };

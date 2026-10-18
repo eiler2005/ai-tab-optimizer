@@ -1,5 +1,52 @@
 # Offline workspace
 
+## Unified optimization
+
+Cleanup opens on **Optimize**. Click **Optimize tabs — prepare plan** to see a
+before/after forecast, proposed closures, the page retained for each candidate,
+and counts for protected pages, preserved chats and alternative material. Exact
+URL copies form the initial local plan. A fresh matching content review is reused;
+otherwise the optional AI checkbox starts a review and refines the local plan
+when it completes. Preparing a plan never closes pages. **Apply plan (N)** is a
+separate action in a persistent footer that stays visible while the list scrolls.
+
+Default selection includes unprotected exact copies and AI-labelled redundant
+content with confidence at least 0.95 and excerpts available for every member.
+Related/alternative material is retained. Tracking variants, lower-confidence
+redundancy and topical obsolescence require explicit manual selection. Chats are
+excluded. A retained page cannot be selected while another selected candidate
+depends on it. The plan expires after five minutes; execution rechecks URLs,
+window/group membership and current protections, journals before each close, and
+supports idempotent Undo. Content equivalence is an informed suggestion rather
+than a guarantee about every part of a page or unsaved application state.
+
+After applying, the report distinguishes the forecast from **actual** before/after
+counts, successful closes, skips and failures. **Download report** exports the
+chosen pages, reasons, retained URLs and available outcomes as Markdown. The
+numeric outcome summary also persists in operation history. **Undo optimization**
+restores successful closes once. The report describes the original close operation;
+its counters are historical after Undo. Temporary plans and live review jobs are
+session state, not portable backups.
+
+## Review progress and available controls
+
+Content review runs as a background job, independent of the short action lock.
+The persistent progress card shows capture, excerpt reading, local comparison,
+AI waiting and completion. Excerpt counts are measured and the optional remaining
+time is estimated from observed extraction speed. AI waiting is indeterminate,
+with elapsed time and a 100-second client wait limit rather than an invented
+percentage. Provider attempts share a 90-second server budget. Cancel stops
+further extraction/submission and aborts an in-flight local request; the server
+cancels the provider coroutine on disconnect and terminates its owned Codex process.
+
+Progress/results survive closing and reopening the panel in the same worker
+session. A worker restart marks an unfinished job interrupted and invites a new
+review. Switching cleanup sections while AI runs does not disable duplicate
+selection or local actions. Close buttons and selected counts stay in a separate
+footer outside the scrolling list, including the zero-selection disabled state.
+Each disabled row explains its protection or survivor dependency. To close the
+currently retained copy, first choose another survivor with the radio button.
+
 ## Duplicate review
 
 Open **Cleanup**, choose all normal windows or one window, and click **Find duplicates**. Exact groups compare full HTTP(S) URLs. Tracking variants only strip a small list of known analytics parameters; fragments, `ref`, `source`, path case and trailing slashes remain meaningful.
@@ -49,7 +96,7 @@ URL changes during capture. Inaccessible pages are explicitly counted and use
 title/URL evidence only. Enabled excerpts, titles, URLs and focus are sent to the
 configured AI provider. Full documents, login state and visit-age history are not
 supplied. AI/extraction covers at most the first 600 normal non-private HTTP(S)
-tabs in the chosen scope; the UI reports the total and AI coverage and suggests
+non-chat tabs in the chosen scope; the UI reports the total and AI coverage and suggests
 choosing another window above that limit. Content can change at a stable URL,
 so short excerpts do not guarantee full-page equivalence.
 

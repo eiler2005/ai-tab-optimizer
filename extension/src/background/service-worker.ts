@@ -49,6 +49,8 @@ import { executeCollectionMerge, openCollection, previewCollection, previewColle
 import { executeBackupImport, exportWorkspaceBackup, previewBackupImport } from './workspace-backup';
 import { closeRecordedTabs, executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
 import { previewContentReview, executeContentReviewClose } from './content-review';
+import { startReviewJob, getReviewJob, cancelReviewJob } from './review-jobs';
+import { previewOptimization, executeOptimization } from './optimization';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -1925,6 +1927,19 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       return { success: true, data: await workspaceOverview() };
     case 'PREVIEW_CONTENT_REVIEW':
       return { success: true, data: await previewContentReview(msg.options, extractPageContent) };
+    case 'START_CONTENT_REVIEW':
+      return { success: true, data: await startReviewJob(msg.options, extractPageContent) };
+    case 'GET_CONTENT_REVIEW_JOB':
+      return { success: true, data: await getReviewJob() };
+    case 'CANCEL_CONTENT_REVIEW':
+      return { success: true, data: await cancelReviewJob(msg.jobId) };
+    case 'PREVIEW_OPTIMIZATION':
+      return { success: true, data: await previewOptimization(msg.windowId, msg.reviewId) };
+    case 'EXECUTE_OPTIMIZATION': {
+      const result = await executeOptimization(msg.planId, msg.tabIds);
+      broadcastUpdate();
+      return { success: true, data: result };
+    }
     case 'EXECUTE_CONTENT_REVIEW': {
       const result = await executeContentReviewClose(msg.previewId, msg.decisions);
       broadcastUpdate();

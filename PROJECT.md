@@ -8,6 +8,12 @@
 > not used. Codex defaults to `gpt-5.6-terra` with low reasoning. See the workspace
 > guide above for current flows and coverage limits.
 
+> Cleanup now starts with a unified optimization plan: conservative selections,
+> before/after forecast, separate Apply action, persistent footer, actual outcome
+> report and Markdown download. Review jobs expose stage/count/time and cancellation
+> without blocking local actions. Stateful chats and complementary material are
+> retained. Numeric optimization reports survive validated backup/import.
+
 > **This is the full internal spec — every type, every endpoint, every component.** If you're new here, start with the [README](README.md) for the elevator pitch, then read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architectural tour. Use this file once you need the exhaustive view.
 
 ---
@@ -163,7 +169,7 @@ The core promise: **you can safely clean up your browser because nothing importa
 ### Extension Infrastructure
 - Side Panel as primary UI (React + Zustand)
 - Popup (minimal — opens side panel + shows tab count)
-- Service worker with message routing (62 request types)
+- Service worker with message routing (67 request types)
 - 9 broadcast events
 - 8 views in side panel
 - 13 React components
@@ -229,7 +235,7 @@ extension/src/
 
 | Component | Role |
 |---|---|
-| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (62 request types), SQLite-backed Search dialog bridge |
+| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (67 request types), SQLite-backed Search dialog bridge |
 | `side-panel` (React) | Primary UI — 8 views, state management via Zustand, 8 broadcast event types, Tab Insights dashboard, Smart Tab Groups, SQLite-backed Search dialog |
 | `popup` | Lightweight entry point — opens side panel |
 | `page-extractor.ts` | Content script injected on demand — extracts meta description, H1, body text excerpt |
@@ -274,7 +280,7 @@ The service worker remains the runtime entrypoint, but low-risk helper modules n
 11. **Auto-snapshots** — `setupAutoSnapshot()` manages Chrome Alarm
 12. **Analytics helpers** — habits score, recommendation tracking, activity heatmap, persistent clusters, focus mode
 13. **Search dialog** — conversational retrieval over SQLite-backed AI results, history, and clusters using the same provider chain as AI analysis
-14. **Message handler** — `handleMessage()` switch on 62 request types
+14. **Message handler** — `handleMessage()` switch on 67 request types
 15. **Tab event listeners** — `onCreated`, `onRemoved`, `onActivated`, `onUpdated`, `onMoved`, `onAttached`, `onDetached`
 16. **Startup** — sets up auto-snapshot alarm + daily history cleanup alarm
 

@@ -23,6 +23,26 @@ export interface ContentReviewPreview {
   aiTabCount: number;
   provider?: string;
   warning?: string;
+  excludedChats?: number;
+  excerptTabIds?: number[];
+}
+
+export interface ReviewProgress {
+  phase: 'capture' | 'extract' | 'compare' | 'ai' | 'complete';
+  processed: number;
+  total: number;
+}
+
+export interface ContentReviewJob extends ReviewProgress {
+  id: string;
+  status: 'running' | 'completed' | 'cancelled' | 'failed' | 'interrupted';
+  startedAt: number;
+  updatedAt: number;
+  phaseStartedAt: number;
+  options: ContentReviewOptions;
+  previewId?: string;
+  preview?: ContentReviewPreview;
+  error?: string;
 }
 
 export interface ContentReviewOptions {

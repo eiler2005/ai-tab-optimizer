@@ -49,6 +49,7 @@ export interface TabOperation {
   originalFocusedWindowId?: number;
   undoBrowserSessionId?: string;
   undoWindows?: Record<string, number>;
+  optimizationReport?: import('./optimization').OptimizationReport;
 }
 
 export interface SavedCollection {

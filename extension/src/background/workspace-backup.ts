@@ -30,6 +30,15 @@ function text(value: unknown, max: number, fallback = ''): string {
   return value;
 }
 
+function parseOptimizationReport(raw: unknown): TabOperation['optimizationReport'] {
+  if (!record(raw)) return undefined;
+  const keys = ['tabsBefore', 'tabsAfter', 'requested', 'closed', 'skipped', 'failed'] as const;
+  if (!keys.every((key) => typeof raw[key] === 'number' && Number.isSafeInteger(raw[key]) && (raw[key] as number) >= 0 && (raw[key] as number) <= 1_000_000)) return undefined;
+  return { tabsBefore: raw.tabsBefore as number, tabsAfter: raw.tabsAfter as number,
+    requested: raw.requested as number, closed: raw.closed as number,
+    skipped: raw.skipped as number, failed: raw.failed as number };
+}
+
 function parseTab(raw: unknown, groups: Map<string, string>): SavedTab | null {
   if (!record(raw) || typeof raw.url !== 'string' || raw.url.length > 65_536 || !isRestorableUrl(raw.url)) return null;
   const oldGroup = typeof raw.groupKey === 'string' ? raw.groupKey : typeof raw.groupId === 'number' ? String(raw.groupId) : typeof raw.groupName === 'string' ? raw.groupName : undefined;
@@ -113,7 +122,8 @@ export function parseBackup(json: string): ImportPreview {
         items.push({ tab, state, error: typeof item.error === 'string' ? text(item.error, 4000) : undefined });
       }
       if (items.length) operations.push({ id: crypto.randomUUID(), kind: entry.kind === 'move' ? 'move' : 'close', createdAt: timestamp(entry.createdAt),
-        browserSessionId: 'imported:' + crypto.randomUUID(), status: items.some((item) => item.state === 'uncertain') ? 'interrupted' : items.some((item) => item.state === 'done') ? 'completed' : 'undone', items });
+        browserSessionId: 'imported:' + crypto.randomUUID(), status: items.some((item) => item.state === 'uncertain') ? 'interrupted' : items.some((item) => item.state === 'done') ? 'completed' : 'undone', items,
+        optimizationReport: parseOptimizationReport(entry.optimizationReport) });
     }
   }
   const legacy: Record<string, unknown> = {};

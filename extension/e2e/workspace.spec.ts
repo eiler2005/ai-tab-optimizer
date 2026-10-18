@@ -10,6 +10,7 @@ test('real extension UI closes exact duplicates, persists history across a worke
   });
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/article').length)).toBe(3);
   await panel.getByRole('button', { name: /Cleanup/ }).click();
+  await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Duplicates', exact: true }).click();
   await panel.getByRole('button', { name: 'Find duplicates', exact: true }).click();
   await expect(panel.getByText('Exact duplicates', { exact: true })).toBeVisible();
   await panel.getByRole('button', { name: 'Close selected copies (2)', exact: true }).click();

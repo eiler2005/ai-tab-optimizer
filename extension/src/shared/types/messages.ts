@@ -7,6 +7,11 @@ import type { HistoryTimeframe, TabHistoryStats } from './history';
 
 export type MessageRequest =
   | { type: 'WORKSPACE_OVERVIEW' }
+  | { type: 'START_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
+  | { type: 'GET_CONTENT_REVIEW_JOB' }
+  | { type: 'CANCEL_CONTENT_REVIEW'; jobId: string }
+  | { type: 'PREVIEW_OPTIMIZATION'; windowId?: number; reviewId?: string }
+  | { type: 'EXECUTE_OPTIMIZATION'; planId: string; tabIds: number[] }
   | { type: 'PREVIEW_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
   | { type: 'EXECUTE_CONTENT_REVIEW'; previewId: string; decisions: import('./content-review').ReviewCloseDecision[] }
   | { type: 'PREVIEW_COLLECTION'; name: string; tabIds?: number[] }

@@ -34,6 +34,12 @@ review reasons and quoted evidence, then close selected candidates with Undo.
 Visit age is not an obsolescence signal. Optional excerpts and explicit coverage
 counts support reviews of up to 600 tabs. See [the workflow](docs/WORKSPACE.md#similar-content-and-topical-obsolescence).
 
+**Optimize:** one action prepares a combined local/AI reduction plan with a
+before/after forecast; a separate persistent **Apply plan** button closes the
+selected candidates. Chats and complementary material are retained, progress
+shows measured stages/time, and downloadable reports distinguish forecasts from
+actual closes/skips/failures. [Optimization guide](docs/WORKSPACE.md#unified-optimization).
+
 > Screenshots and a short walkthrough are coming. The capture conventions and the eight views to capture are documented in [`docs/screenshots/README.md`](docs/screenshots/README.md).
 
 | View | What's there |
@@ -73,7 +79,7 @@ flowchart LR
   CCC["Claude Code CLI"]
   COX["Codex CLI<br/>(fallback)"]
 
-  SP <--> |62 typed messages<br/>+ 9 broadcasts| SW
+  SP <--> |67 typed messages<br/>+ 9 broadcasts| SW
   SW <--> |loopback :8765| Srv
   Srv <--> DB
   Srv --> |subprocess| CCC
@@ -82,7 +88,7 @@ flowchart LR
 
 Three patterns worth flagging up front, each documented in detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
 
-- **Type-driven message protocol** — every message between the panel and the service worker is a member of a single discriminated union (62 request types, 9 broadcast events). Adding one without handling it doesn't compile.
+- **Type-driven message protocol** — every message between the panel and the service worker is a member of a single discriminated union (67 request types, 9 broadcast events). Adding one without handling it doesn't compile.
 - **Stop-and-resume long runs** — the `analysis_runs` table stores per-tab statuses, pending tabs, partial results, and accumulated metadata. A 1,200-tab analysis can be stopped, the extension can reload, and the user can resume from the same fingerprint.
 - **Per-batch provider failover** — Claude Code → Codex CLI → heuristic, decided per batch by a small policy module ([`server_core/provider_policy.py`](server_core/provider_policy.py)). A transient rate limit on one batch doesn't kill the run.
 

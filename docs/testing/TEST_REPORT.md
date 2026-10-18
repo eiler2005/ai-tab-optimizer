@@ -5,9 +5,9 @@ Date: 2026-10-18 (Europe/Moscow). Local environment: macOS, Node 22.14.0, Python
 | Check | Result |
 |---|---|
 | TypeScript strict check and production build | Pass |
-| Vitest unit/integration tests | 122 passed across 17 files |
-| Python API/runtime/security/prompt tests | 41 passed |
-| Real Chromium extension E2E | 5 passed |
+| Vitest unit/integration tests | 135 passed across 20 files |
+| Python API/runtime/security/prompt tests | 45 passed |
+| Real Chromium extension E2E | 7 passed |
 | Whitespace/conflict-marker check | Pass |
 
 ## Browser scenarios
@@ -17,6 +17,9 @@ Date: 2026-10-18 (Europe/Moscow). Local environment: macOS, Node 22.14.0, Python
 3. Save a collection through the UI, edit a note, download JSON, preview/confirm append import, preserve notes and verify no tabs open automatically. Check English and Russian layouts at 420 px width and capture screenshots.
 4. Group related tabs in separate windows without moving them, save a collection, close the fixture tabs, restore into separate windows with pinning/group metadata, and verify reopening only skips existing URLs.
 5. Use a synthetic AI response in the real content-review UI. Verify current-focus transmission, initially empty selection, protected survivor, separate overlap/obsolescence lists, clearing hidden selections, keeping the replacement page open and Undo. Capture the 420 px layout.
+   Verify an unused group's survivor does not silently disable selection in another group.
+6. Prepare/apply a local optimization plan with two same-address synthetic ChatGPT pages. Verify chats are retained, the action footer stays in the viewport after scrolling, actual reduction is reported, Markdown downloads include actual outcomes and Undo restores closed copies.
+7. Hold a synthetic AI response pending, observe the AI phase, switch to duplicates and verify selection/closing controls stay enabled. Cancel the review and verify review controls become available again.
 
 The browser harness uses actual Chrome APIs, isolated `.test` pages and temporary profiles removed after each test. It does not use the user's browser profile, browsing data or live AI account.
 
@@ -30,6 +33,9 @@ The browser harness uses actual Chrome APIs, isolated `.test` pages and temporar
 - Backup validation rejects executable URLs, unknown versions and oversized data; excludes credentials and isolates imported live IDs.
 - API tests cover browser-origin rejection, optional token enforcement and explicit extension-origin allowlists. Prompt tests verify JSON-quoted untrusted page data.
 - Content-review tests reject hallucinated IDs/evidence/replacements, separate content overlap from merely related titles, keep discarded pages asleep, reject excerpts captured after navigation, cap AI input at 600 tabs and send large prompts through stdin. Old last-access timestamps never generate topical-obsolescence suggestions.
+- Chat roots and distinct conversation IDs are handled conservatively; automatic closes refuse chat state. Missing AI relation labels default to complementary material. Planning requires excerpts for default AI redundancy selection and leaves obsolete material to manual choice.
+- Review-job tests cover immediate acknowledgement, persisted completion, cancellation, local actions during an AI wait and interruption after worker restart. Python tests cover client-disconnect cancellation and termination of the owned Codex subprocess.
+- Optimization tests cover partial outcomes, survivor preservation, storage failure before effects, idempotent confirmation and Undo, changed-title rejection and forecast/report generation.
 
 ## Performance observation
 
@@ -63,3 +69,8 @@ identified two overlapping release articles and one expired 2024 event, while
 retaining a useful algorithms reference published in 2012. No real browser pages
 were sent during these checks. This small smoke check does not establish quality
 for every user corpus or verify live performance on 600 pages.
+
+After the UI revision, a live loopback request to GPT-5.6 Terra compared synthetic
+videos from different authors: the response classified them as complementary,
+explained each author's unique method and retained the supplied ChatGPT draft.
+This check used synthetic metadata only, not the user's pages.

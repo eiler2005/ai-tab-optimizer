@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Unified optimization plans with conservative defaults, before/after forecasts, persistent action footers, actual outcome reports, Markdown download and Undo.
+- Background review progress with extraction counts, elapsed time, cancellation, panel-reopen results and worker-interruption handling.
 - Separate similar-content and topical-obsolescence reviews with current-focus input, opt-in excerpts, evidence validation, coverage counts, explicit bulk selection and journalled Undo. Visit age is not used to classify obsolete content.
 - AI-assisted topic collections with exact live-URL matching, separate save previews and prompt-data isolation.
 - Real Chromium extension E2E tests covering native groups, worker restart, Undo, collection restore, backups and English/Russian UI.
@@ -21,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 
 ### Fixed
+- Chat routes/drafts are no longer auto-selected as duplicate content. Distinct authors and approaches default to complementary material. AI waiting no longer disables local duplicate controls; disabled rows explain survivor/protection constraints.
 - Codex ChatGPT-subscription support defaults to GPT-5.6 Terra with low reasoning and a read-only sandbox. Large review prompts use stdin instead of exceeding process argument limits.
 - Conservative exact URL identity, indexed similarity rules, protected survivors and URL-based user flags.
 - Truthful partial close and cleanup outcomes; window/group-aware snapshot restore of missing URLs.

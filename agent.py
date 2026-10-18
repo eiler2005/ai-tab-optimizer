@@ -45,6 +45,7 @@ from server_core.runtime_state import AnalysisRuntimeState
 from server_core.security import LocalApiGuard
 from server_core.codex_command import build_codex_command
 from server_core.content_review import ContentReviewRequest, REVIEW_SCHEMA, REVIEW_SYSTEM_PROMPT, normalize_content_review
+from server_core.review_runtime import await_review_call
 
 logging.basicConfig(
     level=logging.INFO,
@@ -3225,6 +3226,15 @@ async def run_codex_json_prompt(
             process.kill()
             await process.communicate()
             raise RuntimeError(f"Codex CLI timed out after {timeout_seconds}s") from exc
+        except asyncio.CancelledError:
+            if process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.communicate(), timeout=3)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.communicate()
+            raise
 
         stdout_text = stdout_bytes.decode("utf-8", errors="replace")
         stderr_text = stderr_bytes.decode("utf-8", errors="replace")
@@ -3834,12 +3844,16 @@ async def review_workspace(payload: ContentReviewRequest, req: Request):
     settings = await get_app_settings(db)
     prompt = json.dumps({"today": time.strftime("%Y-%m-%d"), "currentFocus": payload.focus,
                          "tabs": [tab.model_dump() for tab in payload.tabs]}, ensure_ascii=False)
+    started = time.monotonic()
     for provider in resolve_provider_chain(settings):
+        remaining = int(90 - (time.monotonic() - started))
+        if remaining <= 0:
+            break
         try:
             if provider == "codex_cli":
-                parsed, metadata = await run_codex_json_prompt(prompt, REVIEW_SYSTEM_PROMPT, REVIEW_SCHEMA, settings, 90)
+                parsed, metadata = await await_review_call(run_codex_json_prompt(prompt, REVIEW_SYSTEM_PROMPT, REVIEW_SCHEMA, settings, remaining), req)
             else:
-                parsed, metadata = await run_claude_json_prompt(prompt, REVIEW_SYSTEM_PROMPT, settings, 90)
+                parsed, metadata = await await_review_call(run_claude_json_prompt(prompt, REVIEW_SYSTEM_PROMPT, settings, remaining), req)
             await add_runtime_log(db, "info", "analysis", f"Content review: {len(payload.tabs)} tabs via {provider}")
             return {**normalize_content_review(parsed, payload), "provider": provider, "model": metadata.modelUsed}
         except Exception as exc:

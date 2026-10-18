@@ -21,7 +21,7 @@ flowchart LR
     COX["Codex CLI"]
   end
 
-  SP <--> |chrome.runtime<br/>62 message types| SW
+  SP <--> |chrome.runtime<br/>67 message types| SW
   SW <--> |http :8765| SRV
   SW -.-> |chrome.scripting<br/>injects on demand| CS
   SRV <--> DB
@@ -40,7 +40,7 @@ Both configured CLIs can relay prompts to their model provider; local execution 
 | Component | Path | Responsibility |
 |---|---|---|
 | Side Panel | [`extension/src/side-panel/`](../extension/src/side-panel) | All UI: 8 views, Zustand store, broadcast event handlers |
-| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (62 request types), AI server proxy |
+| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (67 request types), AI server proxy |
 | Transport | [`extension/src/background/transport.ts`](../extension/src/background/transport.ts) | HTTP layer with timeouts, multi-candidate URL fallback, abort handling |
 | Persistence | [`extension/src/background/persistence.ts`](../extension/src/background/persistence.ts) | `chrome.storage.local` wrappers |
 | Analysis helpers | [`extension/src/background/analysis-helpers.ts`](../extension/src/background/analysis-helpers.ts) | Tab fingerprinting, status computation |
@@ -52,7 +52,7 @@ Both configured CLIs can relay prompts to their model provider; local execution 
 
 ## Type-driven message protocol
 
-Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (62 request types, 9 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
+Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (67 request types, 9 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
 
 ```ts
 // Sketch — see the actual file for the full union.
@@ -238,3 +238,11 @@ preview. The Python `content_review.py` module defines the structured schema and
 grounding rules. Visit age is excluded. AI responses do not call Chrome APIs;
 separate execution validates the user's selected pages and surviving replacements
 and delegates to the existing durable close journal. Large Codex prompts use stdin.
+
+`review-jobs.ts` acknowledges long reviews immediately and persists measured
+progress/results in session storage. The panel polls this state independently of
+the short mutation lock. `optimization.ts` combines exact-copy rules and fresh
+content review into a reviewed plan; a separate execution path journals and
+revalidates selected closures and persists actual outcome counters. Action footers
+render outside the scrolling content. Chat routes are excluded from automatic
+closure. Python `review_runtime.py` cancels provider work on client disconnect.

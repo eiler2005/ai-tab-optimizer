@@ -1,5 +1,5 @@
 import type { PageExtraction, TabRecord } from '@shared/types';
-import type { ContentReviewOptions, ContentReviewPreview, ReviewCloseDecision } from '@shared/types/content-review';
+import type { ContentReviewOptions, ContentReviewPreview, ReviewCloseDecision, ReviewProgress } from '@shared/types/content-review';
 import type { OperationItem, TabOperation } from '@shared/types/workspace';
 import { chooseContentSurvivor, findSimilarContent, validateAiContentGroups, validateOutdatedTabs } from '@shared/utils/content-review';
 import { readBrowserState } from './browser-state';
@@ -11,7 +11,9 @@ import { isStatefulChat } from '@shared/utils/page-safety';
 const KEY = 'aitab.content-review.preview';
 const MAX_AI_TABS = 600;
 
-export async function previewContentReview(options: ContentReviewOptions, extract?: (id: number) => Promise<PageExtraction>): Promise<ContentReviewPreview> {
+export async function previewContentReview(options: ContentReviewOptions, extract?: (id: number) => Promise<PageExtraction>,
+  signal?: AbortSignal, onProgress?: (progress: ReviewProgress) => Promise<void>): Promise<ContentReviewPreview> {
+  signal?.throwIfAborted();
   const stored = await chrome.storage.local.get('settings');
   const settings = stored.settings as { protectedDomains?: string[]; localServerUrl?: string } | undefined;
   const domains = (settings?.protectedDomains ?? []).map((domain) => domain.trim().toLowerCase()).filter(Boolean);
@@ -23,8 +25,12 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
   const excerpts: Record<number, string> = {};
   // Bound extraction and AI payloads; local title scanning covers all tabs.
   const batch = tabs.filter((tab) => !isStatefulChat(tab.url)).slice(0, MAX_AI_TABS);
+  preview.excludedChats = tabs.filter((tab) => isStatefulChat(tab.url)).length;
+  await onProgress?.({ phase: options.readContent ? 'extract' : 'compare', processed: 0, total: batch.length });
   if (options.readContent && extract) {
-    for (let offset = 0; offset < batch.length; offset += 5) await Promise.all(batch.slice(offset, offset + 5).map(async (tab) => {
+    for (let offset = 0; offset < batch.length; offset += 5) {
+      signal?.throwIfAborted();
+      await Promise.all(batch.slice(offset, offset + 5).map(async (tab) => {
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         const before = await chrome.tabs.get(tab.id);
@@ -37,13 +43,20 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
         excerpts[tab.id] = text; preview.extractedCount++;
       } catch { preview.extractionFailed++; }
       finally { if (timeout !== undefined) clearTimeout(timeout); }
-    }));
+      }));
+      signal?.throwIfAborted();
+      await onProgress?.({ phase: 'extract', processed: Math.min(offset + 5, batch.length), total: batch.length });
+    }
   }
+  signal?.throwIfAborted();
+  preview.excerptTabIds = Object.keys(excerpts).map(Number);
+  await onProgress?.({ phase: 'compare', processed: batch.length, total: batch.length });
   preview.similarGroups = findSimilarContent(tabs, excerpts);
   if (options.useAi && batch.length) {
     try {
+      await onProgress?.({ phase: 'ai', processed: 0, total: batch.length });
       const result = await fetchServerJson<{ similarGroups: unknown; outdatedTabs: unknown; provider: string }>('/workspace-review', {
-        method: 'POST', signal: AbortSignal.timeout(100_000), body: JSON.stringify({ tabs: batch.map((tab) => ({
+        method: 'POST', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(100_000)]) : AbortSignal.timeout(100_000), body: JSON.stringify({ tabs: batch.map((tab) => ({
           id: tab.id, url: tab.url.slice(0, 8192), title: tab.title.slice(0, 1000), excerpt: excerpts[tab.id] ?? '',
         })), focus: (options.focus ?? '').slice(0, 1000) }),
       }, settings?.localServerUrl ?? 'http://localhost:8765');
@@ -55,11 +68,19 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
         if (current.length) group.keepTabId = chooseContentSurvivor(current);
       }
       preview.aiTabCount = batch.length; preview.provider = result.provider;
-    } catch (error) { preview.warning = String(error); }
+    } catch (error) { signal?.throwIfAborted(); preview.warning = String(error); }
   }
+  signal?.throwIfAborted();
   preview.createdAt = Date.now();
   await chrome.storage.session.set({ [KEY]: preview });
+  await onProgress?.({ phase: 'complete', processed: batch.length, total: batch.length });
   return preview;
+}
+
+export async function readContentPreview(id: string): Promise<ContentReviewPreview | undefined> {
+  const stored = await chrome.storage.session.get(KEY);
+  const preview = stored[KEY] as ContentReviewPreview | undefined;
+  return preview?.id === id && Date.now() - preview.createdAt <= 300_000 ? preview : undefined;
 }
 
 export async function executeContentReviewClose(previewId: string, decisions: ReviewCloseDecision[]): Promise<TabOperation> {
