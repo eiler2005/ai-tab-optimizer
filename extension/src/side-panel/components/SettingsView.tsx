@@ -487,7 +487,7 @@ export function SettingsView() {
               type="text"
               value={settings.codexModel}
               onChange={(e) => save({ codexModel: e.target.value })}
-              placeholder="gpt-5.4"
+              placeholder="gpt-5.6-terra"
               className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:border-accent"
             />
           </div>

@@ -339,7 +339,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   localServerUrl: 'http://localhost:8765',
   claudeCliPath: '',
   codexCliPath: '',
-  codexModel: 'gpt-5.4',
+  codexModel: 'gpt-5.6-terra',
   autoSnapshotEnabled: false,
   autoSnapshotIntervalHours: 4,
   historyRetentionDays: 30,

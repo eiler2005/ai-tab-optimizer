@@ -233,6 +233,26 @@ pnpm server
 PORT=9000 .venv/bin/python agent.py
 ```
 
+### ChatGPT subscription through Codex
+
+Install a current Codex CLI (`npm install -g @openai/codex`) and run `codex login`,
+choosing **Sign in with ChatGPT**. Check the selected authentication method with
+`codex login status`; AITab never reads the CLI's credentials. In extension
+Settings choose **Local Server**, primary **Codex CLI**, fallback **None**, and
+model `gpt-5.6-terra`. Set the executable path if Codex is installed outside PATH.
+The local Python server is still required to bridge Chrome and the CLI.
+
+GPT-5.4 retired from ChatGPT-authenticated Codex on August 31, 2026; existing
+saved settings must be changed explicitly. AITab now defaults to GPT-5.6 Terra
+with low reasoning and a read-only Codex sandbox. Subscription usage follows
+Codex plan limits; API-key authentication uses separate API billing.
+See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and
+[Codex models](https://learn.chatgpt.com/docs/models).
+
+If the UI says it cannot connect, start the server from the **aitab** checkout,
+check `curl -sf http://127.0.0.1:8765/health`, then press **Retry** in AI.
+Cleanup → Duplicates / Windows / Collections remains usable with the server off.
+
 ### Prerequisites
 - At least one local AI CLI must be available:
   - Claude Code (`claude` CLI authenticated), or

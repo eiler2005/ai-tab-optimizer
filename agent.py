@@ -43,6 +43,7 @@ from server_core.provider_policy import (
 )
 from server_core.runtime_state import AnalysisRuntimeState
 from server_core.security import LocalApiGuard
+from server_core.codex_command import build_codex_command
 
 logging.basicConfig(
     level=logging.INFO,
@@ -340,7 +341,7 @@ class AppSettings(BaseModel):
     localServerUrl: str = "http://localhost:8765"
     claudeCliPath: str = ""
     codexCliPath: str = ""
-    codexModel: str = "gpt-5.4"
+    codexModel: str = "gpt-5.6-terra"
     autoSnapshotEnabled: bool = False
     autoSnapshotIntervalHours: int = 4
     historyRetentionDays: int = 30
@@ -1731,20 +1732,7 @@ async def analyze_batch_via_codex(
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as output_file:
         output_path = output_file.name
 
-    command = [
-        codex_path,
-        "exec",
-        "--skip-git-repo-check",
-        "--output-schema",
-        schema_path,
-        "-o",
-        output_path,
-        "--color",
-        "never",
-    ]
-    if settings.codexModel.strip():
-        command.extend(["-m", settings.codexModel.strip()])
-    command.append(prompt)
+    command = build_codex_command(codex_path, schema_path, output_path, settings.codexModel, prompt)
 
     process: asyncio.subprocess.Process | None = None
     try:
@@ -3215,20 +3203,8 @@ async def run_codex_json_prompt(
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as output_file:
         output_path = output_file.name
 
-    command = [
-        codex_path,
-        "exec",
-        "--skip-git-repo-check",
-        "--output-schema",
-        schema_path,
-        "-o",
-        output_path,
-        "--color",
-        "never",
-    ]
-    if settings.codexModel.strip():
-        command.extend(["-m", settings.codexModel.strip()])
-    command.append(f"{system_prompt}\n{UNTRUSTED_PAGE_DATA_RULES}\n\n{prompt}")
+    command = build_codex_command(codex_path, schema_path, output_path, settings.codexModel,
+                                  f"{system_prompt}\n{UNTRUSTED_PAGE_DATA_RULES}\n\n{prompt}")
 
     try:
         process = await asyncio.create_subprocess_exec(
