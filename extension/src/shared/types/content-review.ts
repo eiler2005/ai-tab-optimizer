@@ -7,6 +7,8 @@ export interface SimilarContentGroup {
   reason: string;
   confidence: number;
   source: 'titles' | 'content' | 'ai';
+  relation: 'redundant' | 'related';
+  uniqueValue?: string;
 }
 
 export interface ContentReviewPreview {

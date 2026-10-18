@@ -100,7 +100,8 @@ export function WorkspaceView() {
     </div>
     {preview && preview.groups.length === 0 && <p className="text-sm">{tr('Повторов не найдено.', 'No duplicates found.')}</p>}
     {preview?.groups.map((group) => <section key={group.id} className="border rounded p-2 space-y-2">
-      <h3 className="text-xs font-semibold">{group.kind === 'exact' ? tr('Точные повторы', 'Exact duplicates') : tr('Отличаются tracking-параметрами — проверьте вручную', 'Tracking variants — manual review')}</h3>
+      <h3 className="text-xs font-semibold">{group.kind === 'exact' ? tr('Точные повторы', 'Exact duplicates') : group.kind === 'stateful' ? tr('Чаты с одинаковым адресом — ручная проверка', 'Chats sharing an address — manual review') : tr('Отличаются tracking-параметрами — проверьте вручную', 'Tracking variants — manual review')}</h3>
+      {group.kind === 'stateful' && <p className="text-xs text-amber-800">{tr('Это могут быть разные чаты или черновики. Откройте каждую вкладку перед выбором. Восстановление URL не возвращает несохранённый текст.', 'These may contain different chats or drafts. Open each tab before selecting it. Restoring a URL does not restore unsent text.')}</p>}
       <p className="text-[10px] text-gray-500">{tr('Радиокнопка выбирает сохраняемую копию. Галочка отмечает вкладку на закрытие.', 'Radio selects the survivor. Checkbox selects a tab to close.')}</p>
       {group.tabs.map((tab) => {
         const protectedReason = tabProtectionReason(tab, preview.protectedDomains);

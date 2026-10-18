@@ -6,6 +6,16 @@ Open **Cleanup**, choose all normal windows or one window, and click **Find dupl
 
 The radio button chooses the surviving copy; checkboxes choose copies to close. Protected/important, pinned, active, audible and protected-domain tabs are excluded from automatic closing. Tracking variants start unselected. A preview expires after five minutes; execution rechecks each URL, window/group, survivor and current protection. Changed or missing targets are skipped. Selecting a survivor for deletion is rejected.
 
+ChatGPT and other supported chat applications are stateful: matching root or
+conversation URLs do not prove identical drafts or page state. Address matches
+appear separately as **Chats sharing an address — manual review**, with no
+preselection. Different conversation IDs are kept separate. AI content review,
+automatic close actions and rule-engine duplicate badges exclude these chat pages.
+Explicit per-copy manual review can close an unprotected chat copy; Undo restores
+the URL/layout, not unsent drafts. Related material from different authors is
+classified separately from redundant information; missing AI relation labels
+default to related material.
+
 Offline workspace mutations run in the service worker through a serialized queue. Exact duplicate cleanup, window moves, collections and Undo need no AI server or network request. Optional content review uses the configured AI server. Before each close, the operation and original tab metadata are persisted to `chrome.storage.local` under `aitab.workspace.v1` (version 1). Repeating a preview execution returns its existing operation, preventing repeated closes.
 
 ## Similar content and topical obsolescence

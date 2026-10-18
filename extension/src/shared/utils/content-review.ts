@@ -1,6 +1,7 @@
 import type { TabRecord } from '@shared/types';
 import type { SimilarContentGroup, OutdatedContentTab } from '@shared/types/content-review';
 import { survivorRank } from './rules';
+import { isStatefulChat } from './page-safety';
 
 const STOP = new Set('the and for with from this that your home login dashboard search new tab page главная вход поиск новая вкладка страница для или это как что'.split(' '));
 const tokens = (text: string) => new Set((text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []).filter((word) => !STOP.has(word)));
@@ -15,6 +16,7 @@ export function chooseContentSurvivor(tabs: TabRecord[]): number {
 }
 
 export function findSimilarContent(tabs: TabRecord[], excerpts: Record<number, string> = {}): SimilarContentGroup[] {
+  tabs = tabs.filter((tab) => !isStatefulChat(tab.url));
   const groups: SimilarContentGroup[] = [];
   const titleTokens = new Map(tabs.map((tab) => [tab.id, tokens(tab.title)]));
   const contentTokens = new Map(tabs.map((tab) => [tab.id, tokens(excerpts[tab.id] ?? '')]));
@@ -34,7 +36,8 @@ export function findSimilarContent(tabs: TabRecord[], excerpts: Record<number, s
       if (!sameContent && !(title.common >= 4 && title.score >= .8)) continue;
       groups.push({ id: `local:${other.id}:${tab.id}`, tabIds: [other.id, tab.id],
         keepTabId: chooseContentSurvivor([other, tab]), confidence: sameContent ? content.score : title.score,
-        source: sameContent ? 'content' : 'titles', reason: sameContent ? 'Overlapping page excerpts' : 'Overlapping distinctive title words' });
+        source: sameContent ? 'content' : 'titles', relation: 'related',
+        reason: sameContent ? 'Overlapping page excerpts' : 'Overlapping distinctive title words' });
       if (groups.length >= 200) return groups.sort((a, b) => b.confidence - a.confidence);
     }
     for (const word of words) index.set(word, [...(index.get(word) ?? []), i]);
@@ -48,17 +51,19 @@ export function validateAiContentGroups(raw: unknown, tabs: TabRecord[]): Simila
   const seen = new Set<string>();
   return raw.slice(0, 100).flatMap((value: unknown) => {
     if (!value || typeof value !== 'object') return [];
-    const group = value as { tabIds?: unknown; reason?: unknown; confidence?: unknown };
+    const group = value as { tabIds?: unknown; reason?: unknown; confidence?: unknown; relation?: unknown; uniqueValue?: unknown };
     if (!Array.isArray(group.tabIds) || !group.tabIds.every((id) => typeof id === 'number' && Number.isInteger(id) && byId.has(id))
       || typeof group.reason !== 'string' || !group.reason.trim() || typeof group.confidence !== 'number'
       || !Number.isFinite(group.confidence) || group.confidence < .75 || group.confidence > 1) return [];
     const ids = [...new Set(group.tabIds as number[])].sort((a, b) => a - b);
     const members = ids.map((id) => byId.get(id)!);
     const key = ids.join(':');
-    if (ids.length < 2 || new Set(members.map((tab) => tab.url)).size < 2 || seen.has(key)) return [];
+    if (ids.length < 2 || new Set(members.map((tab) => tab.url)).size < 2 || seen.has(key) || members.some((tab) => isStatefulChat(tab.url))) return [];
     seen.add(key);
     return [{ id: `ai:${key}`, tabIds: ids, keepTabId: chooseContentSurvivor(members),
-      reason: group.reason.trim().slice(0, 1200), confidence: group.confidence, source: 'ai' as const }];
+      reason: group.reason.trim().slice(0, 1200), confidence: group.confidence, source: 'ai' as const,
+      relation: group.relation === 'redundant' ? 'redundant' as const : 'related' as const,
+      uniqueValue: typeof group.uniqueValue === 'string' ? group.uniqueValue.slice(0, 1200) : undefined }];
   });
 }
 
@@ -69,7 +74,7 @@ export function validateOutdatedTabs(raw: unknown, tabs: TabRecord[], excerpts: 
     if (!value || typeof value !== 'object') return [];
     const item = value as Partial<OutdatedContentTab>;
     const tab = tabs.find((candidate) => candidate.id === item.tabId);
-    if (!tab || seen.has(tab.id) || typeof item.reason !== 'string' || !item.reason.trim()
+    if (!tab || isStatefulChat(tab.url) || seen.has(tab.id) || typeof item.reason !== 'string' || !item.reason.trim()
       || typeof item.evidence !== 'string' || item.evidence.trim().length < 3 || item.evidence.length > 500
       || !`${tab.title}\n${tab.url}\n${excerpts[tab.id] ?? ''}`.toLowerCase().includes(item.evidence.trim().toLowerCase())
       || typeof item.confidence !== 'number' || !Number.isFinite(item.confidence) || item.confidence < .8 || item.confidence > 1

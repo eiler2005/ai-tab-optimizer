@@ -9,6 +9,19 @@ afterEach(() => vi.unstubAllGlobals());
 const records = () => [1, 2, 3].map((id) => makeTab({ id, url: 'https://same.test/', windowId: 1 }));
 
 describe('offline duplicate operations', () => {
+  it('separates chat roots and conversation routes and never auto-closes chat state', async () => {
+    const browser = mockBrowser([
+      ...[1, 2].map((id) => makeTab({ id, url: 'https://chatgpt.com/', windowId: 1 })),
+      makeTab({ id: 3, url: 'https://chatgpt.com/c/one', windowId: 1 }),
+      makeTab({ id: 4, url: 'https://chatgpt.com/c/two', windowId: 1 }),
+    ]);
+    const preview = await previewDuplicates();
+    expect(preview.groups.map((group) => [group.kind, group.tabs.map((tab) => tab.id)])).toEqual([['stateful', [1, 2]]]);
+    expect((await closeRecordedTabs([2], false)).failedTabIds).toEqual([2]);
+    expect(browser.tabs.has(2)).toBe(true);
+    expect((await executeDuplicateClose(preview.id, [{ tabId: 2, keepTabId: 1 }])).items[0].state).toBe('done');
+    expect(browser.tabs.has(3) && browser.tabs.has(4)).toBe(true);
+  });
   it('journals an explicit manual close while keeping automatic protection intact', async () => {
     const browser = mockBrowser(records());
     browser.tabs.get(2)!.pinned = true;

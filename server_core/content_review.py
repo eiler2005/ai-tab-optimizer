@@ -1,5 +1,10 @@
 """Grounded review of content overlap and obsolescence, independent of visit age."""
 from pydantic import BaseModel, Field, model_validator
+from urllib.parse import urlparse
+
+
+def is_stateful_chat(url: str) -> bool:
+    return urlparse(url).hostname in {"chatgpt.com", "chat.openai.com", "claude.ai", "gemini.google.com", "copilot.microsoft.com"}
 
 
 class ReviewPage(BaseModel):
@@ -28,6 +33,11 @@ including cross-site articles covering the same specific announcement. A shared 
 topic is insufficient: independent tutorials, distinct approaches, versions, issues and examples
 are useful complements. Explain what overlaps and what may differ. Confidence >=0.75 only.
 Identical URLs are handled separately; do not group identical URLs alone.
+Set relation="redundant" ONLY when one page adds no meaningful unique information.
+Different videos/authors, independent perspectives, examples and methods on the same subject
+are relation="related", even with similar titles. Explain uniqueValue, including what would
+be lost by closing one. Titles alone do not establish redundancy. Never suggest removing
+ChatGPT or other chat pages: route equality does not establish identical chats/drafts.
 outdatedTabs: specific content that has become obsolete, an expired event/deadline, old instructions
 superseded by a newer page in the supplied tabs, or content clearly outside the explicit current
 focus. Old publication dates, old version numbers alone, and time since last visit DO NOT establish
@@ -48,6 +58,8 @@ REVIEW_SCHEMA = object_schema({
     "similarGroups": {"type": "array", "items": object_schema({
         "tabIds": {"type": "array", "items": {"type": "integer"}},
         "reason": {"type": "string"}, "confidence": {"type": "number"},
+        "relation": {"type": "string", "enum": ["redundant", "related"]},
+        "uniqueValue": {"type": "string"},
     })},
     "outdatedTabs": {"type": "array", "items": object_schema({
         "tabId": {"type": "integer"}, "reason": {"type": "string"},
@@ -72,10 +84,12 @@ def normalize_content_review(raw: dict, request: ContentReviewRequest) -> dict:
                 or not isinstance(reason, str) or not reason.strip()):
             continue
         key = tuple(sorted(set(ids)))
-        if len(key) < 2 or len({by_id[i].url for i in key}) < 2 or key in seen_groups:
+        if len(key) < 2 or len({by_id[i].url for i in key}) < 2 or key in seen_groups or any(is_stateful_chat(by_id[i].url) for i in key):
             continue
         seen_groups.add(key)
-        groups.append({"tabIds": list(key), "reason": reason.strip()[:1200], "confidence": score})
+        groups.append({"tabIds": list(key), "reason": reason.strip()[:1200], "confidence": score,
+                       "relation": "redundant" if group.get("relation") == "redundant" else "related",
+                       "uniqueValue": str(group.get("uniqueValue") or "")[:1200]})
     for item in raw.get("outdatedTabs", []) if isinstance(raw.get("outdatedTabs"), list) else []:
         if not isinstance(item, dict):
             continue
@@ -84,6 +98,8 @@ def normalize_content_review(raw: dict, request: ContentReviewRequest) -> dict:
         if type(tab_id) is not int or tab_id not in by_id or tab_id in seen_tabs:
             continue
         page = by_id[tab_id]
+        if is_stateful_chat(page.url):
+            continue
         if (type(score) not in (int, float) or not .8 <= score <= 1
                 or not isinstance(reason, str) or not reason.strip()
                 or not isinstance(evidence, str) or not 3 <= len(evidence.strip()) <= 500

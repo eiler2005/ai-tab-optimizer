@@ -2,6 +2,7 @@ import type { TabRecord } from '@shared/types';
 import type { DuplicatePreview, DuplicateReviewGroup } from '@shared/types/workspace';
 import { exactUrlKey, normalizeUrl } from './url';
 import { survivorRank } from './rules';
+import { isStatefulChat } from './page-safety';
 
 export function buildDuplicatePreview(tabs: TabRecord[], protectedDomains: string[] = []): DuplicatePreview {
   const exact = new Map<string, TabRecord[]>();
@@ -19,10 +20,12 @@ export function buildDuplicatePreview(tabs: TabRecord[], protectedDomains: strin
   }
   const groups: DuplicateReviewGroup[] = [];
   for (const [key, entries] of exact) {
-    if (entries.length > 1) groups.push({ id: 'exact:' + key, kind: 'exact',
-      reason: 'Full URL matches, including query and fragment.', tabs: entries, keepTabId: chooseSurvivor(entries).id });
+    if (entries.length > 1) groups.push({ id: 'exact:' + key, kind: isStatefulChat(key) ? 'stateful' : 'exact',
+      reason: isStatefulChat(key) ? 'Matching chat address; drafts and conversation state may differ. Review each tab manually.'
+        : 'Full URL matches, including query and fragment.', tabs: entries, keepTabId: chooseSurvivor(entries).id });
   }
   for (const [key, entries] of normalized) {
+    if (isStatefulChat(key)) continue;
     const variants = new Set(entries.map((tab) => exactUrlKey(tab.url)));
     if (variants.size > 1) {
       const representatives = [...variants].map((variant) => chooseSurvivor(exact.get(variant!)!));

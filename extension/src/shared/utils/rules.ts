@@ -1,5 +1,6 @@
 import type { TabRecord, RuleFlags } from '@shared/types';
 import { exactUrlKey } from './url';
+import { isStatefulChat } from './page-safety';
 
 export interface RuleEngineResult {
   tabs: TabRecord[];
@@ -29,7 +30,7 @@ export function runRules(tabs: TabRecord[], staleDaysThreshold = 7): RuleEngineR
   const near = new Set<number>();
   for (const tab of tabs) {
     const key = exactUrlKey(tab.url);
-    if (!key) continue;
+    if (!key || isStatefulChat(key)) continue;
     const group = byUrl.get(key) ?? [];
     group.push(tab);
     byUrl.set(key, group);

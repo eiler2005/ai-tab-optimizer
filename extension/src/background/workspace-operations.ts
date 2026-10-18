@@ -3,6 +3,7 @@ import type { CloseDecision, DuplicatePreview, OperationItem, TabOperation, Work
 import { buildDuplicatePreview } from '@shared/utils/duplicates';
 import { normalizeUrl } from '@shared/utils/url';
 import { tabProtectionReason } from '@shared/utils/rules';
+import { isStatefulChat } from '@shared/utils/page-safety';
 import { readBrowserState } from './browser-state';
 import { undoWindowMove } from './window-operations';
 import { browserSessionId, PREVIEW_KEY, readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-storage';
@@ -53,7 +54,7 @@ export async function executeDuplicateClose(previewId: string, decisions: CloseD
       if (!tab || !keep || selected.has(keep.id) || tab.id === keep.id || normalizeUrl(tab.url) !== normalizeUrl(keep.url)) {
         throw new Error('Invalid duplicate selection. A surviving copy is required.');
       }
-      return { tab, keep, state: 'pending' };
+      return { tab, keep, state: 'pending', statefulReviewed: group?.kind === 'stateful' };
     });
     const operation: TabOperation = { id: preview.id, kind: 'close', createdAt: Date.now(),
       browserSessionId: await browserSessionId(), status: 'running', items };
@@ -69,6 +70,7 @@ export async function closeOperationItems(workspace: WorkspaceData, operation: T
         const tab = await liveRecord(item.tab);
         if (item.keep) await liveRecord(item.keep);
         const protectedReason = tabProtectionReason(tab, await localProtection());
+        if (isStatefulChat(tab.url) && !allowProtected && !item.statefulReviewed) throw new Error('Chat state may differ. Review this tab manually.');
         if (protectedReason && !allowProtected) throw new Error('Protected: ' + protectedReason);
         item.tab = { ...tab, index: item.tab.index };
       } catch (error) {

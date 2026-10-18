@@ -3,7 +3,7 @@ import type { TabSnapshot } from './snapshot';
 
 export interface DuplicateReviewGroup {
   id: string;
-  kind: 'exact' | 'tracking';
+  kind: 'exact' | 'tracking' | 'stateful';
   reason: string;
   tabs: TabRecord[];
   keepTabId: number;
@@ -34,6 +34,7 @@ export interface OperationItem {
   error?: string;
   restoredTabId?: number;
   movedGroupId?: number;
+  statefulReviewed?: boolean;
 }
 
 export interface TabOperation {

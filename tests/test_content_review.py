@@ -15,6 +15,18 @@ def pages():
     ]
 
 
+def test_chats_never_become_ai_close_candidates():
+    request = ContentReviewRequest(tabs=[{**page, 'url': f'https://chatgpt.com/c/{page["id"]}'} for page in pages()])
+    result = normalize_content_review({'similarGroups': [{'tabIds': [1, 2], 'reason': 'Same title', 'confidence': .99, 'relation': 'redundant'}],
+                                     'outdatedTabs': [{'tabId': 1, 'reason': 'Old', 'evidence': 'React 17', 'confidence': .99}]}, request)
+    assert result == {'similarGroups': [], 'outdatedTabs': []}
+
+
+def test_missing_relation_defaults_to_complementary_material():
+    result = normalize_content_review({'similarGroups': [{'tabIds': [1, 2], 'reason': 'Different approaches', 'confidence': .9}]}, ContentReviewRequest(tabs=pages()))
+    assert result['similarGroups'][0]['relation'] == 'related'
+
+
 def test_review_rejects_hallucinated_ids_quotes_and_replacement_cycles():
     request = ContentReviewRequest(tabs=pages())
     result = normalize_content_review({

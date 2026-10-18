@@ -6,6 +6,7 @@ import { readBrowserState } from './browser-state';
 import { fetchServerJson } from './transport';
 import { closeOperationItems } from './workspace-operations';
 import { browserSessionId, readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-storage';
+import { isStatefulChat } from '@shared/utils/page-safety';
 
 const KEY = 'aitab.content-review.preview';
 const MAX_AI_TABS = 600;
@@ -21,7 +22,7 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
     extractedCount: 0, extractionFailed: 0, aiTabCount: 0 };
   const excerpts: Record<number, string> = {};
   // Bound extraction and AI payloads; local title scanning covers all tabs.
-  const batch = tabs.slice(0, MAX_AI_TABS);
+  const batch = tabs.filter((tab) => !isStatefulChat(tab.url)).slice(0, MAX_AI_TABS);
   if (options.readContent && extract) {
     for (let offset = 0; offset < batch.length; offset += 5) await Promise.all(batch.slice(offset, offset + 5).map(async (tab) => {
       let timeout: ReturnType<typeof setTimeout> | undefined;

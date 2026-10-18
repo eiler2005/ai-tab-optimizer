@@ -9,6 +9,15 @@ const tabs = [
 ];
 
 describe('content and obsolescence review', () => {
+  it('never treats chat titles or conversation URLs as content duplicates', () => {
+    const chats = tabs.slice(0, 2).map((tab) => ({ ...tab, url: `https://chatgpt.com/c/${tab.id}` }));
+    expect(findSimilarContent(chats)).toEqual([]);
+    expect(validateAiContentGroups([{ tabIds: [1, 2], reason: 'Same title', confidence: .99, relation: 'redundant' }], chats)).toEqual([]);
+  });
+  it('keeps same-topic material as related unless explicit redundancy is established', () => {
+    const group = validateAiContentGroups([{ tabIds: [1, 2], reason: 'Different authors and examples', confidence: .9 }], tabs)[0];
+    expect(group.relation).toBe('related');
+  });
   it('finds cross-site title candidates, keeps protected copies and excludes merely related topics', () => {
     const groups = findSimilarContent(tabs);
     expect(groups).toHaveLength(1);
