@@ -20,6 +20,7 @@ jobs:
           cache-dependency-path: extension/pnpm-lock.yaml
       - run: cd extension && pnpm install --frozen-lockfile
       - run: cd extension && pnpm typecheck
+      - run: cd extension && pnpm test
 
   build:
     name: Extension Build
@@ -45,3 +46,4 @@ jobs:
           python-version: "3.11"
       - run: pip install -r requirements.txt
       - run: python -m py_compile agent.py
+      - run: python -m pytest -q

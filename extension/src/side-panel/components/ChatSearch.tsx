@@ -79,7 +79,7 @@ function ResultCard({
     <div className="rounded border border-gray-100 bg-white px-3 py-2">
       <div className="flex items-start gap-2">
         <img
-          src={`https://www.google.com/s2/favicons?domain=${result.domain}&sz=16`}
+          src={'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
           alt=""
           className="mt-0.5 h-4 w-4 shrink-0"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

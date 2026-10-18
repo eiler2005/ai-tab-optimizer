@@ -716,7 +716,7 @@ function ThemeComparisonCard({
                     {tabEntries.filter((e) => e.title).map((entry) => (
                       <div key={entry.tabId} className="flex items-center gap-1.5 rounded bg-white px-1.5 py-1">
                         <img
-                          src={`https://www.google.com/s2/favicons?domain=${entry.domain}&sz=16`}
+                          src={'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
                           alt=""
                           className="h-3 w-3 shrink-0"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -931,7 +931,7 @@ function TabStatusCoverageCard({
               <div key={`${status.tabId}:${status.url}`} className="rounded bg-gray-50 px-2 py-1.5">
                 <div className="flex items-start gap-2">
                   <img
-                    src={`https://www.google.com/s2/favicons?domain=${status.domain}&sz=16`}
+                    src={'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
                     alt=""
                     className="mt-0.5 h-3.5 w-3.5 shrink-0"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -1037,7 +1037,7 @@ function RecommendationList({
                     className="flex items-start gap-2 rounded px-2 py-1.5 hover:bg-surface-hover text-xs"
                   >
                     <img
-                      src={tab.favIconUrl ?? `https://www.google.com/s2/favicons?domain=${tab.domain}&sz=16`}
+                      src={tab.favIconUrl ?? 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
                       alt=""
                       className="mt-0.5 w-3.5 h-3.5 shrink-0"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -1421,7 +1421,7 @@ export function AIRecommendations() {
                                 return (
                                   <div key={id} className="flex items-center gap-1.5 rounded bg-white px-1.5 py-1">
                                     <img
-                                      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`}
+                                      src={'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
                                       alt=""
                                       className="h-3 w-3 shrink-0"
                                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -1836,7 +1836,7 @@ export function AIRecommendations() {
                                 return (
                                   <div key={entry.url} className="flex items-center gap-1.5 rounded bg-white px-1.5 py-1">
                                     <img
-                                      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`}
+                                      src={'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
                                       alt=""
                                       className="h-3 w-3 shrink-0"
                                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

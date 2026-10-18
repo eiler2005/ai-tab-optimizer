@@ -86,7 +86,7 @@ The [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) workflow runs on e
 | `build` | `cd extension && pnpm install --frozen-lockfile && pnpm build` |
 | `python-check` | `pip install -r requirements.txt && python -m py_compile agent.py` |
 
-Vitest and pytest aren't wired into CI yet — see [Known gaps](#known-gaps).
+Vitest runs in the TypeScript job; pytest runs in the Python job.
 
 ## Test layout philosophy
 
@@ -117,7 +117,6 @@ These are tracked in [`docs/IMPROVEMENTS.md`](IMPROVEMENTS.md) and consciously d
 |---|---|
 | No React component tests | Side-panel UI regressions are caught manually only |
 | No service-worker ↔ server end-to-end test | The Vitest layer stubs `fetch`; the pytest layer stubs the CLI; nothing tests the full path with both real |
-| Vitest and pytest not running in CI | A failing test only blocks at pre-commit, not on a contributor's PR |
 | No coverage threshold | We collect coverage but don't fail builds below a percentage |
 | No fuzz tests for the rule engine | URL normalization is the trickiest pure code in the repo and would benefit from property-based tests |
 

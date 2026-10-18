@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { useState } from 'react';
 import { useI18n } from '@shared/i18n';
 import type { RecommendedAction } from '@shared/types';
 import { exportCleanupReview } from '@shared/utils/obsidian';
@@ -13,12 +14,15 @@ export function CleanupSession() {
     applyCleanupAction,
     skipCleanupStep,
     finishCleanup,
-    windowGroups,
-    totalTabs,
+    cleanupTabs,
+    cleanupInitialTabCount,
+    cleanupSnapshotId,
   } = useStore();
   const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const allTabs = windowGroups.flatMap((wg) => wg.tabs);
+  const allTabs = cleanupTabs;
   const tabMap = new Map(allTabs.map((tab) => [tab.id, tab]));
 
   const trackRec = (tabId: number, aiAction: RecommendedAction, userAction: 'accepted' | 'skipped' | 'modified', confidence: number) => {
@@ -61,14 +65,25 @@ export function CleanupSession() {
       });
 
     await exportCleanupReview({
-      snapshotId: '',
+      snapshotId: cleanupSnapshotId,
       date: new Date().toISOString(),
-      tabsBefore: totalTabs,
-      tabsAfter: totalTabs - closedCount,
+      tabsBefore: cleanupInitialTabCount,
+      tabsAfter: cleanupInitialTabCount - closedCount - [...cleanupActions.values()].filter((a) => a === 'archive').length,
       closedTabs: closed,
       savedTabs: saved,
       groupedTabs: grouped,
     });
+  }
+
+  async function apply(action: RecommendedAction) {
+    if (!current || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await applyCleanupAction(current.tabId, action);
+      trackRec(current.tabId, current.action, action === current.action ? 'accepted' : 'modified', current.confidence);
+    } catch (failure) { setError(String(failure)); }
+    finally { setBusy(false); }
   }
 
   if (isComplete) {
@@ -110,6 +125,7 @@ export function CleanupSession() {
       </div>
 
       {/* Progress bar */}
+      {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
       <div className="w-full h-1 bg-gray-100 rounded">
         <div
           className="h-1 bg-accent rounded transition-all"
@@ -121,7 +137,7 @@ export function CleanupSession() {
         <div className="px-3 py-3 bg-surface-hover rounded">
           <div className="flex items-center gap-2 mb-2">
             <img
-              src={currentTab.favIconUrl ?? `https://www.google.com/s2/favicons?domain=${currentTab.domain}&sz=16`}
+              src={currentTab.favIconUrl ?? 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
               alt=""
               className="w-4 h-4 shrink-0"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -142,12 +158,14 @@ export function CleanupSession() {
           {/* Action buttons */}
           <div className="flex gap-1.5 flex-wrap">
             <button
-              onClick={() => { trackRec(current.tabId, current.action, 'accepted', current.confidence); applyCleanupAction(current.tabId, current.action); }}
+              disabled={busy}
+              onClick={() => void apply(current.action)}
               className="px-3 py-1.5 text-xs bg-accent text-white rounded hover:bg-accent/90"
             >
               {t('cleanup.accept')} ({current.action})
             </button>
             <button
+              disabled={busy}
               onClick={() => { trackRec(current.tabId, current.action, 'skipped', current.confidence); skipCleanupStep(); }}
               className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
             >
@@ -157,7 +175,8 @@ export function CleanupSession() {
             {ACTION_OPTIONS.filter((a) => a !== current.action).map((action) => (
               <button
                 key={action}
-                onClick={() => { trackRec(current.tabId, current.action, 'modified', current.confidence); applyCleanupAction(current.tabId, action); }}
+                disabled={busy}
+                onClick={() => void apply(action)}
                 className="px-2 py-1 text-[10px] bg-gray-50 text-gray-500 rounded hover:bg-gray-100"
               >
                 {action}

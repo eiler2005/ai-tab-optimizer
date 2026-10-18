@@ -1,7 +1,5 @@
 import type { TabRecord, RuleFlags } from '@shared/types';
-import { normalizeUrl } from './url';
-
-const STALE_DAYS_DEFAULT = 7;
+import { exactUrlKey } from './url';
 
 export interface RuleEngineResult {
   tabs: TabRecord[];
@@ -10,104 +8,68 @@ export interface RuleEngineResult {
   staleCount: number;
 }
 
-export function runRules(
-  tabs: TabRecord[],
-  staleDaysThreshold = STALE_DAYS_DEFAULT
-): RuleEngineResult {
-  const now = Date.now();
-  const staleMs = staleDaysThreshold * 24 * 60 * 60 * 1000;
+export function tabProtectionReason(tab: TabRecord, domains: string[] = []): string | null {
+  if (tab.userFlag === 'protected' || tab.userFlag === 'important') return 'marked important or protected';
+  if (tab.pinned) return 'pinned';
+  if (tab.active) return 'active';
+  if (tab.audible) return 'playing audio';
+  if (domains.some((d) => tab.domain === d || tab.domain.endsWith('.' + d))) return 'protected domain';
+  return null;
+}
 
-  // 1. Normalize URLs for comparison
-  const normalizedMap = new Map<string, number[]>(); // normalized URL → tab IDs
-  for (const tab of tabs) {
-    const norm = normalizeUrl(tab.url);
-    if (!normalizedMap.has(norm)) normalizedMap.set(norm, []);
-    normalizedMap.get(norm)!.push(tab.id);
-  }
+export function survivorRank(tab: TabRecord): number {
+  return (tab.userFlag === 'protected' ? 16 : tab.userFlag === 'important' ? 8 : 0)
+    + (tab.pinned ? 4 : 0) + (tab.active ? 2 : 0) + (tab.audible ? 1 : 0);
+}
 
-  // 2. Near-duplicate detection: same domain, similar path
-  const domainPaths = new Map<string, { tabId: number; path: string }[]>();
+export function runRules(tabs: TabRecord[], staleDaysThreshold = 7): RuleEngineResult {
+  const cutoff = Date.now() - staleDaysThreshold * 86_400_000;
+  const byUrl = new Map<string, TabRecord[]>();
+  const byPrefix = new Map<string, { id: number; key: string }[]>();
+  const near = new Set<number>();
   for (const tab of tabs) {
-    try {
-      const u = new URL(tab.url);
-      const key = u.hostname;
-      if (!domainPaths.has(key)) domainPaths.set(key, []);
-      domainPaths.get(key)!.push({ tabId: tab.id, path: u.pathname + u.search });
-    } catch {
-      // skip invalid URLs
+    const key = exactUrlKey(tab.url);
+    if (!key) continue;
+    const group = byUrl.get(key) ?? [];
+    group.push(tab);
+    byUrl.set(key, group);
+    const url = new URL(key);
+    const segments = url.pathname.split('/').filter(Boolean);
+    // A >80% common segment prefix requires at least six segments.
+    if (segments.length >= 6) {
+      const prefixLength = Math.floor(segments.length * 0.8) + 1;
+      const prefix = JSON.stringify([url.origin, segments.length, segments.slice(0, prefixLength)]);
+      const entries = byPrefix.get(prefix) ?? [];
+      entries.push({ id: tab.id, key });
+      byPrefix.set(prefix, entries);
     }
   }
-
-  const nearDupeIds = new Set<number>();
-  for (const entries of domainPaths.values()) {
-    if (entries.length < 2) continue;
-    for (let i = 0; i < entries.length; i++) {
-      for (let j = i + 1; j < entries.length; j++) {
-        // Skip exact duplicates (handled separately)
-        const normA = normalizeUrl(tabs.find((t) => t.id === entries[i].tabId)?.url ?? '');
-        const normB = normalizeUrl(tabs.find((t) => t.id === entries[j].tabId)?.url ?? '');
-        if (normA === normB) continue;
-
-        if (pathSimilarity(entries[i].path, entries[j].path) > 0.8) {
-          nearDupeIds.add(entries[i].tabId);
-          nearDupeIds.add(entries[j].tabId);
-        }
-      }
+  for (const entries of byPrefix.values()) {
+    if (new Set(entries.map((entry) => entry.key)).size > 1) {
+      for (const entry of entries) near.add(entry.id);
     }
   }
-
-  // 3. Apply flags to each tab
+  const survivors = new Map<string, number>();
+  for (const [key, group] of byUrl) {
+    const survivor = [...group].sort((a, b) => survivorRank(b) - survivorRank(a)
+      || (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0) || a.id - b.id)[0];
+    survivors.set(key, survivor.id);
+  }
   let duplicateCount = 0;
   let nearDuplicateCount = 0;
   let staleCount = 0;
-
   const result = tabs.map((tab) => {
-    const norm = normalizeUrl(tab.url);
-    const dupeGroup = normalizedMap.get(norm) ?? [];
-    const isExactDuplicate = dupeGroup.length > 1 && dupeGroup[0] !== tab.id;
-    const duplicateOfTabId = isExactDuplicate ? dupeGroup[0] : undefined;
-    const isNearDuplicate = !isExactDuplicate && nearDupeIds.has(tab.id);
-    const isStale = tab.lastAccessed != null && (now - tab.lastAccessed) > staleMs;
-
-    if (isExactDuplicate) duplicateCount++;
-    if (isNearDuplicate) nearDuplicateCount++;
-    if (isStale) staleCount++;
-
-    const flags: RuleFlags = {
-      isExactDuplicate,
-      duplicateOfTabId,
-      isNearDuplicate,
-      isStale,
-      domainGroup: tab.domain,
-    };
-
+    const key = exactUrlKey(tab.url);
+    const survivor = key ? survivors.get(key) : undefined;
+    const isExactDuplicate = survivor !== undefined && survivor !== tab.id;
+    const isNearDuplicate = !isExactDuplicate && near.has(tab.id);
+    const isStale = tab.lastAccessed != null && tab.lastAccessed < cutoff;
+    duplicateCount += Number(isExactDuplicate);
+    nearDuplicateCount += Number(isNearDuplicate);
+    staleCount += Number(isStale);
+    const flags: RuleFlags = { isExactDuplicate, duplicateOfTabId: isExactDuplicate ? survivor : undefined,
+      isNearDuplicate, isStale, domainGroup: tab.domain };
     return { ...tab, ruleFlags: flags };
   });
-
   return { tabs: result, duplicateCount, nearDuplicateCount, staleCount };
-}
-
-/**
- * Simple path similarity based on common prefix ratio.
- * Returns 0-1 where 1 = identical.
- */
-function pathSimilarity(a: string, b: string): number {
-  if (a === b) return 1;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1;
-
-  // Split by / and compare segments
-  const segsA = a.split('/').filter(Boolean);
-  const segsB = b.split('/').filter(Boolean);
-  const maxSegs = Math.max(segsA.length, segsB.length);
-  if (maxSegs === 0) return 1;
-
-  let common = 0;
-  for (let i = 0; i < Math.min(segsA.length, segsB.length); i++) {
-    if (segsA[i] === segsB[i]) common++;
-    else break;
-  }
-
-  // If paths share most segments, consider them similar
-  return common / maxSegs;
 }

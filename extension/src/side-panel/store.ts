@@ -51,6 +51,8 @@ export type View =
   | 'chat';
 
 interface AppState {
+  actionError: string | null;
+  setActionError: (message: string | null) => void;
   // Navigation
   view: View;
   setView: (view: View) => void;
@@ -119,6 +121,9 @@ interface AppState {
 
   // Cleanup Session
   cleanupStep: number;
+  cleanupTabs: TabRecord[];
+  cleanupInitialTabCount: number;
+  cleanupSnapshotId: string;
   cleanupActions: Map<number, RecommendedAction>;
   cleanupRecommendations: TabRecommendation[];
   startCleanupSession: () => Promise<void>;
@@ -174,6 +179,8 @@ async function sendMessage<T = unknown>(msg: MessageRequest): Promise<T> {
 }
 
 export const useStore = create<AppState>((set, get) => ({
+  actionError: null,
+  setActionError: (actionError) => set({ actionError }),
   // Navigation
   view: 'tabs',
   setView: (view) => set({ view }),
@@ -326,13 +333,17 @@ export const useStore = create<AppState>((set, get) => ({
         return;
       }
       const urlToTabId = new Map<string, number>();
+      const ambiguousUrls = new Set<string>();
       for (const wg of get().windowGroups) {
         for (const tab of wg.tabs) {
-          if (tab.url) urlToTabId.set(tab.url, tab.id);
+          if (!tab.url) continue;
+          if (urlToTabId.has(tab.url)) ambiguousUrls.add(tab.url);
+          else urlToTabId.set(tab.url, tab.id);
         }
       }
 
-      // Remap tabStatuses: match by URL to get current tabId
+      for (const url of ambiguousUrls) urlToTabId.delete(url);
+      // Ambiguous copies must be reanalysed rather than inheriting a different tab's action.
       const rawStatuses = data.tabStatuses ?? get().aiTabStatuses;
       const remappedStatuses = rawStatuses.map((s) => {
         const newId = urlToTabId.get(s.url);
@@ -473,16 +484,22 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Cleanup Session
   cleanupStep: 0,
+  cleanupTabs: [],
+  cleanupInitialTabCount: 0,
+  cleanupSnapshotId: '',
   cleanupActions: new Map(),
   cleanupRecommendations: [],
   startCleanupSession: async () => {
-    await sendMessage({ type: 'START_CLEANUP_SESSION' });
+    const started = await sendMessage<{ snapshot: SnapshotRecord }>({ type: 'START_CLEANUP_SESSION' });
     const ai = get().aiResult;
     if (!ai) return;
     const openTabIds = new Set(get().windowGroups.flatMap((group) => group.tabs.map((tab) => tab.id)));
     const recs = getLiveRecommendations(ai.tabRecommendations, openTabIds).filter((r) => r.action !== 'keep');
     set({
       cleanupStep: 0,
+      cleanupTabs: get().windowGroups.flatMap((group) => group.tabs),
+      cleanupInitialTabCount: get().totalTabs,
+      cleanupSnapshotId: started.snapshot.id,
       cleanupActions: new Map(),
       cleanupRecommendations: recs,
       view: 'cleanup-session',
@@ -496,7 +513,7 @@ export const useStore = create<AppState>((set, get) => ({
       cleanupActions: actions,
       cleanupStep: get().cleanupStep + 1,
     });
-    if (action === 'close') {
+    if (action !== 'keep') {
       await get().loadTabs();
       await get().loadAITabStatuses();
     }
@@ -717,9 +734,10 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   closeTabs: async (ids) => {
-    await sendMessage({ type: 'CLOSE_TABS', tabIds: ids });
+    const result = await sendMessage<{ closedTabIds: number[]; failedTabIds: number[]; errors: string[] }>({ type: 'CLOSE_TABS', tabIds: ids });
     const selected = new Set(get().selectedTabIds);
-    for (const id of ids) selected.delete(id);
+    for (const id of result.closedTabIds) selected.delete(id);
+    set({ actionError: result.errors.length ? result.errors.join('; ') : null });
     set({ selectedTabIds: selected });
     await get().loadTabs();
     await get().loadAITabStatuses();
@@ -753,7 +771,10 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   restoreSnapshot: async (id, tabUrls) => {
-    await sendMessage({ type: 'RESTORE_SNAPSHOT', id, tabUrls });
+    const result = await sendMessage<{ failedUrls: string[]; errors: string[] }>({ type: 'RESTORE_SNAPSHOT', id, tabUrls });
+    set({ actionError: result.failedUrls.length || result.errors.length
+      ? `Restore incomplete: ${result.failedUrls.length} URLs failed. ${result.errors.join('; ')}` : null });
+    await get().loadTabs();
   },
 
   loadRecentlyClosed: async () => {

@@ -1,5 +1,6 @@
 import type { TabRecord, TopicCluster, SnapshotRecord, AIAnalysisResult, CleanupReviewData } from '@shared/types';
-import { slugify } from './url';
+import { slugify, stableUrlHash } from './url';
+import { writeMarkdownVersion } from './markdown-files';
 
 // IndexedDB helpers for storing FileSystemDirectoryHandle
 const DB_NAME = 'tab-optimizer';
@@ -99,12 +100,8 @@ export async function exportLinkNote(tab: TabRecord): Promise<string> {
   const linksDir = await ensureDir(tabOptDir, 'Links');
   const domainDir = await ensureDir(linksDir, tab.domain);
 
-  const filename = slugify(tab.title || tab.domain) + '.md';
-  const fileHandle = await domainDir.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  const content = renderLinkNote(tab);
-  await writable.write(content);
-  await writable.close();
+  const filename = await writeMarkdownVersion(domainDir,
+    `${slugify(tab.title || tab.domain) || 'link'}-${stableUrlHash(tab.url)}`, renderLinkNote(tab));
 
   return `TabOptimizer/Links/${tab.domain}/${filename}`;
 }
@@ -169,11 +166,7 @@ export async function exportTopicCluster(cluster: TopicCluster, tabs: TabRecord[
   const tabOptDir = await ensureDir(vault, 'TabOptimizer');
   const topicsDir = await ensureDir(tabOptDir, 'Topics');
 
-  const filename = slugify(cluster.name) + '.md';
-  const fileHandle = await topicsDir.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(renderTopicCluster(cluster, tabs));
-  await writable.close();
+  const filename = await writeMarkdownVersion(topicsDir, slugify(cluster.name) || 'topic', renderTopicCluster(cluster, tabs));
 
   return `TabOptimizer/Topics/${filename}`;
 }
@@ -237,11 +230,8 @@ export async function exportSessionSnapshot(
   const sessionsDir = await ensureDir(tabOptDir, 'Sessions');
 
   const date = new Date(snapshot.createdAt).toISOString().slice(0, 10);
-  const filename = `${date}-${slugify(snapshot.name)}.md`;
-  const fileHandle = await sessionsDir.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(renderSessionSnapshot(snapshot, aiResult));
-  await writable.close();
+  const filename = await writeMarkdownVersion(sessionsDir,
+    `${date}-${slugify(snapshot.name) || 'session'}-${snapshot.id}`, renderSessionSnapshot(snapshot, aiResult));
 
   return `TabOptimizer/Sessions/${filename}`;
 }
@@ -298,11 +288,7 @@ export async function exportCleanupReview(data: CleanupReviewData): Promise<stri
   const cleanupsDir = await ensureDir(tabOptDir, 'Cleanups');
 
   const date = data.date.slice(0, 10);
-  const filename = `${date}-cleanup.md`;
-  const fileHandle = await cleanupsDir.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(renderCleanupReview(data));
-  await writable.close();
+  const filename = await writeMarkdownVersion(cleanupsDir, `${date}-cleanup`, renderCleanupReview(data));
 
   return `TabOptimizer/Cleanups/${filename}`;
 }

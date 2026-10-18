@@ -8,6 +8,9 @@ export interface TabRecord {
   favIconUrl?: string;
   pinned: boolean;
   active: boolean;
+  audible?: boolean;
+  groupColor?: chrome.tabGroups.TabGroup['color'];
+  groupCollapsed?: boolean;
   groupId?: number;
   groupName?: string;
   lastAccessed?: number;

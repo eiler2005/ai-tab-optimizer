@@ -13,6 +13,7 @@ import { CleanupSession } from './components/CleanupSession';
 import { ChatSearch } from './components/ChatSearch';
 
 export function App() {
+  const actionError = useStore((state) => state.actionError);
   const { view, loadTabs, loadSnapshots, loadRecentlyClosed, loadHistory, loadAIResult, loadAITabStatuses, loadAnalytics, loadPersistentClusters, setAIResult, setAIPartialResult, setAIError, setAIProgress, setAIStopped, setAITabStatuses } = useStore();
 
   useEffect(() => {
@@ -102,6 +103,10 @@ export function App() {
   return (
     <div className="flex flex-col h-screen">
       <Header />
+      {actionError && <div role="alert" className="p-3 text-xs bg-red-50 text-red-700 flex gap-2">
+        <span className="flex-1">{actionError}</span>
+        <button aria-label="Dismiss" onClick={() => useStore.getState().setActionError(null)}>✕</button>
+      </div>}
       {view === 'tabs' && (
         <>
           <StatsBar />

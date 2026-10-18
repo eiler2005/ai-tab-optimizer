@@ -13,18 +13,7 @@ Severity uses a simple traffic-light: **🔴 high** (do before opening to a wide
 
 ## Security
 
-### 🔴 Restrict CORS to the extension origin
-- **Where:** [`agent.py`](../agent.py) — CORS middleware setup.
-- **Today:** `allow_origins=["*"]` with `allow_credentials=True`. Any other localhost process or browser tab can talk to the server.
-- **Why it matters:** The server has no auth. With permissive CORS, any page in the browser can invoke `/analyze`, `/chat`, or `/db/clear`.
-- **Suggested change:** Restrict to `chrome-extension://<id>` (after pinning a stable extension id) and the localhost variants the extension actually uses; drop `allow_credentials` since we don't use cookies.
-- **Effort:** ~1 hour, plus regenerating the extension id once.
 
-### 🔴 Bind to loopback only
-- **Where:** [`agent.py`](../agent.py) — `uvicorn.run(... host="0.0.0.0" ...)`.
-- **Today:** The server listens on every network interface. On a coffee-shop Wi-Fi, anyone on the same LAN can hit it.
-- **Suggested change:** Default to `127.0.0.1`. Document the change as breaking only if a user has actually configured the extension against a remote host.
-- **Effort:** ~30 minutes including a doc update.
 
 ### 🟡 Whitelist `codexModel` before passing to subprocess
 - **Where:** Codex provider invocation in [`agent.py`](../agent.py).
@@ -55,11 +44,6 @@ Severity uses a simple traffic-light: **🔴 high** (do before opening to a wide
 - **Suggested change:** Move cleanup into `finally`. Use `tempfile.NamedTemporaryFile` with `delete=True` if possible.
 - **Effort:** ~30 minutes.
 
-### 🟢 Add an optional API key for the local server
-- **Where:** [`agent.py`](../agent.py) — global dependency.
-- **Today:** No authentication on any endpoint. Combined with permissive CORS this is the biggest single risk; once CORS is fixed it becomes defense in depth.
-- **Suggested change:** A `LOCAL_API_KEY` env var; if set, require `X-API-Key` on every endpoint. Off by default to keep the dev experience smooth.
-- **Effort:** ~2 hours including an extension-side header injection.
 
 ---
 
@@ -71,11 +55,6 @@ Severity uses a simple traffic-light: **🔴 high** (do before opening to a wide
 - **Suggested change:** Extract the message switch into per-domain handler modules (e.g. `handlers/ai.ts`, `handlers/snapshots.ts`, `handlers/history.ts`). The router stays thin and dispatches.
 - **Effort:** ~1 day, mostly mechanical.
 
-### 🟡 Wire Vitest and pytest into CI
-- **Where:** [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
-- **Today:** CI runs typecheck, build, and `py_compile`. Tests only run at pre-commit and locally.
-- **Suggested change:** Add a `tests` job that runs `cd extension && pnpm install --frozen-lockfile && pnpm test`, and a sibling `pytest` job. Cache pip + pnpm. Surface coverage as an artifact.
-- **Effort:** ~2 hours.
 
 ### 🟡 Add ESLint with a small, opinionated ruleset
 - **Where:** New `extension/eslint.config.js`.

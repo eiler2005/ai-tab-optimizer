@@ -2,7 +2,7 @@
 
 # AI Tab Optimizer
 
-**A local-first Chrome extension that turns 100+ tabs into structured, searchable knowledge — without sending your browsing data to anyone.**
+**A local-first Chrome extension that turns 100+ tabs into structured, searchable knowledge — with local storage and optional AI providers.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/eiler2005/ai-tab-optimizer/ci.yml?branch=master&label=CI&logo=github)](https://github.com/eiler2005/ai-tab-optimizer/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.2.1-blue)](CHANGELOG.md)
@@ -82,7 +82,7 @@ Three patterns worth flagging up front, each documented in detail in [`docs/ARCH
 
 | Layer | Choice | Why |
 |---|---|---|
-| Extension UI | React 18 + Zustand + Tailwind | Side panel needs ~10 views with shared state; Zustand keeps the store under 800 lines |
+| Extension UI | React 19 + Zustand + Tailwind | Side panel needs ~10 views with shared state; Zustand keeps the store under 800 lines |
 | Extension build | Vite (4 entry points) + TypeScript `strict` | Fast HMR, tiny bundles, zero `any` in source |
 | Background | MV3 service worker, modular | Split into `transport.ts`, `persistence.ts`, `analysis-helpers.ts`, `tab-actions.ts` |
 | Server | FastAPI + uvicorn + aiosqlite | HTTP boundary, async I/O, easy to extend with new endpoints |
@@ -90,15 +90,17 @@ Three patterns worth flagging up front, each documented in detail in [`docs/ARCH
 | AI providers | Claude Code CLI (primary), Codex CLI (fallback), heuristic | No API keys in code — the CLIs own their auth |
 | Tests | Vitest (TS) + pytest (Python) | Co-located unit tests, integration tests with real SQLite + stubbed subprocess |
 | Hooks | Husky pre-commit | TS typecheck on staged files + secret scan |
-| CI | GitHub Actions | Typecheck, build, Python `py_compile` |
+| CI | GitHub Actions | Typecheck, build, Vitest, pytest, Python `py_compile` |
+
+See [Reliability and migration contract](docs/RELIABILITY.md) for exact URL matching, partial failures, snapshot restore, server authentication and data compatibility.
 
 ## Privacy and security
 
 | Aspect | Behaviour |
 |---|---|
 | Where data lives | `tab_analysis.db` (local SQLite) and `chrome.storage.local`. Nothing in the cloud. |
-| Network calls from the extension | Only to `http://localhost:8765`. Enforced by the manifest. |
-| Network calls from the server | Only the AI CLIs' own outbound traffic (Claude Code is local; Codex CLI may relay prompts to OpenAI through its own auth). The user picks. |
+| Network calls from the extension | API requests target the configured loopback server. Fallback icons are embedded; original site favicon URLs can still be loaded by Chrome. |
+| Network calls from the server | Configured AI providers receive prompts through their CLIs. Claude Code also sends prompts to its model provider; local execution is not offline inference. |
 | Permissions | Minimum necessary. `<all_urls>` is **optional** and granted only when the user triggers page extraction. |
 | Authentication | The CLIs handle their own auth. The repo never reads or stores their credentials. |
 | Telemetry | None. |

@@ -142,7 +142,7 @@ export function HistoryPanel() {
               className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-hover text-xs group"
             >
               <img
-                src={item.favIconUrl ?? `https://www.google.com/s2/favicons?domain=${item.domain}&sz=16`}
+                src={item.favIconUrl ?? 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%239ca3af%22/%3E%3C/svg%3E'}
                 alt=""
                 className="w-4 h-4 shrink-0"
                 onError={(e) => {

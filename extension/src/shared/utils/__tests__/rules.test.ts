@@ -59,22 +59,22 @@ describe('runRules — exact duplicates', () => {
     expect(duplicateCount).toBe(2);
   });
 
-  it('treats URLs differing only in tracking params as duplicates', () => {
+  it('does not classify tracking variants as exact duplicates', () => {
     const t1 = makeTab({ id: 1, url: 'https://example.com/page' });
     const t2 = makeTab({ id: 2, url: 'https://example.com/page?utm_source=twitter' });
     const { tabs, duplicateCount } = runRules([t1, t2]);
 
-    expect(duplicateCount).toBe(1);
-    expect(tabs[1].ruleFlags?.isExactDuplicate).toBe(true);
+    expect(duplicateCount).toBe(0);
+    expect(tabs[1].ruleFlags?.isExactDuplicate).toBe(false);
   });
 
-  it('treats URLs differing only in hash as duplicates', () => {
+  it('does not classify different hash routes as exact duplicates', () => {
     const t1 = makeTab({ id: 1, url: 'https://docs.example.com/guide' });
     const t2 = makeTab({ id: 2, url: 'https://docs.example.com/guide#section-3' });
     const { tabs, duplicateCount } = runRules([t1, t2]);
 
-    expect(duplicateCount).toBe(1);
-    expect(tabs[1].ruleFlags?.isExactDuplicate).toBe(true);
+    expect(duplicateCount).toBe(0);
+    expect(tabs[1].ruleFlags?.isExactDuplicate).toBe(false);
   });
 
   it('does not mark tabs on different domains as duplicates', () => {

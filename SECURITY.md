@@ -40,7 +40,7 @@ The project assumes a **single-user, trusted local machine** running on `localho
 | Other processes on the same machine | — | **Untrusted** for the purposes of network-bound services |
 | Remote network actors | — | **Out of scope** unless the user exposes the server beyond loopback |
 
-The extension never sends tab data to any non-localhost endpoint. The localhost server may invoke external CLIs (`claude`, `codex`); when the Codex CLI is used, prompts may be relayed to OpenAI through that CLI's own authenticated session. This is documented to the user in **Settings → AI Provider** and in the [README privacy section](README.md#ai-providers).
+The extension never sends tab data to any non-localhost endpoint. The localhost server may invoke external CLIs (`claude`, `codex`); both Claude Code and Codex CLI may send prompts to their configured remote model providers. This is documented to the user in **Settings → AI Provider** and in the [README privacy section](README.md#ai-providers).
 
 ## Trust boundaries
 
@@ -66,7 +66,7 @@ The extension never sends tab data to any non-localhost endpoint. The localhost 
                                                │  ↘ Codex CLI may
                                                │     relay prompts
                                                ▼     to OpenAI servers
-                                          (cloud, only if Codex enabled)
+                                          (remote model provider when AI is enabled)
 ```
 
 Any path that crosses the boundary out of the trusted machine is documented and gated by the user's CLI configuration.
@@ -119,3 +119,7 @@ If you find an issue not yet listed there, please report it privately as describ
 - Theoretical issues without a demonstrated practical impact.
 
 Thanks for helping keep AI Tab Optimizer safe.
+
+## Current API boundary
+
+The server binds to `127.0.0.1`. A middleware rejects untrusted browser origins; CORS is restricted to development loopback and extension origins. `AITAB_EXTENSION_ORIGINS` pins specific installations. Optional `LOCAL_API_KEY` requires `X-API-Key` on all endpoints except health/preflight. Set the matching token in extension Settings. Without a token, native loopback processes are not authenticated. See [RELIABILITY.md](docs/RELIABILITY.md).

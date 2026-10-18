@@ -47,6 +47,14 @@ export async function fetchLocalServer(
   endpoint: string,
   init: RequestInit,
 ): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    const stored = await chrome.storage.local.get('localServerToken');
+    if (typeof stored.localServerToken === 'string' && stored.localServerToken) {
+      headers.set('X-API-Key', stored.localServerToken);
+    }
+  }
+  init = { ...init, headers };
   const candidates = buildServerEndpointCandidates(serverUrl, endpoint);
   let lastError: unknown = null;
 

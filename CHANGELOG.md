@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- Conservative exact URL identity, indexed similarity rules, protected survivors and URL-based user flags.
+- Truthful partial close and cleanup outcomes; window/group-aware snapshot restore of missing URLs.
+- Unicode/versioned Obsidian exports preserve existing user notes; embedded fallback icons.
+
+### Security
+- Loopback binding, browser origin guard and optional local API token.
+
+### Testing
+- Regression suites for safety, restore, partial actions and API access; Vitest/pytest in CI.
+
+
 ### Added
 - Documentation polish for public release: `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `.env.example`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `docs/IMPROVEMENTS.md`, GitHub issue/PR templates.
 - README rewritten for an external audience: tightened hero section, Mermaid architecture diagram, privacy-and-security table, expanded documentation map.

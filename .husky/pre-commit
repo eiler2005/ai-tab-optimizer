@@ -5,7 +5,7 @@ TS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx
 
 if [ -n "$TS_STAGED" ]; then
   echo "TypeScript files changed — running typecheck..."
-  cd extension && pnpm typecheck
+  (cd extension && pnpm typecheck)
   if [ $? -ne 0 ]; then
     echo "Typecheck failed. Fix errors before committing."
     exit 1

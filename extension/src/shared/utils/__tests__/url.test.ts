@@ -49,16 +49,16 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl(input)).toBe('https://example.com/?a=2&z=1');
   });
 
-  it('removes trailing slash from non-root pathname', () => {
-    expect(normalizeUrl('https://example.com/page/')).toBe('https://example.com/page');
+  it('preserves trailing slash from non-root pathname', () => {
+    expect(normalizeUrl('https://example.com/page/')).toBe('https://example.com/page/');
   });
 
   it('preserves root trailing slash', () => {
     expect(normalizeUrl('https://example.com/')).toBe('https://example.com/');
   });
 
-  it('strips hash fragment', () => {
-    expect(normalizeUrl('https://example.com/page#section')).toBe('https://example.com/page');
+  it('preserves hash fragment', () => {
+    expect(normalizeUrl('https://example.com/page#section')).toBe('https://example.com/page#section');
   });
 
   it('returns the original string when URL is invalid', () => {

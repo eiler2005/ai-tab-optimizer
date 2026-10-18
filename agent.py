@@ -42,6 +42,7 @@ from server_core.provider_policy import (
     summarize_provider_error,
 )
 from server_core.runtime_state import AnalysisRuntimeState
+from server_core.security import LocalApiGuard
 
 logging.basicConfig(
     level=logging.INFO,
@@ -622,11 +623,13 @@ app = FastAPI(title="AI Tab Optimizer Server", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origin_regex=r"chrome-extension://[a-p]{32}|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(LocalApiGuard)
 
 
 def get_db(request: Request) -> aiosqlite.Connection:
@@ -3955,4 +3958,4 @@ async def analytics_refresh(req: Request):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8765"))
     logger.info(f"Starting AI Tab Optimizer server on port {port}")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="127.0.0.1", port=port)

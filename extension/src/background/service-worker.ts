@@ -41,7 +41,8 @@ import type {
   TopicCluster,
 } from '@shared/types';
 import { DEFAULT_SETTINGS } from '@shared/types/messages';
-import { runRules } from '@shared/utils/rules';
+import { runRules, tabProtectionReason } from '@shared/utils/rules';
+import { restoreWindows } from './session-actions';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -110,11 +111,11 @@ function registerKeepalivePort(port: chrome.runtime.Port) {
 // ─── Tab Helpers ─────────────────────────────────────────
 
 async function getAllTabs(): Promise<GetAllTabsResponse['data']> {
-  const tabs = await chrome.tabs.query({});
+  const tabs = (await chrome.tabs.query({ windowType: 'normal' })).filter((tab) => !tab.incognito);
   const windows = await chrome.windows.getAll();
   const groups = await chrome.tabGroups.query({});
 
-  const groupMap = new Map(groups.map((g) => [g.id, g.title ?? '']));
+  const groupMap = new Map(groups.map((g) => [g.id, g]));
   const windowFocusMap = new Map(windows.map((w) => [w.id, w.focused ?? false]));
 
   const windowGroups = new Map<number, WindowGroup>();
@@ -139,9 +140,12 @@ async function getAllTabs(): Promise<GetAllTabsResponse['data']> {
       favIconUrl: tab.favIconUrl,
       pinned: tab.pinned,
       active: tab.active,
+      audible: tab.audible,
+      groupColor: groupMap.get(tab.groupId)?.color,
+      groupCollapsed: groupMap.get(tab.groupId)?.collapsed,
       groupId: tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE ? tab.groupId : undefined,
       groupName: tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE
-        ? groupMap.get(tab.groupId)
+        ? groupMap.get(tab.groupId)?.title
         : undefined,
       lastAccessed: tab.lastAccessed,
     };
@@ -296,6 +300,10 @@ async function createSnapshot(
         pinned: t.pinned,
         favIconUrl: t.favIconUrl,
         groupName: t.groupName,
+        groupId: t.groupId,
+        groupColor: t.groupColor,
+        groupCollapsed: t.groupCollapsed,
+        active: t.active,
       })),
     })),
     stats: {
@@ -570,18 +578,31 @@ async function clearServerDatabase(): Promise<ServerDbStatus> {
 // ─── User Flags ──────────────────────────────────────────
 
 async function getUserFlags(): Promise<Record<number, TabRecord['userFlag']>> {
-  const result = await chrome.storage.local.get('userFlags');
-  return (result.userFlags ?? {}) as Record<number, TabRecord['userFlag']>;
+  const result = await chrome.storage.local.get(['userFlags', 'userFlagsV2']);
+  const records = (result.userFlagsV2 ?? {}) as Record<string, TabRecord['userFlag']>;
+  const tabs = await chrome.tabs.query({});
+  if (!result.userFlagsV2 && result.userFlags) {
+    const legacy = result.userFlags as Record<number, TabRecord['userFlag']>;
+    for (const tab of tabs) {
+      if (tab.url && tab.id !== undefined && legacy[tab.id]) records[tab.url] = legacy[tab.id];
+    }
+    await chrome.storage.local.set({ userFlagsV2: records });
+  }
+  return Object.fromEntries(tabs.filter((tab) => tab.id !== undefined && tab.url && records[tab.url])
+    .map((tab) => [tab.id!, records[tab.url!]]));
 }
 
 async function setUserFlag(tabId: number, flag: TabRecord['userFlag'] | null): Promise<void> {
-  const flags = await getUserFlags();
+  const stored = await chrome.storage.local.get('userFlagsV2');
+  const flags = (stored.userFlagsV2 ?? {}) as Record<string, TabRecord['userFlag']>;
+  const tab = await chrome.tabs.get(tabId);
+  if (!tab.url) throw new Error('Tab has no URL');
   if (flag === null) {
-    delete flags[tabId];
+    delete flags[tab.url];
   } else {
-    flags[tabId] = flag;
+    flags[tab.url] = flag;
   }
-  await chrome.storage.local.set({ userFlags: flags });
+  await chrome.storage.local.set({ userFlagsV2: flags });
 }
 
 // ─── Tab History ─────────────────────────────────────────
@@ -1960,7 +1981,7 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
           error: result.errors[0] ?? 'Failed to close the requested tab(s).',
         };
       }
-      return { success: true };
+      return { success: true, data: result };
     }
 
     case 'PIN_TAB': {
@@ -2000,18 +2021,11 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       const target = allSnaps.find((s) => s.id === msg.id);
       if (!target) return { success: false, error: 'Snapshot not found' };
 
-      const urls = msg.tabUrls ??
-        target.windows.flatMap((w) => w.tabs.map((t) => t.url));
-
-      if (urls.length > 0) {
-        const newWindow = await chrome.windows.create({ url: urls[0] });
-        if (newWindow?.id) {
-          for (let i = 1; i < urls.length; i++) {
-            await chrome.tabs.create({ windowId: newWindow.id, url: urls[i] });
-          }
-        }
-      }
-      return { success: true };
+      const selected = msg.tabUrls ? new Set(msg.tabUrls) : null;
+      const windows = target.windows.map((window) => ({ ...window,
+        tabs: window.tabs.filter((tab) => !selected || selected.has(tab.url)) }));
+      const result = await restoreWindows(windows);
+      return { success: true, data: result };
     }
 
     case 'GET_SETTINGS': {
@@ -2285,6 +2299,16 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
     }
 
     case 'APPLY_CLEANUP_ACTION': {
+      const { windowGroups } = await getAllTabs();
+      const tab = windowGroups.flatMap((window) => window.tabs).find((item) => item.id === msg.tabId);
+      if (!tab) return { success: false, error: 'Tab is no longer open' };
+      const flags = await getUserFlags();
+      tab.userFlag = flags[tab.id];
+      const settings = await getSettings();
+      const protectedReason = tabProtectionReason(tab, settings.protectedDomains);
+      if ((msg.action === 'close' || msg.action === 'archive') && protectedReason) {
+        return { success: false, error: `Tab is protected: ${protectedReason}` };
+      }
       if (msg.action === 'close') {
         const result = await closeChromeTabs([msg.tabId], (tabId) => chrome.tabs.remove(tabId));
         if (result.closedTabIds.length === 0) {
@@ -2294,7 +2318,15 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
           };
         }
       } else if (msg.action === 'group') {
-        // Group action handled in side panel via Chrome tab groups API
+        const cached = await getCachedAIResult();
+        const name = cached?.result.tabRecommendations.find((rec) => rec.tabId === tab.id)?.suggestedGroupName ?? tab.domain;
+        await groupTabsByCluster([tab.id], name);
+      } else if (msg.action === 'read_later') {
+        await setUserFlag(tab.id, 'read_later');
+      } else if (msg.action === 'archive') {
+        await createSnapshot(`Archived: ${tab.title}`, 'pre-cleanup');
+        const closed = await closeChromeTabs([tab.id], (id) => chrome.tabs.remove(id));
+        if (closed.failedTabIds.length) return { success: false, error: closed.errors[0] };
       }
       return { success: true };
     }

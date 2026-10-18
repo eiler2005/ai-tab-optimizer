@@ -18,6 +18,7 @@ import { useI18n, type Locale } from '@shared/i18n';
 export function SettingsView() {
   const { t, locale, setLocale } = useI18n();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  const [serverToken, setServerToken] = useState('');
   const [saved, setSaved] = useState(false);
   const [newDomain, setNewDomain] = useState('');
   const [serverStatus, setServerStatus] = useState<'idle' | 'ok' | 'error'>('idle');
@@ -37,6 +38,7 @@ export function SettingsView() {
   const [sessions, setSessions] = useState<AnalysisSessionEntry[]>([]);
 
   useEffect(() => {
+    void chrome.storage.local.get('localServerToken').then((stored) => setServerToken(typeof stored.localServerToken === 'string' ? stored.localServerToken : ''));
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }).then((res: { success: boolean; data: UserSettings }) => {
       if (res.success && res.data) {
         setSettings(res.data);
@@ -419,6 +421,12 @@ export function SettingsView() {
       </div>
 
       {/* Local Server settings */}
+      <label className="text-xs text-gray-700">Local server token (LOCAL_API_KEY)
+        <input type="password" autoComplete="off" value={serverToken}
+          onChange={(event) => setServerToken(event.target.value)}
+          onBlur={() => void chrome.storage.local.set({ localServerToken: serverToken })}
+          className="w-full mt-1 px-2 py-1 border rounded" />
+      </label>
       {settings.aiProvider === 'local_server' && (
         <div className="space-y-3">
           <div className="space-y-1">
