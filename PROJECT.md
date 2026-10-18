@@ -2,6 +2,12 @@
 
 > Current v0.3 workspace: [WORKSPACE.md](docs/WORKSPACE.md), [reliability](docs/RELIABILITY.md), [migration](docs/MIGRATION.md). The new offline workspace complements the original analysis/history architecture below.
 
+> Content review adds separate lists for overlapping information and topical
+> obsolescence, current-focus input, verified quoted evidence and explicit closing
+> with Undo. It compares up to 600 pages via `POST /workspace-review`; visit age is
+> not used. Codex defaults to `gpt-5.6-terra` with low reasoning. See the workspace
+> guide above for current flows and coverage limits.
+
 > **This is the full internal spec — every type, every endpoint, every component.** If you're new here, start with the [README](README.md) for the elevator pitch, then read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architectural tour. Use this file once you need the exhaustive view.
 
 ---
@@ -141,7 +147,7 @@ The core promise: **you can safely clean up your browser because nothing importa
 - Local server URL (default: `http://localhost:8765`) + "Test Connection" button
 - Primary server AI provider: Claude Code CLI or Codex CLI
 - Fallback server AI provider: none / Claude Code CLI / Codex CLI
-- Codex model input (default: `gpt-5.4`)
+- Codex model input (default: `gpt-5.6-terra`)
 - Optional CLI path overrides for `claude` and `codex`
 - SQLite tools in Settings: refresh DB info, sync local extension buffers, clear server-side DB state, inspect recent runtime logs from `runtime_logs` table
 - LLM call logs viewer: browse individual LLM API calls with provider, model, tokens, duration, and status
@@ -157,7 +163,7 @@ The core promise: **you can safely clean up your browser because nothing importa
 ### Extension Infrastructure
 - Side Panel as primary UI (React + Zustand)
 - Popup (minimal — opens side panel + shows tab count)
-- Service worker with message routing (60 request types)
+- Service worker with message routing (62 request types)
 - 9 broadcast events
 - 8 views in side panel
 - 13 React components
@@ -223,7 +229,7 @@ extension/src/
 
 | Component | Role |
 |---|---|
-| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (60 request types), SQLite-backed Search dialog bridge |
+| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (62 request types), SQLite-backed Search dialog bridge |
 | `side-panel` (React) | Primary UI — 8 views, state management via Zustand, 8 broadcast event types, Tab Insights dashboard, Smart Tab Groups, SQLite-backed Search dialog |
 | `popup` | Lightweight entry point — opens side panel |
 | `page-extractor.ts` | Content script injected on demand — extracts meta description, H1, body text excerpt |
@@ -268,7 +274,7 @@ The service worker remains the runtime entrypoint, but low-risk helper modules n
 11. **Auto-snapshots** — `setupAutoSnapshot()` manages Chrome Alarm
 12. **Analytics helpers** — habits score, recommendation tracking, activity heatmap, persistent clusters, focus mode
 13. **Search dialog** — conversational retrieval over SQLite-backed AI results, history, and clusters using the same provider chain as AI analysis
-14. **Message handler** — `handleMessage()` switch on 60 request types
+14. **Message handler** — `handleMessage()` switch on 62 request types
 15. **Tab event listeners** — `onCreated`, `onRemoved`, `onActivated`, `onUpdated`, `onMoved`, `onAttached`, `onDetached`
 16. **Startup** — sets up auto-snapshot alarm + daily history cleanup alarm
 
@@ -651,6 +657,7 @@ FastAPI server wrapping local AI CLIs. Runs on port 8765 (configurable via `PORT
 | POST | `/url-analysis/import` | Import heuristic/client-side per-URL analysis rows into SQLite |
 | POST | `/chat` | Search and summarize SQLite-backed browser memory via the configured provider chain |
 | POST | `/analytics/refresh` | Send aggregated SQLite analytics to LLM, returns AI insight (browsing patterns, suggestions, cluster insights, habits commentary) |
+| POST | `/workspace-review` | Content overlap and topical obsolescence with current-focus context, bounded excerpts and validated page IDs/quotes |
 
 **How it works:**
 1. Extension service worker preflights `/tab-analysis-status` to learn which current tabs already have fresh SQLite results

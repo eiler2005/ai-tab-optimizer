@@ -7,6 +7,7 @@ import { workspaceMessage } from '../workspace-api';
 import { WindowMergePanel } from './WindowMergePanel';
 import { CollectionsPanel } from './CollectionsPanel';
 import { AIWorkspacePanel } from './AIWorkspacePanel';
+import { ContentReviewPanel } from './ContentReviewPanel';
 
 export function WorkspaceView() {
   const { locale } = useI18n();
@@ -20,7 +21,7 @@ export function WorkspaceView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [section, setSection] = useState<'duplicates' | 'windows' | 'collections' | 'ai' | 'history'>('duplicates');
+  const [section, setSection] = useState<'duplicates' | 'similar' | 'outdated' | 'windows' | 'collections' | 'ai' | 'history'>('duplicates');
 
   const refresh = async () => setWorkspace(await workspaceMessage<WorkspaceData>({ type: 'WORKSPACE_OVERVIEW' }));
   useEffect(() => {
@@ -83,11 +84,11 @@ export function WorkspaceView() {
 
   return <div data-testid="workspace-view" className="flex-1 overflow-y-auto p-3 space-y-4">
     <h2 className="font-semibold text-sm">{tr('Очистка вкладок', 'Tab cleanup')}</h2>
-    <p className="text-xs text-gray-500">{tr('Работает без AI и сервера. Просмотрите копии перед закрытием. История позволяет отменить операцию.', 'Works offline without AI. Review copies before closing. Use history to undo an operation.')}</p>
+    <p className="text-xs text-gray-500">{tr('Повторы, окна и коллекции работают локально. AI помогает сравнить содержание и актуальность. Просмотрите кандидатов перед закрытием; отмена — в истории.', 'Duplicates, windows and collections work locally. AI helps compare content and relevance. Review candidates before closing; Undo is in History.')}</p>
     {error && <p role="alert" className="text-xs text-red-700 bg-red-50 p-2 rounded">{error}</p>}
     {feedback && <p role="status" className="text-xs text-green-800 bg-green-50 p-2 rounded">{feedback}</p>}
     <nav className="flex gap-1 flex-wrap" aria-label={tr('Раздел очистки', 'Cleanup section')}>
-      {([['duplicates', tr('Повторы', 'Duplicates')], ['windows', tr('Окна', 'Windows')], ['collections', tr('Коллекции', 'Collections')], ['ai', 'AI'], ['history', tr('История', 'History')]] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
+      {([['duplicates', tr('Повторы', 'Duplicates')], ['similar', tr('Похожий контент', 'Similar content')], ['outdated', tr('Устарело по смыслу', 'Outdated content')], ['windows', tr('Окна', 'Windows')], ['collections', tr('Коллекции', 'Collections')], ['ai', 'AI'], ['history', tr('История', 'History')]] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
     </nav>
     {section === 'duplicates' && <>
     <div className="flex gap-2">
@@ -125,6 +126,7 @@ export function WorkspaceView() {
     </button>}
     </>}
     {section === 'windows' && <WindowMergePanel busy={busy} run={run} onResult={showResult} />}
+    {(section === 'similar' || section === 'outdated') && <ContentReviewPanel mode={section} busy={busy} run={run} onResult={showResult} />}
     {section === 'collections' && <CollectionsPanel workspace={workspace} busy={busy} run={run} onResult={showResult} onFeedback={setFeedback} />}
     {section === 'ai' && <AIWorkspacePanel busy={busy} run={run} onFeedback={setFeedback} onReviewDuplicates={() => setSection('duplicates')} />}
     {section === 'history' && <section className="space-y-2 border-t pt-3">

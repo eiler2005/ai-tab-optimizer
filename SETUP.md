@@ -210,6 +210,7 @@ The AI server is a FastAPI application that proxies tab analysis requests to CLI
 | DELETE | `/clusters/{id}` | Delete a persistent cluster |
 | POST | `/chat` | SQLite-backed dialog search over AI results, history, and persistent clusters using the same configured provider chain as AI analysis (20s LLM timeout, 6-keyword UNION ALL query) |
 | POST | `/analytics/refresh` | Sends aggregated SQLite analytics (top domains, habits, clusters, recommendation stats) to LLM, returns AI insight card data |
+| POST | `/workspace-review` | Reviews up to 600 supplied tabs for content overlap and topical obsolescence, validates page IDs and quoted evidence |
 
 ### How It Works
 1. Extension service worker first asks `/tab-analysis-status` which current tabs already have fresh SQLite results
@@ -464,6 +465,6 @@ The page extractor content script is injected on demand:
 
 ## Offline workspace and browser tests (v0.3)
 
-Cleanup, window merging, saved collections, JSON migration and Undo run entirely in the extension and work with the Python server stopped. Start the server for AI analysis and existing SQLite-backed history. See [WORKSPACE.md](docs/WORKSPACE.md) for the new flows. Use Node 22+ for the current development/test toolchain. Install the pinned extension dependencies with `pnpm --dir extension install --frozen-lockfile`. For browser checks run `pnpm --dir extension exec playwright install chromium`, build, then `pnpm --dir extension test:e2e`.
+Exact duplicate cleanup, window merging, saved collections, JSON migration and Undo run entirely in the extension and work with the Python server stopped. Start the server for AI content/relevance review, AI analysis and existing SQLite-backed history. See [WORKSPACE.md](docs/WORKSPACE.md) for the new flows. Use Node 22+ for the current development/test toolchain. Install the pinned extension dependencies with `pnpm --dir extension install --frozen-lockfile`. For browser checks run `pnpm --dir extension exec playwright install chromium`, build, then `pnpm --dir extension test:e2e`.
 
 The server binds to `127.0.0.1`. To require a token, export `LOCAL_API_KEY` before `pnpm server` and enter the same token in Settings. Optionally export `AITAB_EXTENSION_ORIGINS` to pin allowed extension origins. Environment files are examples; the launcher does not automatically load `.env`. For checkout/data migration see [MIGRATION.md](docs/MIGRATION.md).

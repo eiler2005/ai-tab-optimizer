@@ -44,6 +44,7 @@ from server_core.provider_policy import (
 from server_core.runtime_state import AnalysisRuntimeState
 from server_core.security import LocalApiGuard
 from server_core.codex_command import build_codex_command
+from server_core.content_review import ContentReviewRequest, REVIEW_SCHEMA, REVIEW_SYSTEM_PROMPT, normalize_content_review
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1732,20 +1733,21 @@ async def analyze_batch_via_codex(
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as output_file:
         output_path = output_file.name
 
-    command = build_codex_command(codex_path, schema_path, output_path, settings.codexModel, prompt)
+    command = build_codex_command(codex_path, schema_path, output_path, settings.codexModel)
 
     process: asyncio.subprocess.Process | None = None
     try:
         process = await asyncio.create_subprocess_exec(
             *command,
             cwd=str(APP_ROOT),
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         await analysis_runtime.set_codex_process(process)
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(input=prompt.encode("utf-8")),
                 timeout=CODEX_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError as exc:
@@ -3203,19 +3205,20 @@ async def run_codex_json_prompt(
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as output_file:
         output_path = output_file.name
 
-    command = build_codex_command(codex_path, schema_path, output_path, settings.codexModel,
-                                  f"{system_prompt}\n{UNTRUSTED_PAGE_DATA_RULES}\n\n{prompt}")
+    command = build_codex_command(codex_path, schema_path, output_path, settings.codexModel)
+    full_prompt = f"{system_prompt}\n{UNTRUSTED_PAGE_DATA_RULES}\n\n{prompt}"
 
     try:
         process = await asyncio.create_subprocess_exec(
             *command,
             cwd=str(APP_ROOT),
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(input=full_prompt.encode("utf-8")),
                 timeout=timeout_seconds,
             )
         except asyncio.TimeoutError as exc:
@@ -3823,6 +3826,25 @@ async def collect_analytics_context(db: aiosqlite.Connection) -> tuple[str, dict
             lines.append(f"  t{idx} {domain} {r['action']} g={group}")
 
     return "\n".join(lines), idx_to_url
+
+
+@app.post("/workspace-review")
+async def review_workspace(payload: ContentReviewRequest, req: Request):
+    db = get_db(req)
+    settings = await get_app_settings(db)
+    prompt = json.dumps({"today": time.strftime("%Y-%m-%d"), "currentFocus": payload.focus,
+                         "tabs": [tab.model_dump() for tab in payload.tabs]}, ensure_ascii=False)
+    for provider in resolve_provider_chain(settings):
+        try:
+            if provider == "codex_cli":
+                parsed, metadata = await run_codex_json_prompt(prompt, REVIEW_SYSTEM_PROMPT, REVIEW_SCHEMA, settings, 90)
+            else:
+                parsed, metadata = await run_claude_json_prompt(prompt, REVIEW_SYSTEM_PROMPT, settings, 90)
+            await add_runtime_log(db, "info", "analysis", f"Content review: {len(payload.tabs)} tabs via {provider}")
+            return {**normalize_content_review(parsed, payload), "provider": provider, "model": metadata.modelUsed}
+        except Exception as exc:
+            await add_runtime_log(db, "warning", "provider", f"Content review: {provider}: {summarize_provider_error(exc)}")
+    raise HTTPException(status_code=503, detail="Content review AI unavailable. Check Codex login, model and runtime logs in Settings.")
 
 
 @app.post("/analytics/refresh")

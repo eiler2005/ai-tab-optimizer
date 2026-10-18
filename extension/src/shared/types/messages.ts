@@ -7,6 +7,8 @@ import type { HistoryTimeframe, TabHistoryStats } from './history';
 
 export type MessageRequest =
   | { type: 'WORKSPACE_OVERVIEW' }
+  | { type: 'PREVIEW_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
+  | { type: 'EXECUTE_CONTENT_REVIEW'; previewId: string; decisions: import('./content-review').ReviewCloseDecision[] }
   | { type: 'PREVIEW_COLLECTION'; name: string; tabIds?: number[] }
   | { type: 'SAVE_COLLECTION'; previewId: string; closeAfter: boolean }
   | { type: 'OPEN_COLLECTION'; collectionId: string }

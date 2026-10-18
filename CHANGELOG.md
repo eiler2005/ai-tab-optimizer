@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Separate similar-content and topical-obsolescence reviews with current-focus input, opt-in excerpts, evidence validation, coverage counts, explicit bulk selection and journalled Undo. Visit age is not used to classify obsolete content.
 - AI-assisted topic collections with exact live-URL matching, separate save previews and prompt-data isolation.
 - Real Chromium extension E2E tests covering native groups, worker restart, Undo, collection restore, backups and English/Russian UI.
 - Saved collections with save-before-close, notes, exact-URL merge previews, source preservation, missing-tab restore and reversible trash.
@@ -20,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 
 ### Fixed
+- Codex ChatGPT-subscription support defaults to GPT-5.6 Terra with low reasoning and a read-only sandbox. Large review prompts use stdin instead of exceeding process argument limits.
 - Conservative exact URL identity, indexed similarity rules, protected survivors and URL-based user flags.
 - Truthful partial close and cleanup outcomes; window/group-aware snapshot restore of missing URLs.
 - Unicode/versioned Obsidian exports preserve existing user notes; embedded fallback icons.

@@ -28,6 +28,12 @@ This repo is also a deliberate engineering exercise. It's structured to be revie
 
 **New in 0.3:** [Offline workspace](docs/WORKSPACE.md) — review duplicates, merge windows, save/merge named collections, preserve notes, export/import JSON backups and undo successful tab operations without an AI server.
 
+**Content review:** Cleanup also separates cross-site content overlap from material
+that has become obsolete by topic, date or replacement. Supply your current focus,
+review reasons and quoted evidence, then close selected candidates with Undo.
+Visit age is not an obsolescence signal. Optional excerpts and explicit coverage
+counts support reviews of up to 600 tabs. See [the workflow](docs/WORKSPACE.md#similar-content-and-topical-obsolescence).
+
 > Screenshots and a short walkthrough are coming. The capture conventions and the eight views to capture are documented in [`docs/screenshots/README.md`](docs/screenshots/README.md).
 
 | View | What's there |
@@ -67,7 +73,7 @@ flowchart LR
   CCC["Claude Code CLI"]
   COX["Codex CLI<br/>(fallback)"]
 
-  SP <--> |60 typed messages<br/>+ 9 broadcasts| SW
+  SP <--> |62 typed messages<br/>+ 9 broadcasts| SW
   SW <--> |loopback :8765| Srv
   Srv <--> DB
   Srv --> |subprocess| CCC
@@ -76,7 +82,7 @@ flowchart LR
 
 Three patterns worth flagging up front, each documented in detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
 
-- **Type-driven message protocol** — every message between the panel and the service worker is a member of a single discriminated union (60 request types, 9 broadcast events). Adding one without handling it doesn't compile.
+- **Type-driven message protocol** — every message between the panel and the service worker is a member of a single discriminated union (62 request types, 9 broadcast events). Adding one without handling it doesn't compile.
 - **Stop-and-resume long runs** — the `analysis_runs` table stores per-tab statuses, pending tabs, partial results, and accumulated metadata. A 1,200-tab analysis can be stopped, the extension can reload, and the user can resume from the same fingerprint.
 - **Per-batch provider failover** — Claude Code → Codex CLI → heuristic, decided per batch by a small policy module ([`server_core/provider_policy.py`](server_core/provider_policy.py)). A transient rate limit on one batch doesn't kill the run.
 

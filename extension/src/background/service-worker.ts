@@ -48,6 +48,7 @@ import { executeWindowMerge, previewWindowMerge } from './window-operations';
 import { executeCollectionMerge, openCollection, previewCollection, previewCollectionMerge, saveCollection, updateCollection } from './collections';
 import { executeBackupImport, exportWorkspaceBackup, previewBackupImport } from './workspace-backup';
 import { closeRecordedTabs, executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
+import { previewContentReview, executeContentReviewClose } from './content-review';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -1922,6 +1923,13 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
   switch (msg.type) {
     case 'WORKSPACE_OVERVIEW':
       return { success: true, data: await workspaceOverview() };
+    case 'PREVIEW_CONTENT_REVIEW':
+      return { success: true, data: await previewContentReview(msg.options, extractPageContent) };
+    case 'EXECUTE_CONTENT_REVIEW': {
+      const result = await executeContentReviewClose(msg.previewId, msg.decisions);
+      broadcastUpdate();
+      return { success: true, data: result };
+    }
     case 'PREVIEW_COLLECTION':
       return { success: true, data: await previewCollection(msg.name, msg.tabIds) };
     case 'SAVE_COLLECTION': {

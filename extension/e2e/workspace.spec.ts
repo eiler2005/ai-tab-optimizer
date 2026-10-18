@@ -124,6 +124,9 @@ test('grouping and collection restore keep separate windows and only open missin
   const restored = await request<RestoreResult>(panel, { type: 'OPEN_COLLECTION', collectionId: saved.collection.id });
   expect(restored.failedUrls).toEqual([]); expect(restored.errors).toEqual([]);
   expect(restored.restoredTabIds).toHaveLength(3);
+  // Chrome can return a created tab while its URL is still pending navigation.
+  await expect.poll(async () => panel.evaluate(async (ids) => (await Promise.all(ids.map((id) => chrome.tabs.get(id)))).map((tab) => tab.url).sort(), restored.restoredTabIds))
+    .toEqual(['http://aitab.test/group-a', 'http://aitab.test/window-a', 'http://aitab.test/window-b']);
   const tabs = await panel.evaluate(async (ids) => Promise.all(ids.map((id) => chrome.tabs.get(id))), restored.restoredTabIds);
   expect(new Set(tabs.map((tab) => tab.windowId)).size).toBe(2);
   expect(tabs.find((tab) => tab.url === 'http://aitab.test/window-a')?.pinned).toBe(true);
