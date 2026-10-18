@@ -39,7 +39,7 @@ assignees: ''
 <summary>Service worker console</summary>
 
 <!--
-chrome://extensions → AI Tab Optimizer → "service worker" link → DevTools console.
+chrome://extensions → AITab → "service worker" link → DevTools console.
 Paste relevant lines. Redact anything sensitive (URLs, titles).
 -->
 

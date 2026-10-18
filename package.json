@@ -1,5 +1,5 @@
 {
-  "name": "ai-tab-optimizer-workspace",
+  "name": "aitab-workspace",
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "scripts": {
@@ -8,6 +8,8 @@
     "typecheck": "pnpm --dir extension typecheck",
     "server": ".venv/bin/python agent.py",
     "check:python": ".venv/bin/python -m py_compile agent.py",
-    "health": "curl -sf http://127.0.0.1:8765/health"
+    "health": "curl -sf http://127.0.0.1:8765/health",
+    "test": "pnpm --dir extension test",
+    "test:python": ".venv/bin/python -m pytest -q"
   }
 }

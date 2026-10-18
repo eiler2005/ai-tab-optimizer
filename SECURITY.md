@@ -1,6 +1,6 @@
 # Security Policy
 
-AI Tab Optimizer is a desktop-only tool that runs entirely on the user's machine. There is no hosted backend, no cross-user state, and no telemetry. This document explains the security model, the trust boundaries, and how to report a vulnerability.
+AITab is a desktop-only tool that runs entirely on the user's machine. There is no hosted backend, no cross-user state, and no telemetry. This document explains the security model, the trust boundaries, and how to report a vulnerability.
 
 ## Reporting a vulnerability
 
@@ -118,7 +118,7 @@ If you find an issue not yet listed there, please report it privately as describ
 - Issues in dependencies that don't have a downstream impact on this project.
 - Theoretical issues without a demonstrated practical impact.
 
-Thanks for helping keep AI Tab Optimizer safe.
+Thanks for helping keep AITab safe.
 
 ## Current API boundary
 

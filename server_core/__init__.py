@@ -1,2 +1,2 @@
-"""Internal backend modules for AI Tab Optimizer."""
+"""Internal backend modules for AITab."""
 

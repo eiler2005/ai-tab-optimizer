@@ -771,7 +771,7 @@ export function SettingsView() {
       )}
 
       <div className="text-2xs text-gray-300 pt-4">
-        AI Tab Optimizer v0.2.0
+        AITab v0.3.0
       </div>
     </div>
   );

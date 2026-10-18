@@ -1,6 +1,6 @@
 {
-  "name": "ai-tab-optimizer",
-  "version": "0.2.0",
+  "name": "aitab",
+  "version": "0.3.0",
   "type": "module",
   "description": "AI-powered Chrome tab manager with Obsidian integration",
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.32.1",
   "dependencies": {
     "clsx": "^2.1.1",

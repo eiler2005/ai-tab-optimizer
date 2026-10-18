@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "AI Tab Optimizer",
-  "version": "0.2.0",
+  "name": "AITab",
+  "version": "0.3.0",
   "description": "Intelligent tab manager with AI analysis and Obsidian integration",
   "permissions": [
     "tabs",
@@ -35,7 +35,7 @@
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     },
-    "default_title": "AI Tab Optimizer"
+    "default_title": "AITab"
   },
   "icons": {
     "16": "icons/icon-16.png",
@@ -45,9 +45,16 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "128x128.png"],
-      "matches": ["<all_urls>"],
-      "extension_pages": ["*"]
+      "resources": [
+        "icons/*",
+        "128x128.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "extension_pages": [
+        "*"
+      ]
     }
   ],
   "minimum_chrome_version": "114"

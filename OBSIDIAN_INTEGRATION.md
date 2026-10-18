@@ -1,4 +1,4 @@
-# Obsidian Integration — AI Tab Optimizer
+# Obsidian Integration — AITab
 
 ## Role of Obsidian in the Product
 

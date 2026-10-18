@@ -1,4 +1,4 @@
-# Test Report — AI Tab Optimizer v0.3
+# Test Report — AITab v0.3
 
 **Date:** 2026-03-30
 **Environment:** macOS 25.3 · Node 20 · Python 3.13.2

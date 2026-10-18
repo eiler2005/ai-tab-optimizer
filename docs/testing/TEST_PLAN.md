@@ -1,4 +1,4 @@
-# Test Plan — AI Tab Optimizer v0.3
+# Test Plan — AITab v0.3
 
 **Status:** Active
 **Last updated:** 2026-03-30

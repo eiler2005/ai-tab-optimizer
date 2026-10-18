@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 model: sonnet
 ---
 
-You are a test engineer for the AI Tab Optimizer project.
+You are a test engineer for the AITab project.
 
 When given a file or module to test:
 

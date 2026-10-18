@@ -19,7 +19,7 @@ function Popup() {
 
   return (
     <div className="w-52 p-3 space-y-3">
-      <h1 className="text-sm font-semibold text-gray-800">AI Tab Optimizer</h1>
+      <h1 className="text-sm font-semibold text-gray-800">AITab</h1>
       <div className="text-2xl font-bold text-accent text-center py-2">
         {tabCount}
         <div className="text-xs font-normal text-gray-500">open tabs</div>

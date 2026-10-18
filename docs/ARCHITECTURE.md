@@ -4,7 +4,7 @@
 
 ## At a glance
 
-AI Tab Optimizer is a Chrome MV3 extension paired with a localhost FastAPI server that orchestrates AI CLIs and persists everything in SQLite. The extension stays small and reactive; the heavy lifting (LLM calls, retention, analytics, search) lives in the server. They communicate over loopback HTTP through the service worker, so nothing leaves the user's machine unless an explicitly-configured CLI does so.
+AITab is a Chrome MV3 extension paired with a localhost FastAPI server that orchestrates AI CLIs and persists everything in SQLite. The extension stays small and reactive; the heavy lifting (LLM calls, retention, analytics, search) lives in the server. They communicate over loopback HTTP through the service worker, so nothing leaves the user's machine unless an explicitly-configured CLI does so.
 
 ```mermaid
 flowchart LR

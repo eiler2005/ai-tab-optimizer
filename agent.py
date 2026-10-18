@@ -1,5 +1,5 @@
 """
-AI Tab Optimizer — Local AI Server
+AITab — Local AI Server
 FastAPI server with SQLite database for persistent per-URL tab analysis caching.
 Uses local AI CLIs for analysis and stores state in SQLite.
 """
@@ -49,7 +49,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
 )
-logger = logging.getLogger("ai-tab-optimizer")
+logger = logging.getLogger("aitab")
 
 # Clear Claude Code nesting env vars so claude CLI can be spawned from this server
 for _env_key in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"):
@@ -619,7 +619,7 @@ async def lifespan(application: FastAPI):
     logger.info("SQLite database closed")
 
 
-app = FastAPI(title="AI Tab Optimizer Server", lifespan=lifespan)
+app = FastAPI(title="AITab Server", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -3957,5 +3957,5 @@ async def analytics_refresh(req: Request):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8765"))
-    logger.info(f"Starting AI Tab Optimizer server on port {port}")
+    logger.info(f"Starting AITab server on port {port}")
     uvicorn.run(app, host="127.0.0.1", port=port)

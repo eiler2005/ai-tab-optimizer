@@ -1,4 +1,4 @@
-# Feature Scope — AI Tab Optimizer
+# Feature Scope — AITab
 
 ## v0.1 (MVP) — Complete
 

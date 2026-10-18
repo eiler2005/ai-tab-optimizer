@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
+
 ### Fixed
 - Conservative exact URL identity, indexed similarity rules, protected survivors and URL-based user flags.
 - Truthful partial close and cleanup outcomes; window/group-aware snapshot restore of missing URLs.

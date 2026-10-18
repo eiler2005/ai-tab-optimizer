@@ -1,4 +1,4 @@
-# AI Tab Optimizer — Claude Code Guide
+# AITab — Claude Code Guide
 
 > Full product spec: @PROJECT.md | Dev setup: @SETUP.md | Feature scope: @MVP_FEATURES.md
 

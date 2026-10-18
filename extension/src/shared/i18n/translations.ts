@@ -2,7 +2,7 @@ export type Locale = 'en' | 'ru';
 
 export const translations = {
   // Header
-  'app.title': { en: 'AI Tab Optimizer', ru: 'AI Tab Optimizer' },
+  'app.title': { en: 'AITab', ru: 'AITab' },
   'nav.tabs': { en: 'Tabs', ru: 'Вкладки' },
   'nav.snapshots': { en: 'Snapshots', ru: 'Снимки' },
   'nav.settings': { en: 'Settings', ru: 'Настройки' },

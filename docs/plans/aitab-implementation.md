@@ -3,7 +3,7 @@
 Approved on 2026-10-18. Each milestone includes regression tests, documentation, a commit and a push.
 
 - [x] 1. Reliability: server boundary, conservative URL matching, truthful cleanup results, session restore, stable exports, test gates.
-- [ ] 2. Rename: AITab branding and `aitab` directory; preserve existing storage and document migration.
+- [x] 2. Rename: AITab branding and `aitab` directory; preserve existing storage and document migration.
 - [ ] 3. Offline duplicate review: explicit preview, protected survivors, durable operation journal and recovery.
 - [ ] 4. Window consolidation: preserve tab order, pinning and Chrome groups; report partial failures and support undo.
 - [ ] 5. Saved collections: save before close, merge, restore missing tabs and validated JSON backup/import.

@@ -1,5 +1,5 @@
 """
-Integration tests for the AI Tab Optimizer FastAPI server.
+Integration tests for the AITab FastAPI server.
 Tests run against an in-memory SQLite database (see conftest.py).
 
 All endpoint response shapes match the actual API contract in agent.py:

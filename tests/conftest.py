@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for AI Tab Optimizer server tests.
+Shared pytest fixtures for AITab server tests.
 Uses an in-memory SQLite DB so tests are fully isolated from tab_analysis.db.
 """
 import asyncio

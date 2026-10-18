@@ -24,7 +24,7 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
-.venv/
+.venv*/
 venv/
 tab_analysis.db
 tab_analysis.db-shm
@@ -41,9 +41,10 @@ pnpm-debug.log*
 *.zip
 
 # Personal / dev artifacts
+.aitab-migration-backup
 prompt.md
 image.png
-firstai_agentproj.code-workspace
+*.code-workspace
 
 # Claude Code — commit skills, agents, hooks; exclude personal data
 .claude/settings.local.json

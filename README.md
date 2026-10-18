@@ -1,11 +1,11 @@
 <div align="center">
 
-# AI Tab Optimizer
+# AITab
 
 **A local-first Chrome extension that turns 100+ tabs into structured, searchable knowledge — with local storage and optional AI providers.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/eiler2005/ai-tab-optimizer/ci.yml?branch=master&label=CI&logo=github)](https://github.com/eiler2005/ai-tab-optimizer/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.2.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue)](CHANGELOG.md)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange)](https://developer.chrome.com/docs/extensions/mv3/)
 [![Chrome](https://img.shields.io/badge/Chrome-114%2B-4285F4?logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](extension/tsconfig.json)
@@ -18,7 +18,7 @@
 
 ## Why this exists
 
-If you live with 100+ open tabs, two things are true at the same time: you can't find anything, and you can't bring yourself to close anything because *something might be useful later*. AI Tab Optimizer is the toolkit I wanted for that exact problem — it understands what's open, groups it by topic, gives you per-tab recommendations with reasons, lets you safely clean up through a guided session, and remembers everything in a local database so the work isn't lost when you close the tab.
+If you live with 100+ open tabs, two things are true at the same time: you can't find anything, and you can't bring yourself to close anything because *something might be useful later*. AITab is the toolkit I wanted for that exact problem — it understands what's open, groups it by topic, gives you per-tab recommendations with reasons, lets you safely clean up through a guided session, and remembers everything in a local database so the work isn't lost when you close the tab.
 
 It's deliberately **local-first**: a Chrome MV3 extension talks to a FastAPI server on `localhost`, which orchestrates AI CLIs (Claude Code, Codex) and persists everything in SQLite. Nothing leaves your machine unless an explicitly-configured CLI does so. There is no backend service, no telemetry, and no account.
 
@@ -42,8 +42,8 @@ This repo is also a deliberate engineering exercise. It's structured to be revie
 ## Quick start
 
 ```bash
-git clone https://github.com/eiler2005/ai-tab-optimizer.git
-cd ai-tab-optimizer
+git clone https://github.com/eiler2005/ai-tab-optimizer.git aitab
+cd aitab
 
 cd extension && pnpm install && pnpm build && cd ..   # builds extension/dist/
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -111,7 +111,7 @@ The full threat model and the responsible-disclosure process are in [SECURITY.md
 ## Project structure
 
 ```
-ai-tab-optimizer/
+aitab/
 ├── agent.py                           # FastAPI server entrypoint
 ├── server_core/                       # Provider policy, runtime state, retention constants
 ├── tests/                             # pytest integration & behaviour tests

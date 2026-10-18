@@ -1,12 +1,12 @@
-# Contributing to AI Tab Optimizer
+# Contributing to AITab
 
 Thanks for taking the time to contribute. This guide is meant to be short — it points you to the right place rather than duplicating what already lives in the repo.
 
 ## TL;DR
 
 ```bash
-git clone https://github.com/eiler2005/ai-tab-optimizer.git
-cd ai-tab-optimizer
+git clone https://github.com/eiler2005/ai-tab-optimizer.git aitab
+cd aitab
 cd extension && pnpm install && cd ..
 pnpm build           # builds the extension into extension/dist/
 pnpm server          # starts the FastAPI server on http://localhost:8765

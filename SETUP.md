@@ -1,4 +1,4 @@
-# SETUP — AI Tab Optimizer Development Guide
+# SETUP — AITab Development Guide
 
 > Looking for the elevator pitch? → [README](README.md). Want to contribute? → [CONTRIBUTING.md](CONTRIBUTING.md). Want the architectural tour? → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -47,7 +47,7 @@ npm install -g pnpm
 ## Project Structure
 
 ```
-firstai_agentproj/
+aitab/
 ├── extension/               # Chrome Extension source
 │   ├── src/
 │   │   ├── background/      # Service worker (Chrome API bridge, AI proxy, history)
