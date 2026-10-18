@@ -1,5 +1,5 @@
 import type { SnapshotRecord, TabRecord, UserSettings } from '@shared/types';
-import type { CollectionWindow, SavedCollection, SavedTab, TabOperation } from '@shared/types/workspace';
+import type { CollectionWindow, SavedCollection, SavedTab, TabOperation, WorkspaceData } from '@shared/types/workspace';
 import { extractDomain } from '@shared/utils/url';
 import { isRestorableUrl } from './session-actions';
 import { readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-storage';
@@ -7,7 +7,7 @@ import { collectionDetails } from '@shared/utils/library';
 import type { CollectionDetails } from '@shared/types/workspace';
 
 const IMPORT_PREVIEW_KEY = 'aitab.import-preview.v1';
-const LEGACY_KEYS = ['settings', 'snapshots', 'tabHistory', 'userFlagsV2', 'exportedUrls', 'locale'];
+const LEGACY_KEYS = ['settings', 'snapshots', 'tabHistory', 'userFlagsV2', 'exportedUrls', 'locale', 'aitab.review-focus'];
 const COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'] as const;
 const FLAGS = ['protected', 'important', 'read_later'] as const;
 
@@ -18,6 +18,7 @@ export interface ImportPreview {
   operations: TabOperation[];
   legacy: Record<string, unknown>;
   skipped: number;
+  reviewDecisions?: WorkspaceData['reviewDecisions'];
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -131,6 +132,7 @@ export function parseBackup(json: string): ImportPreview {
   }
   const legacy: Record<string, unknown> = {};
   if (record(raw.legacy)) {
+    if (typeof raw.legacy['aitab.review-focus'] === 'string') legacy['aitab.review-focus'] = text(raw.legacy['aitab.review-focus'], 1000);
     const settings = safeSettings(raw.legacy.settings); if (settings) legacy.settings = settings;
     if (raw.legacy.locale === 'ru' || raw.legacy.locale === 'en') legacy.locale = raw.legacy.locale;
     if (Array.isArray(raw.legacy.exportedUrls)) legacy.exportedUrls = raw.legacy.exportedUrls.filter((url): url is string => typeof url === 'string' && isRestorableUrl(url));
@@ -155,7 +157,14 @@ export function parseBackup(json: string): ImportPreview {
       });
     }
   }
-  return { id: crypto.randomUUID(), createdAt: Date.now(), collections, operations, legacy, skipped: counter.skipped };
+  const reviewDecisions: NonNullable<WorkspaceData['reviewDecisions']> = [];
+  if (Array.isArray(raw.reviewDecisions)) for (const item of raw.reviewDecisions.slice(-500)) {
+    if (record(item) && typeof item.key === 'string' && /^[a-f0-9]{64}$/.test(item.key) && (item.kind === 'keep' || item.kind === 'complementary')
+      && typeof item.createdAt === 'number' && Number.isSafeInteger(item.createdAt) && item.createdAt > 0 && item.createdAt <= Date.now()) {
+      reviewDecisions.push({ key: item.key, kind: item.kind, createdAt: item.createdAt });
+    }
+  }
+  return { id: crypto.randomUUID(), createdAt: Date.now(), collections, operations, legacy, reviewDecisions, skipped: counter.skipped };
 }
 
 export async function exportWorkspaceBackup(): Promise<string> {
@@ -163,7 +172,7 @@ export async function exportWorkspaceBackup(): Promise<string> {
     const workspace = await readWorkspace();
     const legacy = await chrome.storage.local.get(LEGACY_KEYS);
     legacy.settings = safeSettings(legacy.settings);
-    return JSON.stringify({ format: 'aitab-backup', version: 1, exportedAt: Date.now(), collections: workspace.collections, operations: workspace.operations, legacy }, null, 2);
+    return JSON.stringify({ format: 'aitab-backup', version: 1, exportedAt: Date.now(), collections: workspace.collections, operations: workspace.operations, reviewDecisions: workspace.reviewDecisions, legacy }, null, 2);
   });
 }
 
@@ -183,6 +192,7 @@ export async function executeBackupImport(previewId: string): Promise<{ imported
     if (!preview || preview.id !== previewId || Date.now() - preview.createdAt > 300_000) throw new Error('Import preview expired');
     if (workspace.importedBackupIds?.includes(previewId)) return { imported: 0, skipped: preview.skipped };
     workspace.collections.push(...preview.collections); workspace.operations.push(...preview.operations);
+    workspace.reviewDecisions = [...new Map([...(preview.reviewDecisions ?? []), ...(workspace.reviewDecisions ?? [])].map((entry) => [entry.key, entry])).values()].slice(-500);
     workspace.importedBackupIds = [...(workspace.importedBackupIds ?? []), previewId].slice(-100);
     const current = await chrome.storage.local.get(LEGACY_KEYS);
     const extra: Record<string, unknown> = {};

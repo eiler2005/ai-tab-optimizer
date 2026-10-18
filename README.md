@@ -37,6 +37,11 @@ labels and available evidence. Choose two URLs for a deeper, bounded comparison 
 accessible article text. Closed/discarded pages are never opened for this check.
 [Evidence and limits](docs/WORKSPACE.md#library-comparison-and-evidence).
 
+**Relevance decisions:** review focus is remembered and can be loaded from a collection.
+Mark an obsolete-content suggestion **Still useful**, or a group **Complementary**,
+to avoid repeating it for 30 days while the supplied evidence and focus stay unchanged.
+Dates prompt a review; visit age never establishes topical obsolescence.
+
 **New in 0.3:** [Offline workspace](docs/WORKSPACE.md) — review duplicates, merge windows, save/merge named collections, preserve notes, export/import JSON backups and undo successful tab operations without an AI server.
 
 **Content review:** Cleanup also separates cross-site content overlap from material

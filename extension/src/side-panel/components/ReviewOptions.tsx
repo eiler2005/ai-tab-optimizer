@@ -1,4 +1,7 @@
 import { useI18n } from '@shared/i18n';
+import { useEffect, useState } from 'react';
+import type { WorkspaceData } from '@shared/types/workspace';
+import { workspaceMessage } from '../workspace-api';
 import { useStore } from '../store';
 import { useWorkspaceReview } from '../review-controller';
 
@@ -7,7 +10,10 @@ export function ReviewOptions() {
   const windows = useStore((state) => state.windowGroups);
   const { options, setOptions, job, permissionDenied } = useWorkspaceReview();
   const running = job?.status === 'running';
+  const [collections, setCollections] = useState<WorkspaceData['collections']>([]);
+  useEffect(() => { void workspaceMessage<WorkspaceData>({ type: 'WORKSPACE_OVERVIEW' }).then((data) => setCollections(data.collections.filter((collection) => !collection.deletedAt && collection.focus))).catch(() => {}); }, []);
   return <div className="space-y-2 text-xs">
+    {collections.length > 0 && <label className="block">{tr('Взять задачу из коллекции', 'Use a collection task')}<select disabled={running} defaultValue="" className="block w-full border rounded p-2" onChange={(event) => { const collection = collections.find((entry) => entry.id === event.target.value); if (collection) setOptions({ ...options, focus: collection.focus ?? '' }); }}><option value="">{tr('Выберите коллекцию', 'Choose collection')}</option>{collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}</select></label>}
     <label className="block">{tr('Что сейчас актуально (необязательно)', 'Current focus (optional)')}
       <textarea disabled={running} value={options.focus} maxLength={1000} onChange={(event) => setOptions({ ...options, focus: event.target.value })} placeholder={tr('Какие темы и версии нужны; что уже не актуально', 'Relevant topics and versions; what is no longer useful')} className="block w-full border rounded p-2 mt-1" rows={2} />
     </label>

@@ -1,14 +1,18 @@
 import { useI18n } from '@shared/i18n';
 import { useWorkspaceReview } from '../review-controller';
 import { ReviewOptions } from './ReviewOptions';
+import { workspaceMessage } from '../workspace-api';
+import { useState } from 'react';
 
 export function LibraryReview({ selectedUrls }: { selectedUrls: string[] }) {
   const { locale } = useI18n();
   const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
   const review = useWorkspaceReview();
+  const [feedback, setFeedback] = useState('');
   const preview = review.job?.status === 'completed' && review.job.preview?.savedSources ? review.job.preview : undefined;
   return <section className="space-y-2 border rounded p-2 text-xs">
     <h4 className="font-semibold">{tr('Сравнение всей библиотеки', 'Compare the library')}</h4>
+    {feedback && <p role="status">{feedback}</p>}
     <p>{tr('Проверяет открытые страницы и сохранённые ссылки. Корзина и чаты исключены. Для закрытых страниц используются заголовки и доступные сохранённые фрагменты; ссылки не открываются автоматически.', 'Reviews open and saved pages. Trash and chats are excluded. Closed pages use titles and available cached excerpts; no pages open automatically.')}</p>
     <details><summary>{tr('Параметры проверки', 'Review options')}</summary><ReviewOptions /></details>
     <div className="flex flex-wrap gap-2">
@@ -23,6 +27,7 @@ export function LibraryReview({ selectedUrls }: { selectedUrls: string[] }) {
       {preview.similarGroups.map((group) => <article key={group.id} className="border rounded p-2 space-y-2">
         <h5 className="font-medium">{group.relation === 'related' ? tr('Дополняют друг друга — оставить', 'Complementary — retain') : tr('Возможный повтор информации', 'Possible information redundancy')}</h5>
         <p>{group.reason}</p>{group.uniqueValue && <p className="text-green-800">{group.uniqueValue}</p>}
+        <button className="border rounded p-2" onClick={() => void workspaceMessage({ type: 'REMEMBER_REVIEW_DECISION', previewId: preview.id, kind: 'complementary', tabIds: group.tabIds }).then(() => setFeedback(tr('Источники сохранены как дополняющие на 30 дней, пока содержание и задача те же.', 'Complementary decision remembered for 30 days while evidence and focus stay unchanged.'))).catch((error) => setFeedback(String(error)))}>{tr('Дополняют друг друга — запомнить', 'Remember as complementary')}</button>
         {group.tabIds.map((id) => { const tab = preview.tabs.find((page) => page.id === id); const source = preview.savedSources?.[id]; const evidence = preview.evidence?.[id]; return tab ? <div key={id} className="border-t pt-1 break-words">
           <p>{tab.title} · {source ? source.collectionName : tr('Открытая вкладка', 'Open tab')}</p><p className="text-gray-500 break-all">{tab.url}</p>
           {evidence ? <details><summary>{tr('Доказательства', 'Evidence')} · {new Date(evidence.capturedAt).toLocaleString()} · {evidence.cached ? tr('сохранённый фрагмент', 'cached excerpt') : tr('прочитано сейчас', 'read now')}</summary><blockquote className="whitespace-pre-wrap">{evidence.text}</blockquote></details> : <p className="text-amber-800">{tr('Только заголовок и URL — текст не проверен', 'Title and URL only — page text unverified')}</p>}

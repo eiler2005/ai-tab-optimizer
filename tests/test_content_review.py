@@ -46,6 +46,9 @@ def test_review_rejects_hallucinated_ids_quotes_and_replacement_cycles():
 
 
 def test_request_bounds_and_duplicate_ids():
+    assert len(ContentReviewRequest(tabs=[{**page, 'excerpt': 'x' * 8000} for page in pages()[:2]]).tabs) == 2
+    with pytest.raises(ValidationError, match='two pages'):
+        ContentReviewRequest(tabs=[{**page, 'excerpt': 'x' * 8000} for page in pages()])
     with pytest.raises(ValidationError):
         ContentReviewRequest(tabs=[pages()[0], pages()[0]])
     with pytest.raises(ValidationError):

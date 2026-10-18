@@ -1,12 +1,23 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ContentReviewJob, ContentReviewOptions } from '@shared/types/content-review';
 import { workspaceMessage } from './workspace-api';
 
 export function useReviewController() {
   const [job, setJob] = useState<ContentReviewJob | null>(null);
-  const [options, setOptions] = useState<ContentReviewOptions>({ useAi: true, readContent: true, focus: '' });
+  const [options, setOptionsState] = useState<ContentReviewOptions>({ useAi: true, readContent: true, focus: '' });
+  const changed = useRef(false);
+  function setOptions(next: ContentReviewOptions) { changed.current = true; setOptionsState(next); }
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  useEffect(() => { void chrome.storage.local.get('aitab.review-focus').then((stored) => {
+    const focus = stored['aitab.review-focus'];
+    if (!changed.current && typeof focus === 'string') setOptionsState((current) => ({ ...current, focus: focus.slice(0, 1000) }));
+  }).catch((failure) => setError(String(failure))); }, []);
+  useEffect(() => {
+    if (!changed.current) return;
+    const timer = setTimeout(() => { void chrome.storage.local.set({ 'aitab.review-focus': options.focus ?? '' }).catch((failure) => setError(String(failure))); }, 300);
+    return () => clearTimeout(timer);
+  }, [options.focus]);
   useEffect(() => {
     let disposed = false; let pending = false;
     const poll = async () => {

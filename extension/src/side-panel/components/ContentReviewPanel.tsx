@@ -19,10 +19,12 @@ export function ContentReviewPanel({ mode, busy, run, onResult }: {
   const running = job?.status === 'running';
   const [keepers, setKeepers] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Map<number, number | undefined>>(new Map());
+  const [remembered, setRemembered] = useState<string[]>([]);
   useEffect(() => { setSelected(new Map()); }, [mode]);
   useEffect(() => {
     setKeepers(Object.fromEntries(preview?.similarGroups.map((group) => [group.id, group.keepTabId]) ?? []));
     setSelected(new Map());
+    setRemembered([]);
   }, [preview?.id]);
 
   const blocking = (tab: TabRecord, keep?: number) => {
@@ -83,6 +85,10 @@ export function ContentReviewPanel({ mode, busy, run, onResult }: {
         <p className="font-medium">{group.relation === 'redundant' ? tr('Повтор информации', 'Redundant information') : tr('Альтернативные материалы — рекомендуем оставить', 'Alternative material — recommended to keep')} · {Math.round(group.confidence * 100)}%</p>
         <p>{group.source === 'ai' ? group.reason : tr('Совпадают слова заголовков или фрагментов. Полное совпадение содержания не подтверждено.', 'Title or excerpt words overlap. Full content equivalence is unconfirmed.')}</p>
         {group.uniqueValue && <p className="text-green-800">{group.uniqueValue}</p>}
+        <button disabled={busy || remembered.includes(group.id)} className="border rounded p-2 disabled:opacity-50" onClick={() => void run(async () => {
+          await workspaceMessage({ type: 'REMEMBER_REVIEW_DECISION', previewId: preview.id, kind: 'complementary', tabIds: group.tabIds });
+          setSelected(new Map()); setRemembered((current) => [...current, group.id]);
+        })}>{remembered.includes(group.id) ? tr('Решение сохранено на 30 дней', 'Decision remembered for 30 days') : tr('Оставить: источники дополняют друг друга', 'Retain: complementary sources')}</button>
         {group.tabIds.map((id) => preview.tabs.find((tab) => tab.id === id)).filter((tab): tab is TabRecord => Boolean(tab)).map((tab) => <div key={tab.id} className="space-y-1">
           <label className="flex gap-1 text-[10px]"><input type="radio" name={group.id} aria-label={tr('Оставить похожую вкладку', 'Keep similar tab') + ' ' + tab.id} checked={(keepers[group.id] ?? group.keepTabId) === tab.id} disabled={busy} onChange={() => {
             setKeepers((previous) => ({ ...previous, [group.id]: tab.id })); setSelected(new Map());
@@ -95,6 +101,7 @@ export function ContentReviewPanel({ mode, busy, run, onResult }: {
         const replacement = preview.tabs.find((candidate) => candidate.id === item.replacementTabId);
         return <div key={item.tabId} className="border rounded p-2 space-y-2">
           {page(tab, item.replacementTabId)}<p>{item.reason}</p><blockquote className="border-l-2 pl-2 text-gray-500 break-words">{item.evidence}</blockquote>
+          <button disabled={busy || remembered.includes(String(item.tabId))} className="border rounded p-2" onClick={() => void run(async () => { await workspaceMessage({ type: 'REMEMBER_REVIEW_DECISION', previewId: preview.id, kind: 'keep', tabIds: [item.tabId] }); setSelected(new Map()); setRemembered((current) => [...current, String(item.tabId)]); })}>{remembered.includes(String(item.tabId)) ? tr('Решение сохранено', 'Decision remembered') : tr('Это всё ещё нужно — запомнить', 'Still useful — remember')}</button>
           {replacement && <p className="text-green-800">{tr('Замена останется открытой', 'Replacement stays open')}: {replacement.title}</p>}
         </div>;
       })}

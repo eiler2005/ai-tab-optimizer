@@ -99,4 +99,5 @@ export interface WorkspaceData {
   operations: TabOperation[];
   collections: SavedCollection[];
   importedBackupIds?: string[];
+  reviewDecisions?: { key: string; kind: 'keep' | 'complementary'; createdAt: number }[];
 }

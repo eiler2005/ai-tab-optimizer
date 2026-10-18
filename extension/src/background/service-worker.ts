@@ -48,7 +48,7 @@ import { executeWindowMerge, previewWindowMerge } from './window-operations';
 import { executeCollectionMerge, openCollection, openCollectionItem, previewCollection, previewCollectionMerge, saveCollection, updateCollection } from './collections';
 import { executeBackupImport, exportWorkspaceBackup, previewBackupImport } from './workspace-backup';
 import { closeRecordedTabs, executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
-import { previewContentReview, executeContentReviewClose } from './content-review';
+import { previewContentReview, executeContentReviewClose, rememberReviewDecision } from './content-review';
 import { startReviewJob, getReviewJob, cancelReviewJob } from './review-jobs';
 import { previewOptimization, executeOptimization } from './optimization';
 import { extractDomain } from '@shared/utils/url';
@@ -1933,6 +1933,9 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       return { success: true, data: await getReviewJob() };
     case 'CANCEL_CONTENT_REVIEW':
       return { success: true, data: await cancelReviewJob(msg.jobId) };
+    case 'REMEMBER_REVIEW_DECISION':
+      await rememberReviewDecision(msg.previewId, msg.kind, msg.tabIds);
+      return { success: true };
     case 'PREVIEW_OPTIMIZATION':
       return { success: true, data: await previewOptimization(msg.windowId, msg.reviewId) };
     case 'EXECUTE_OPTIMIZATION': {

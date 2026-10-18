@@ -68,6 +68,17 @@ session state, not portable backups.
 
 ## Review progress and available controls
 
+Review focus persists locally between panel sessions. Review options can load the
+current task saved on a collection. A collection's review date is a local reminder
+on its card, not a claim about the age or quality of its pages.
+
+**Still useful — remember** and **Retain: complementary sources** store up to 500
+decisions for 30 days. A SHA-256 key covers exact URLs, titles, available evidence and
+focus; changed evidence/focus or expiration triggers a new review. A title-only
+decision cannot establish equivalence of unseen text. Decisions and focus survive
+portable backup/import; no live browser IDs are imported for them. These decisions
+suppress repeated suggestions on the next review and never initiate browser actions.
+
 Content review runs as a background job, independent of the short action lock.
 The persistent progress card shows capture, excerpt reading, local comparison,
 AI waiting and completion. Excerpt counts are measured and the optional remaining

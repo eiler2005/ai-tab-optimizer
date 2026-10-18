@@ -10,6 +10,7 @@ export type MessageRequest =
   | { type: 'START_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
   | { type: 'GET_CONTENT_REVIEW_JOB' }
   | { type: 'CANCEL_CONTENT_REVIEW'; jobId: string }
+  | { type: 'REMEMBER_REVIEW_DECISION'; previewId: string; kind: 'keep' | 'complementary'; tabIds: number[] }
   | { type: 'PREVIEW_OPTIMIZATION'; windowId?: number; reviewId?: string }
   | { type: 'EXECUTE_OPTIMIZATION'; planId: string; tabIds: number[] }
   | { type: 'PREVIEW_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }

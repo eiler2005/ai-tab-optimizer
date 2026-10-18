@@ -27,6 +27,8 @@ export interface ContentReviewPreview {
   excerptTabIds?: number[];
   savedSources?: Record<number, { collectionId: string; itemId: string; revision: number; collectionName: string }>;
   evidence?: Record<number, { text: string; capturedAt: number; cached: boolean }>;
+  focus?: string;
+  retainedByUser?: number;
 }
 
 export interface ReviewProgress {

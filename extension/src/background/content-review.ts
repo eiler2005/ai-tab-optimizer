@@ -9,6 +9,7 @@ import { browserSessionId, readWorkspace, saveWorkspace, withWorkspaceLock } fro
 import { isStatefulChat } from '@shared/utils/page-safety';
 import { readEvidence, storeEvidence } from './content-evidence';
 import { extractDeepText } from './deep-extraction';
+import { applyReviewDecisions, decisionKey } from './review-decisions';
 
 const KEY = 'aitab.content-review.preview';
 const MAX_AI_TABS = 600;
@@ -25,6 +26,7 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
   const preview: ContentReviewPreview = { id: crypto.randomUUID(), createdAt: Date.now(), tabs,
     similarGroups: [], outdatedTabs: [], protectedDomains: domains,
     extractedCount: 0, extractionFailed: 0, aiTabCount: 0 };
+  preview.focus = (options.focus ?? '').trim().slice(0, 1000);
   preview.evidence = {};
   if (options.includeSaved) {
     preview.savedSources = {};
@@ -100,6 +102,7 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
   }
   signal?.throwIfAborted();
   preview.createdAt = Date.now();
+  await applyReviewDecisions(preview, (await readWorkspace()).reviewDecisions);
   await chrome.storage.session.set({ [KEY]: preview });
   await onProgress?.({ phase: 'complete', processed: batch.length, total: batch.length });
   return preview;
@@ -109,6 +112,20 @@ export async function readContentPreview(id: string): Promise<ContentReviewPrevi
   const stored = await chrome.storage.session.get(KEY);
   const preview = stored[KEY] as ContentReviewPreview | undefined;
   return preview?.id === id && Date.now() - preview.createdAt <= 300_000 ? preview : undefined;
+}
+
+export async function rememberReviewDecision(previewId: string, kind: 'keep' | 'complementary', ids: number[]): Promise<void> {
+  return withWorkspaceLock(async () => {
+    const preview = await readContentPreview(previewId);
+    if (!preview || !ids.length || new Set(ids).size !== ids.length) throw new Error('Review expired or invalid decision');
+    const permitted = kind === 'keep' ? ids.length === 1 && preview.outdatedTabs.some((item) => item.tabId === ids[0])
+      : kind === 'complementary' && preview.similarGroups.some((group) => group.tabIds.length === ids.length && ids.every((id) => group.tabIds.includes(id)));
+    if (!permitted) throw new Error('Decision must refer to an existing suggestion');
+    const workspace = await readWorkspace();
+    const key = await decisionKey(preview, ids);
+    workspace.reviewDecisions = [...(workspace.reviewDecisions ?? []).filter((entry) => entry.key !== key), { key, kind, createdAt: Date.now() }].slice(-500);
+    await saveWorkspace(workspace);
+  });
 }
 
 export async function executeContentReviewClose(previewId: string, decisions: ReviewCloseDecision[]): Promise<TabOperation> {
