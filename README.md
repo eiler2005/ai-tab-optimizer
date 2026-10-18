@@ -169,6 +169,7 @@ aitab/
 | See the full product spec, types, and endpoints | [PROJECT.md](PROJECT.md) |
 | Know what's tested and how | [docs/TESTING.md](docs/TESTING.md) |
 | See known limitations and proposed work | [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) |
+| Review the product development plan and TabMerger comparison | [docs/plans/product-development.md](docs/plans/product-development.md) |
 | Report a security issue | [SECURITY.md](SECURITY.md) |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | See what changed in each release | [CHANGELOG.md](CHANGELOG.md) |
