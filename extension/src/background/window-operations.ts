@@ -17,7 +17,7 @@ export async function previewWindowMerge(targetWindowId: number, tabIds: number[
     const preview: WindowMergePreview = { id: crypto.randomUUID(), createdAt: Date.now(), targetWindowId, tabs,
       originalFocusedWindowId: windows.find((window) => window.focused)?.windowId,
       targetActiveTabId: target.tabs.find((tab) => tab.active)?.id };
-    await chrome.storage.local.set({ [MERGE_PREVIEW_KEY]: preview });
+    await chrome.storage.session.set({ [MERGE_PREVIEW_KEY]: preview });
     return preview;
   });
 }
@@ -52,7 +52,7 @@ export async function executeWindowMerge(previewId: string): Promise<TabOperatio
     const workspace = await readWorkspace();
     const previous = workspace.operations.find((operation) => operation.id === previewId);
     if (previous) return previous;
-    const stored = await chrome.storage.local.get(MERGE_PREVIEW_KEY);
+    const stored = await chrome.storage.session.get(MERGE_PREVIEW_KEY);
     const preview = stored[MERGE_PREVIEW_KEY] as WindowMergePreview | undefined;
     if (!preview || preview.id !== previewId || Date.now() - preview.createdAt > 300_000) throw new Error('Preview expired. Preview the merge again.');
     const target = await chrome.windows.get(preview.targetWindowId);

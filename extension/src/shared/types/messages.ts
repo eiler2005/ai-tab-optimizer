@@ -7,6 +7,15 @@ import type { HistoryTimeframe, TabHistoryStats } from './history';
 
 export type MessageRequest =
   | { type: 'WORKSPACE_OVERVIEW' }
+  | { type: 'PREVIEW_COLLECTION'; name: string; tabIds?: number[] }
+  | { type: 'SAVE_COLLECTION'; previewId: string; closeAfter: boolean }
+  | { type: 'OPEN_COLLECTION'; collectionId: string }
+  | { type: 'UPDATE_COLLECTION'; collectionId: string; change: { name?: string; deleted?: boolean; itemId?: string; note?: string; permanent?: boolean } }
+  | { type: 'PREVIEW_COLLECTION_MERGE'; collectionIds: string[]; name: string }
+  | { type: 'MERGE_COLLECTIONS'; previewId: string }
+  | { type: 'EXPORT_WORKSPACE_BACKUP' }
+  | { type: 'PREVIEW_BACKUP_IMPORT'; json: string }
+  | { type: 'IMPORT_WORKSPACE_BACKUP'; previewId: string }
   | { type: 'PREVIEW_WINDOW_MERGE'; targetWindowId: number; tabIds: number[] }
   | { type: 'EXECUTE_WINDOW_MERGE'; previewId: string }
   | { type: 'PREVIEW_DUPLICATES'; windowId?: number }
@@ -34,7 +43,7 @@ export type MessageRequest =
   | { type: 'GET_AI_RESULT' }
   | { type: 'EXTRACT_PAGE'; tabId: number }
   | { type: 'START_CLEANUP_SESSION' }
-  | { type: 'APPLY_CLEANUP_ACTION'; tabId: number; action: RecommendedAction }
+  | { type: 'APPLY_CLEANUP_ACTION'; tabId: number; action: RecommendedAction; expectedUrl?: string }
   | { type: 'GET_LLM_CALL_LOGS'; limit?: number; sessionTimestamp?: number; provider?: string }
   | { type: 'GET_URL_CACHE_LIST'; limit?: number; offset?: number; domain?: string; action?: string }
   | { type: 'DELETE_URL_CACHE'; urls?: string[]; domainPattern?: string }

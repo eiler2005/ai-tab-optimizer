@@ -45,6 +45,8 @@ import { runRules, tabProtectionReason } from '@shared/utils/rules';
 import { restoreWindows } from './session-actions';
 import { readBrowserState } from './browser-state';
 import { executeWindowMerge, previewWindowMerge } from './window-operations';
+import { executeCollectionMerge, openCollection, previewCollection, previewCollectionMerge, saveCollection, updateCollection } from './collections';
+import { executeBackupImport, exportWorkspaceBackup, previewBackupImport } from './workspace-backup';
 import { executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
@@ -1909,6 +1911,31 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
   switch (msg.type) {
     case 'WORKSPACE_OVERVIEW':
       return { success: true, data: await workspaceOverview() };
+    case 'PREVIEW_COLLECTION':
+      return { success: true, data: await previewCollection(msg.name, msg.tabIds) };
+    case 'SAVE_COLLECTION': {
+      const result = await saveCollection(msg.previewId, msg.closeAfter);
+      broadcastUpdate();
+      return { success: true, data: result };
+    }
+    case 'OPEN_COLLECTION': {
+      const result = await openCollection(msg.collectionId);
+      broadcastUpdate();
+      return { success: true, data: result };
+    }
+    case 'UPDATE_COLLECTION':
+      await updateCollection(msg.collectionId, msg.change);
+      return { success: true };
+    case 'PREVIEW_COLLECTION_MERGE':
+      return { success: true, data: await previewCollectionMerge(msg.collectionIds, msg.name) };
+    case 'MERGE_COLLECTIONS':
+      return { success: true, data: await executeCollectionMerge(msg.previewId) };
+    case 'EXPORT_WORKSPACE_BACKUP':
+      return { success: true, data: await exportWorkspaceBackup() };
+    case 'PREVIEW_BACKUP_IMPORT':
+      return { success: true, data: await previewBackupImport(msg.json) };
+    case 'IMPORT_WORKSPACE_BACKUP':
+      return { success: true, data: await executeBackupImport(msg.previewId) };
     case 'PREVIEW_WINDOW_MERGE':
       return { success: true, data: await previewWindowMerge(msg.targetWindowId, msg.tabIds) };
     case 'EXECUTE_WINDOW_MERGE': {
@@ -2273,6 +2300,7 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       const { windowGroups } = await getAllTabs();
       const tab = windowGroups.flatMap((window) => window.tabs).find((item) => item.id === msg.tabId);
       if (!tab) return { success: false, error: 'Tab is no longer open' };
+      if (msg.expectedUrl !== undefined && tab.url !== msg.expectedUrl) return { success: false, error: 'Tab navigated since the cleanup session started' };
       const flags = await getUserFlags();
       tab.userFlag = flags[tab.id];
       const settings = await getSettings();
@@ -2295,9 +2323,9 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       } else if (msg.action === 'read_later') {
         await setUserFlag(tab.id, 'read_later');
       } else if (msg.action === 'archive') {
-        await createSnapshot(`Archived: ${tab.title}`, 'pre-cleanup');
-        const closed = await closeChromeTabs([tab.id], (id) => chrome.tabs.remove(id));
-        if (closed.failedTabIds.length) return { success: false, error: closed.errors[0] };
+        const preview = await previewCollection(`Archived: ${tab.title}`.slice(0, 120), [tab.id]);
+        const saved = await saveCollection(preview.id, true);
+        if (saved.operation?.items[0].state !== 'done') return { success: false, error: saved.operation?.items[0].error ?? 'Archive saved; closing was skipped' };
       }
       return { success: true };
     }

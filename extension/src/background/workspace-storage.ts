@@ -20,7 +20,7 @@ export async function readWorkspace(): Promise<WorkspaceData> {
   return data;
 }
 
-export async function saveWorkspace(data: WorkspaceData): Promise<void> {
+export async function saveWorkspace(data: WorkspaceData, extra: Record<string, unknown> = {}): Promise<void> {
   const active = data.operations.filter((operation) => ['running', 'interrupted', 'undoing'].includes(operation.status));
   const recent = data.operations.filter((operation) => !active.includes(operation)).slice(-50);
   data.operations = [...active, ...recent].sort((a, b) => a.createdAt - b.createdAt);
@@ -28,7 +28,8 @@ export async function saveWorkspace(data: WorkspaceData): Promise<void> {
     throw new Error('Workspace is too large. Export and remove old collections before continuing.');
   }
   data.revision += 1;
-  await chrome.storage.local.set({ [WORKSPACE_KEY]: data });
+  if (new TextEncoder().encode(JSON.stringify(extra)).length > 2_000_000) throw new Error('Legacy backup data exceeds the local import limit');
+  await chrome.storage.local.set({ ...extra, [WORKSPACE_KEY]: data });
 }
 
 export async function browserSessionId(): Promise<string> {

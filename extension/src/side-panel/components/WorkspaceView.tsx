@@ -5,6 +5,7 @@ import { tabProtectionReason } from '@shared/utils/rules';
 import { useStore } from '../store';
 import { workspaceMessage } from '../workspace-api';
 import { WindowMergePanel } from './WindowMergePanel';
+import { CollectionsPanel } from './CollectionsPanel';
 
 export function WorkspaceView() {
   const { locale } = useI18n();
@@ -18,6 +19,7 @@ export function WorkspaceView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [section, setSection] = useState<'duplicates' | 'windows' | 'collections' | 'history'>('duplicates');
 
   const refresh = async () => setWorkspace(await workspaceMessage<WorkspaceData>({ type: 'WORKSPACE_OVERVIEW' }));
   useEffect(() => { void refresh().catch((failure) => setError(String(failure))); }, []);
@@ -35,6 +37,7 @@ export function WorkspaceView() {
   }
 
   function showResult(operation: TabOperation) {
+    setSection('history');
     const count = (state: string) => operation.items.filter((item) => item.state === state).length;
     setFeedback(`${tr('Выполнено', 'Completed')}: ${count('done')}; ${tr('пропущено', 'skipped')}: ${count('skipped')}; ${tr('ошибок', 'failed')}: ${count('failed')}; ${tr('восстановлено', 'restored')}: ${count('undone')}`);
   }
@@ -63,6 +66,10 @@ export function WorkspaceView() {
     <p className="text-xs text-gray-500">{tr('Работает без AI и сервера. Просмотрите копии перед закрытием. История позволяет отменить операцию.', 'Works offline without AI. Review copies before closing. Use history to undo an operation.')}</p>
     {error && <p role="alert" className="text-xs text-red-700 bg-red-50 p-2 rounded">{error}</p>}
     {feedback && <p role="status" className="text-xs text-green-800 bg-green-50 p-2 rounded">{feedback}</p>}
+    <nav className="flex gap-1 flex-wrap" aria-label={tr('Раздел очистки', 'Cleanup section')}>
+      {([['duplicates', tr('Повторы', 'Duplicates')], ['windows', tr('Окна', 'Windows')], ['collections', tr('Коллекции', 'Collections')], ['history', tr('История', 'History')]] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
+    </nav>
+    {section === 'duplicates' && <>
     <div className="flex gap-2">
       <select aria-label={tr('Область поиска', 'Scan scope')} value={scope} onChange={(event) => setScope(event.target.value)} className="border rounded text-xs min-w-0 flex-1">
         <option value="all">{tr('Все обычные окна', 'All normal windows')}</option>
@@ -94,8 +101,10 @@ export function WorkspaceView() {
     {preview && selected.size > 0 && <button disabled={busy} onClick={() => void run(closeSelected)} className="w-full p-2 bg-red-600 text-white rounded text-xs disabled:opacity-50">
       {tr('Закрыть выбранные копии', 'Close selected copies')} ({selected.size})
     </button>}
-    <WindowMergePanel busy={busy} run={run} onResult={showResult} />
-    <section className="space-y-2 border-t pt-3">
+    </>}
+    {section === 'windows' && <WindowMergePanel busy={busy} run={run} onResult={showResult} />}
+    {section === 'collections' && <CollectionsPanel workspace={workspace} busy={busy} run={run} onResult={showResult} onFeedback={setFeedback} />}
+    {section === 'history' && <section className="space-y-2 border-t pt-3">
       <h3 className="font-semibold text-xs">{tr('История операций', 'Operation history')}</h3>
       <p className="text-[10px] text-gray-500">{tr('Сохраняются 50 последних завершённых операций. Undo восстанавливает URL и расположение; несохранённые формы могут не восстановиться.', 'Keeps 50 recent finished operations. Undo restores URLs and layout; unsaved forms may not recover.')}</p>
       {workspace?.operations.slice().reverse().map((operation) => <details key={operation.id} className="border rounded p-2 text-xs">
@@ -105,6 +114,6 @@ export function WorkspaceView() {
         {operation.items.some((item) => item.state === 'done') && <button disabled={busy} onClick={() => void run(async () => showResult(await workspaceMessage<TabOperation>({ type: 'UNDO_TAB_OPERATION', operationId: operation.id })))} className="px-2 py-1 bg-gray-100 rounded">{tr('Отменить выполненные действия', 'Undo completed actions')}</button>}
       </details>)}
       {workspace?.operations.length === 0 && <p className="text-xs text-gray-400">{tr('История пока пуста.', 'No operations yet.')}</p>}
-    </section>
+    </section>}
   </div>;
 }

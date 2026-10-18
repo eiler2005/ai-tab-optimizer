@@ -6,7 +6,7 @@ Approved on 2026-10-18. Each milestone includes regression tests, documentation,
 - [x] 2. Rename: AITab branding and `aitab` directory; preserve existing storage and document migration.
 - [x] 3. Offline duplicate review: explicit preview, protected survivors, durable operation journal and recovery.
 - [x] 4. Window consolidation: preserve tab order, pinning and Chrome groups; report partial failures and support undo.
-- [ ] 5. Saved collections: save before close, merge, restore missing tabs and validated JSON backup/import.
+- [x] 5. Saved collections: save before close, merge, restore missing tabs and validated JSON backup/import.
 - [ ] 6. AI assistance: explainable suggestions, explicit selection, no model-triggered deletion; final integration checks.
 
 Existing SQLite, Chrome storage keys, IndexedDB names and Obsidian directories remain compatible. New data has versioned schemas. TabMerger code is not incorporated.

@@ -43,8 +43,8 @@ export async function restoreWindows(windows: WindowSnapshot[], skipExisting = t
         if (skipExisting) existing.add(tab.url);
         await chrome.tabs.update(created.id, { pinned: tab.pinned });
         if (tab.active) activeId = created.id;
-        if (!tab.pinned && (tab.groupId !== undefined || tab.groupName)) {
-          const key = tab.groupId === undefined ? 'name:' + tab.groupName : 'id:' + tab.groupId;
+        if (!tab.pinned && (tab.groupKey || tab.groupId !== undefined || tab.groupName)) {
+          const key = tab.groupKey ?? (tab.groupId === undefined ? 'name:' + tab.groupName : 'id:' + tab.groupId);
           const group = groups.get(key) ?? { info: tab, ids: [] };
           group.ids.push(created.id);
           groups.set(key, group);

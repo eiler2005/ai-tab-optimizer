@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Saved collections with save-before-close, notes, exact-URL merge previews, source preservation, missing-tab restore and reversible trash.
+- Validated versioned JSON backup/import, append-only migration and credential exclusion.
 - Window merge previews with per-tab/window selection, intact group moves, pinned-tab preservation and live-tab Undo.
 - Offline duplicate-review screen with per-copy survivor choice, protected tabs and explicit tracking-variant selection.
 - Durable, idempotent close journal, worker-restart reconciliation, partial outcomes and per-operation Undo.

@@ -20,6 +20,7 @@ export interface WindowSnapshot {
 export interface TabSnapshot {
   active?: boolean;
   groupId?: number;
+  groupKey?: string;
   groupColor?: chrome.tabGroups.TabGroup['color'];
   groupCollapsed?: boolean;
   url: string;

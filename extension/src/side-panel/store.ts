@@ -507,7 +507,8 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
   applyCleanupAction: async (tabId, action) => {
-    await sendMessage({ type: 'APPLY_CLEANUP_ACTION', tabId, action });
+    await sendMessage({ type: 'APPLY_CLEANUP_ACTION', tabId, action,
+      expectedUrl: get().cleanupTabs.find((tab) => tab.id === tabId)?.url });
     const actions = new Map(get().cleanupActions);
     actions.set(tabId, action);
     set({

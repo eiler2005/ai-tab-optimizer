@@ -1,4 +1,5 @@
 import type { TabRecord, WindowGroup } from './tab';
+import type { TabSnapshot } from './snapshot';
 
 export interface DuplicateReviewGroup {
   id: string;
@@ -54,7 +55,29 @@ export interface SavedCollection {
   name: string;
   createdAt: number;
   updatedAt: number;
-  windows: WindowGroup[];
+  revision: number;
+  deletedAt?: number;
+  sourceCollectionIds?: string[];
+  windows: CollectionWindow[];
+}
+
+export interface SavedTab extends TabSnapshot {
+  itemId: string;
+  savedAt: number;
+  userFlag?: TabRecord['userFlag'];
+  note?: string;
+}
+
+export interface CollectionWindow { id: string; focused: boolean; tabs: SavedTab[] }
+export interface CollectionPreview { id: string; name: string; createdAt: number; windows: WindowGroup[] }
+export interface CollectionMergePreview {
+  id: string;
+  name: string;
+  createdAt: number;
+  sourceRevisions: Record<string, number>;
+  windows: CollectionWindow[];
+  inputTabs: number;
+  duplicatesRemoved: number;
 }
 
 export interface WorkspaceData {
@@ -62,4 +85,5 @@ export interface WorkspaceData {
   revision: number;
   operations: TabOperation[];
   collections: SavedCollection[];
+  importedBackupIds?: string[];
 }

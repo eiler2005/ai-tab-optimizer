@@ -26,7 +26,7 @@ This repo is also a deliberate engineering exercise. It's structured to be revie
 
 ## Demo
 
-**New in 0.3:** [Offline cleanup and operation history](docs/WORKSPACE.md) — review exact duplicates, choose survivors and undo successful closes without an AI server.
+**New in 0.3:** [Offline workspace](docs/WORKSPACE.md) — review duplicates, merge windows, save/merge named collections, preserve notes, export/import JSON backups and undo successful tab operations without an AI server.
 
 > Screenshots and a short walkthrough are coming. The capture conventions and the eight views to capture are documented in [`docs/screenshots/README.md`](docs/screenshots/README.md).
 

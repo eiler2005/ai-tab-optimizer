@@ -1,5 +1,5 @@
 import type { TabRecord } from '@shared/types';
-import type { CloseDecision, DuplicatePreview, OperationItem, TabOperation } from '@shared/types/workspace';
+import type { CloseDecision, DuplicatePreview, OperationItem, TabOperation, WorkspaceData } from '@shared/types/workspace';
 import { buildDuplicatePreview } from '@shared/utils/duplicates';
 import { normalizeUrl } from '@shared/utils/url';
 import { tabProtectionReason } from '@shared/utils/rules';
@@ -13,7 +13,7 @@ export async function previewDuplicates(windowId?: number): Promise<DuplicatePre
     const settings = await localProtection();
     const preview = buildDuplicatePreview(windows.filter((window) => windowId === undefined || window.windowId === windowId)
       .flatMap((window) => window.tabs), settings);
-    await chrome.storage.local.set({ [PREVIEW_KEY]: preview });
+    await chrome.storage.session.set({ [PREVIEW_KEY]: preview });
     return preview;
   });
 }
@@ -39,7 +39,7 @@ export async function executeDuplicateClose(previewId: string, decisions: CloseD
     const workspace = await readWorkspace();
     const previous = workspace.operations.find((operation) => operation.id === previewId);
     if (previous) return previous;
-    const stored = await chrome.storage.local.get(PREVIEW_KEY);
+    const stored = await chrome.storage.session.get(PREVIEW_KEY);
     const preview = stored[PREVIEW_KEY] as DuplicatePreview | undefined;
     if (!preview || preview.id !== previewId || Date.now() - preview.createdAt > 300_000) throw new Error('Preview expired. Scan again.');
     if (!decisions.length) throw new Error('Select at least one duplicate');
@@ -59,10 +59,15 @@ export async function executeDuplicateClose(previewId: string, decisions: CloseD
       browserSessionId: await browserSessionId(), status: 'running', items };
     workspace.operations.push(operation);
     await saveWorkspace(workspace);
+    return closeOperationItems(workspace, operation);
+  });
+}
+
+export async function closeOperationItems(workspace: WorkspaceData, operation: TabOperation): Promise<TabOperation> {
     for (const item of operation.items) {
       try {
         const tab = await liveRecord(item.tab);
-        await liveRecord(item.keep!);
+        if (item.keep) await liveRecord(item.keep);
         const protectedReason = tabProtectionReason(tab, await localProtection());
         if (protectedReason) throw new Error('Protected: ' + protectedReason);
         item.tab = { ...tab, index: item.tab.index };
@@ -80,7 +85,6 @@ export async function executeDuplicateClose(previewId: string, decisions: CloseD
     operation.status = operation.items.every((item) => item.state === 'done') ? 'completed' : 'partial';
     await saveWorkspace(workspace);
     return operation;
-  });
 }
 
 export async function workspaceOverview() {
