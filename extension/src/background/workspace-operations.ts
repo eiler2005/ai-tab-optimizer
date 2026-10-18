@@ -4,6 +4,7 @@ import { buildDuplicatePreview } from '@shared/utils/duplicates';
 import { normalizeUrl } from '@shared/utils/url';
 import { tabProtectionReason } from '@shared/utils/rules';
 import { readBrowserState } from './browser-state';
+import { undoWindowMove } from './window-operations';
 import { browserSessionId, PREVIEW_KEY, readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-storage';
 
 export async function previewDuplicates(windowId?: number): Promise<DuplicatePreview> {
@@ -91,7 +92,10 @@ export async function workspaceOverview() {
       if (operation.status !== 'running' && operation.status !== 'undoing') continue;
       for (const item of operation.items) {
         if (item.state === 'applying' && operation.browserSessionId === session) {
-          try { await chrome.tabs.get(item.tab.id); item.state = 'skipped'; }
+          try {
+            const live = await chrome.tabs.get(item.tab.id);
+            item.state = operation.kind === 'move' && live.windowId === operation.targetWindowId && live.url === item.tab.url ? 'done' : 'skipped';
+          }
           catch (error) {
             item.state = operation.kind === 'close' && /no tab with id/i.test(String(error)) ? 'done' : 'uncertain';
           }
@@ -112,9 +116,12 @@ export async function undoTabOperation(id: string): Promise<TabOperation> {
     const operation = workspace.operations.find((candidate) => candidate.id === id);
     if (!operation) throw new Error('Operation not found');
     if (operation.status === 'undone') return operation;
+    if (operation.kind === 'move') return undoWindowMove(workspace, operation);
     operation.status = 'undoing';
     await saveWorkspace(workspace);
     const session = await browserSessionId();
+    if (operation.undoBrowserSessionId !== session) operation.undoWindows = {};
+    operation.undoBrowserSessionId = session;
     const currentWindows = await chrome.windows.getAll();
     const groups = new Map<string, number>();
     operation.undoWindows ??= {};

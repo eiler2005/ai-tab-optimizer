@@ -23,6 +23,23 @@ export function mockBrowser(records: TabRecord[]) {
     if (!tab) throw new Error('No tab with id: ' + id);
     return tab;
   }
+  function removeEmptyWindowsAndGroups() {
+    for (const [id] of windows) if (![...tabs.values()].some((tab) => tab.windowId === id)) windows.delete(id);
+    for (const [id] of groups) if (![...tabs.values()].some((tab) => tab.groupId === id)) groups.delete(id);
+  }
+  function moveTab(id: number, properties: { windowId: number; index: number }, keepGroup = false) {
+    const tab = getTab(id);
+    if (!windows.has(properties.windowId)) throw new Error('No target window');
+    const oldWindow = tab.windowId;
+    const destination = [...tabs.values()].filter((candidate) => candidate.windowId === properties.windowId && candidate.id !== id).sort((a, b) => a.index - b.index);
+    tab.windowId = properties.windowId;
+    if (!keepGroup && oldWindow !== tab.windowId) tab.groupId = -1;
+    destination.splice(properties.index < 0 ? destination.length : Math.min(properties.index, destination.length), 0, tab);
+    destination.forEach((candidate, index) => { candidate.index = index; });
+    [...tabs.values()].filter((candidate) => candidate.windowId === oldWindow).sort((a, b) => a.index - b.index).forEach((candidate, index) => { candidate.index = index; });
+    removeEmptyWindowsAndGroups();
+    return { ...tab };
+  }
   const api = {
     storage: { local: store(local), session: store(session) },
     tabs: {
@@ -30,8 +47,9 @@ export function mockBrowser(records: TabRecord[]) {
       get: vi.fn(async (id: number) => ({ ...getTab(id) })),
       remove: vi.fn(async (id: number) => {
         getTab(id); tabs.delete(id);
-        for (const [windowId] of windows) if (![...tabs.values()].some((tab) => tab.windowId === windowId)) windows.delete(windowId);
+        removeEmptyWindowsAndGroups();
       }),
+      move: vi.fn(async (id: number, properties: { windowId: number; index: number }) => moveTab(id, properties)),
       create: vi.fn(async (properties: { url?: string; windowId?: number; index?: number; pinned?: boolean; active?: boolean }) => {
         const id = ++nextId;
         const windowId = properties.windowId ?? [...windows.keys()][0];
@@ -54,8 +72,12 @@ export function mockBrowser(records: TabRecord[]) {
     windows: {
       getAll: vi.fn(async () => [...windows.values()].map((window) => ({ ...window }))),
       get: vi.fn(async (id: number) => { const window = windows.get(id); if (!window) throw new Error('No window'); return { ...window }; }),
-      create: vi.fn(async (properties: { url?: string; focused?: boolean }) => {
+      create: vi.fn(async (properties: { url?: string; focused?: boolean; tabId?: number }) => {
         const id = ++nextId; windows.set(id, { id, focused: properties.focused ?? false, incognito: false, type: 'normal' });
+        if (properties.tabId !== undefined) {
+          const tab = moveTab(properties.tabId, { windowId: id, index: 0 });
+          return { id, tabs: [tab] };
+        }
         const tabId = ++nextId;
         const tab = { id: tabId, windowId: id, index: 0, url: properties.url ?? 'about:blank', title: '', domain: '', pinned: false, active: true, incognito: false, groupId: -1 };
         tabs.set(tabId, tab); return { id, tabs: [{ ...tab }] };
@@ -64,6 +86,14 @@ export function mockBrowser(records: TabRecord[]) {
     },
     tabGroups: {
       TAB_GROUP_ID_NONE: -1,
+      move: vi.fn(async (id: number, properties: { windowId: number; index: number }) => {
+        const group = groups.get(id);
+        if (!group) throw new Error('No group');
+        const members = [...tabs.values()].filter((tab) => tab.groupId === id).sort((a, b) => a.index - b.index);
+        for (const tab of members) moveTab(tab.id, properties, true);
+        group.windowId = properties.windowId;
+        return { ...group };
+      }),
       query: vi.fn(async () => [...groups.values()].map((group) => ({ ...group }))),
       get: vi.fn(async (id: number) => { const group = groups.get(id); if (!group) throw new Error('No group'); return { ...group }; }),
       update: vi.fn(async (id: number, properties: object) => { Object.assign(groups.get(id)!, properties); return groups.get(id); }),

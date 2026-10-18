@@ -17,12 +17,22 @@ export interface DuplicatePreview {
 
 export interface CloseDecision { tabId: number; keepTabId: number }
 
+export interface WindowMergePreview {
+  id: string;
+  createdAt: number;
+  targetWindowId: number;
+  originalFocusedWindowId?: number;
+  targetActiveTabId?: number;
+  tabs: TabRecord[];
+}
+
 export interface OperationItem {
   tab: TabRecord;
   keep?: TabRecord;
   state: 'pending' | 'applying' | 'done' | 'failed' | 'skipped' | 'restoring' | 'undone' | 'uncertain';
   error?: string;
   restoredTabId?: number;
+  movedGroupId?: number;
 }
 
 export interface TabOperation {
@@ -33,6 +43,9 @@ export interface TabOperation {
   status: 'running' | 'completed' | 'partial' | 'interrupted' | 'undoing' | 'undone';
   items: OperationItem[];
   targetWindowId?: number;
+  targetActiveTabId?: number;
+  originalFocusedWindowId?: number;
+  undoBrowserSessionId?: string;
   undoWindows?: Record<string, number>;
 }
 

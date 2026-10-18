@@ -44,6 +44,7 @@ import { DEFAULT_SETTINGS } from '@shared/types/messages';
 import { runRules, tabProtectionReason } from '@shared/utils/rules';
 import { restoreWindows } from './session-actions';
 import { readBrowserState } from './browser-state';
+import { executeWindowMerge, previewWindowMerge } from './window-operations';
 import { executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
@@ -1908,6 +1909,13 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
   switch (msg.type) {
     case 'WORKSPACE_OVERVIEW':
       return { success: true, data: await workspaceOverview() };
+    case 'PREVIEW_WINDOW_MERGE':
+      return { success: true, data: await previewWindowMerge(msg.targetWindowId, msg.tabIds) };
+    case 'EXECUTE_WINDOW_MERGE': {
+      const result = await executeWindowMerge(msg.previewId);
+      broadcastUpdate();
+      return { success: true, data: result };
+    }
     case 'PREVIEW_DUPLICATES':
       return { success: true, data: await previewDuplicates(msg.windowId) };
     case 'EXECUTE_DUPLICATES': {

@@ -7,6 +7,8 @@ import type { HistoryTimeframe, TabHistoryStats } from './history';
 
 export type MessageRequest =
   | { type: 'WORKSPACE_OVERVIEW' }
+  | { type: 'PREVIEW_WINDOW_MERGE'; targetWindowId: number; tabIds: number[] }
+  | { type: 'EXECUTE_WINDOW_MERGE'; previewId: string }
   | { type: 'PREVIEW_DUPLICATES'; windowId?: number }
   | { type: 'EXECUTE_DUPLICATES'; previewId: string; decisions: import('./workspace').CloseDecision[] }
   | { type: 'UNDO_TAB_OPERATION'; operationId: string }
