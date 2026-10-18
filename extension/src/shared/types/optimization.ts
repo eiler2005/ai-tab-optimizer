@@ -1,12 +1,13 @@
 import type { TabRecord } from './tab';
 
-export type OptimizationCategory = 'exact' | 'tracking' | 'redundant' | 'outdated';
+export type OptimizationCategory = 'exact' | 'tracking' | 'redundant' | 'outdated' | 'saved';
 export interface OptimizationCandidate {
   tab: TabRecord;
   keep?: TabRecord;
   category: OptimizationCategory;
   reason: string;
   recommended: boolean;
+  savedIn?: { collectionId: string; itemId: string; revision: number; name: string };
 }
 export interface OptimizationPlan {
   id: string;
@@ -27,4 +28,7 @@ export interface OptimizationReport {
   closed: number;
   skipped: number;
   failed: number;
+  archived?: number;
+  duplicatesClosed?: number;
+  outdatedClosed?: number;
 }

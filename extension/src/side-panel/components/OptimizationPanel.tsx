@@ -48,7 +48,7 @@ export function OptimizationPanel({ busy, run }: { busy: boolean; run: (action: 
     anchor.href = url; anchor.download = `aitab-optimization-${new Date(plan.createdAt).toISOString().slice(0, 10)}.md`; anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const labels = { exact: tr('Одинаковый URL', 'Exact URL copy'), tracking: tr('Tracking-вариант — проверить', 'Tracking variant — review'), redundant: tr('Повтор информации', 'Redundant content'), outdated: tr('Устарело по смыслу — проверить', 'Outdated — review') };
+  const labels = { exact: tr('Одинаковый URL', 'Exact URL copy'), tracking: tr('Tracking-вариант — проверить', 'Tracking variant — review'), redundant: tr('Повтор информации', 'Redundant content'), outdated: tr('Устарело по смыслу — проверить', 'Outdated — review'), saved: tr('Уже сохранено в коллекции — можно закрыть', 'Already saved in a collection — can close') };
   const requiredBy = (id: number) => plan?.candidates.some((item) => selected.has(item.tab.id) && item.keep?.id === id);
   return <section className="space-y-3 text-xs" data-testid="optimization-panel">
     <h3 className="font-semibold text-sm">{tr('Меньше вкладок, полезные материалы остаются', 'Fewer tabs, useful material retained')}</h3>
@@ -68,6 +68,7 @@ export function OptimizationPanel({ busy, run }: { busy: boolean; run: (action: 
       {operation?.optimizationReport && <div className="rounded bg-green-50 p-3 space-y-2" role="status">
         <strong>{tr('Фактически', 'Actual')}: {operation.optimizationReport.tabsBefore} → {operation.optimizationReport.tabsAfter}</strong>
         <p>{tr('Закрыто', 'Closed')}: {operation.optimizationReport.closed} · {tr('Пропущено', 'Skipped')}: {operation.optimizationReport.skipped} · {tr('Ошибок', 'Failed')}: {operation.optimizationReport.failed}</p>
+        <p>{tr('В коллекциях', 'Archived')}: {operation.optimizationReport.archived ?? 0} · {tr('Повторов', 'Duplicates')}: {operation.optimizationReport.duplicatesClosed ?? 0} · {tr('Неактуальных', 'Outdated')}: {operation.optimizationReport.outdatedClosed ?? 0}</p>
         <button disabled={busy || !operation.items.some((item) => item.state === 'done')} onClick={() => void run(async () => setOperation(await workspaceMessage<TabOperation>({ type: 'UNDO_TAB_OPERATION', operationId: operation.id })))} className="border rounded px-2 py-1 bg-white">{tr('Отменить оптимизацию', 'Undo optimization')}</button>
       </div>}
       {!plan.candidates.length && <p>{tr('Обоснованных кандидатов на сокращение нет. Полезные альтернативы и чаты оставлены.', 'No supported reduction candidates. Useful alternatives and chats are retained.')}</p>}

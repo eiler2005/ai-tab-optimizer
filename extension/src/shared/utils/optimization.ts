@@ -61,12 +61,14 @@ export function optimizationMarkdown(plan: OptimizationPlan, selected: number[],
   if (operation?.optimizationReport) {
     const report = operation.optimizationReport;
     lines.push(`Фактически после / Actual after: ${report.tabsAfter}`, `Закрыто / Closed: ${report.closed}`,
+      `Сохранены в коллекциях / Archived in collections: ${report.archived ?? 0}`, `Повторы закрыты / Duplicates closed: ${report.duplicatesClosed ?? 0}`, `Устаревшие закрыты / Outdated closed: ${report.outdatedClosed ?? 0}`,
       `Пропущено / Skipped: ${report.skipped}`, `Ошибок / Failed: ${report.failed}`, '');
   }
   for (const candidate of plan.candidates.filter((item) => selected.includes(item.tab.id))) {
     const outcome = operation?.items.find((item) => item.tab.id === candidate.tab.id);
     lines.push(`- ${candidate.category}: ${candidate.tab.title.replace(/\s+/g, ' ')} — ${candidate.tab.url}`,
       `  ${candidate.reason.replace(/\s+/g, ' ')}`, candidate.keep ? `  Остаётся / Retained: ${candidate.keep.url}` : '',
+      candidate.savedIn ? `  Коллекция / Collection: ${candidate.savedIn.name}` : '',
       outcome ? `  Результат / Outcome: ${outcome.state}${outcome.error ? ': ' + outcome.error : ''}` : '');
   }
   return lines.filter((line, index, all) => line || all[index - 1]).join('\n');

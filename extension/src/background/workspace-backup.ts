@@ -39,7 +39,8 @@ function parseOptimizationReport(raw: unknown): TabOperation['optimizationReport
   if (!keys.every((key) => typeof raw[key] === 'number' && Number.isSafeInteger(raw[key]) && (raw[key] as number) >= 0 && (raw[key] as number) <= 1_000_000)) return undefined;
   return { tabsBefore: raw.tabsBefore as number, tabsAfter: raw.tabsAfter as number,
     requested: raw.requested as number, closed: raw.closed as number,
-    skipped: raw.skipped as number, failed: raw.failed as number };
+    skipped: raw.skipped as number, failed: raw.failed as number,
+    ...Object.fromEntries(['archived', 'duplicatesClosed', 'outdatedClosed'].flatMap((key) => typeof raw[key] === 'number' && Number.isSafeInteger(raw[key]) && (raw[key] as number) >= 0 && (raw[key] as number) <= 1_000_000 ? [[key, raw[key]]] : [])) };
 }
 
 function parseTab(raw: unknown, groups: Map<string, string>): SavedTab | null {

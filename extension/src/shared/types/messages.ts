@@ -19,6 +19,7 @@ export type MessageRequest =
   | { type: 'SAVE_COLLECTION'; previewId: string; closeAfter: boolean; details?: import('./workspace').CollectionDetails }
   | { type: 'OPEN_COLLECTION'; collectionId: string }
   | { type: 'OPEN_COLLECTION_ITEM'; collectionId: string; itemId: string }
+  | { type: 'COLLAPSE_TOPIC'; tabIds: number[]; name: string; collapsed: boolean }
   | { type: 'UPDATE_COLLECTION'; collectionId: string; change: import('./workspace').CollectionChange }
   | { type: 'PREVIEW_COLLECTION_MERGE'; collectionIds: string[]; name: string }
   | { type: 'MERGE_COLLECTIONS'; previewId: string }

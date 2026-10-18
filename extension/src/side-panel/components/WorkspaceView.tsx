@@ -7,6 +7,7 @@ import { workspaceMessage } from '../workspace-api';
 import { WindowMergePanel } from './WindowMergePanel';
 import { CollectionsPanel } from './CollectionsPanel';
 import { LibraryPanel } from './LibraryPanel';
+import { TopicsPanel } from './TopicsPanel';
 import { AIWorkspacePanel } from './AIWorkspacePanel';
 import { ContentReviewPanel } from './ContentReviewPanel';
 import { OptimizationPanel } from './OptimizationPanel';
@@ -151,7 +152,7 @@ export function WorkspaceView() {
     {(section === 'similar' || section === 'outdated') && <ContentReviewPanel mode={section} busy={busy} run={run} onResult={showResult} />}
     {section === 'collections' && <CollectionsPanel workspace={workspace} busy={busy} run={run} onResult={showResult} onFeedback={setFeedback} />}
     {section === 'library' && <LibraryPanel workspace={workspace} busy={busy} run={run} />}
-    {section === 'ai' && <AIWorkspacePanel busy={busy} run={run} onFeedback={setFeedback} onReviewDuplicates={() => setSection('duplicates')} />}
+    {section === 'ai' && <><TopicsPanel workspace={workspace} busy={busy} run={run} onResult={showResult} onFeedback={setFeedback} /><details><summary className="text-xs">{tr('AI-анализ и новые темы', 'AI analysis and new topics')}</summary><AIWorkspacePanel busy={busy} run={run} onFeedback={setFeedback} onReviewDuplicates={() => setSection('duplicates')} /></details></>}
     {section === 'history' && <section className="space-y-2 border-t pt-3">
       <h3 className="font-semibold text-xs">{tr('История операций', 'Operation history')}</h3>
       <p className="text-[10px] text-gray-500">{tr('Сохраняются 50 последних завершённых операций. Undo восстанавливает URL и расположение; несохранённые формы могут не восстановиться.', 'Keeps 50 recent finished operations. Undo restores URLs and layout; unsaved forms may not recover.')}</p>

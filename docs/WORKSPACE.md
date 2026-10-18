@@ -185,6 +185,23 @@ Limits: 8 MB input JSON, 200 imported collections, 100 imported operation record
 
 ## AI assistance
 
+Cleanup → AI starts with **Topics and clusters**: collections, existing browser groups
+and current AI topics are matched to exact live URLs. **Load my persistent clusters**
+adds existing server-side clusters when the local server is available. Choose pages
+to keep in current work, then **Preview save and close** for the rest. Chat/protected
+pages are retained. Confirmation creates a detached Read later collection and durable
+close journal before any close; History offers Undo. Sources remain intact.
+
+**Group and collapse** only groups unpinned live members within their original windows
+and collapses those groups. It never closes/reopens tabs; it does not reduce the tab
+count. Pinned tabs retain their positions. New groups can be expanded in Chrome.
+
+Optimize also lists pages already stored in non-trashed Read later/Reference collections
+as manual `saved` candidates. Working now collections are excluded. Execution rechecks
+the saved collection revision and exact item/URL before closing. A changed/deleted
+collection invalidates the plan. The report separates archived pages, duplicate closes
+and obsolete-content closes, counting each selected live tab once. Undo keeps collections.
+
 The AI tab reuses the existing analysis workflow on explicit request. It shows topic descriptions and current matching pages, then offers a separate collection preview and save action. Suggestions match exact live URLs and include all current copies. Stale numeric IDs, hallucinated URLs and groups with fewer than two live tabs are ignored. AI prompts JSON-quote page metadata and instruct the provider to treat titles, URLs, group names and excerpts as untrusted data. AI suggestions never initiate closing; duplicate deletion always uses the deterministic review flow.
 
 Manual closes from the regular tab list and guided cleanup also enter the durable operation journal. Explicit manual closing may close a protected tab; automatic cleanup continues to honor protections. AI cleanup checks its original expected URL again before acting. Grouping related pages preserves separate windows by explicitly specifying each group's destination window.

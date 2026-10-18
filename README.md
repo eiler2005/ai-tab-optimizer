@@ -71,6 +71,13 @@ actual closes/skips/failures. [Optimization guide](docs/WORKSPACE.md#unified-opt
 
 ## Quick start
 
+For topic-level cleanup, use **Cleanup → AI → Topics and clusters**. Collections,
+browser groups and AI topics show their currently open pages. Select the working
+minimum to retain, preview the rest, then save and close with Undo. **Group and collapse**
+only reduces visual clutter; **Save and close** reduces the number of open tabs.
+Optimize can also close already-saved pages after a manual choice and reports that
+category separately from duplicates and outdated content.
+
 ```bash
 git clone https://github.com/eiler2005/ai-tab-optimizer.git aitab
 cd aitab

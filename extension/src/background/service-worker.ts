@@ -51,6 +51,7 @@ import { closeRecordedTabs, executeDuplicateClose, previewDuplicates, undoTabOpe
 import { previewContentReview, executeContentReviewClose, rememberReviewDecision } from './content-review';
 import { startReviewJob, getReviewJob, cancelReviewJob } from './review-jobs';
 import { previewOptimization, executeOptimization } from './optimization';
+import { collapseTopic } from './topic-actions';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -1962,6 +1963,8 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
     }
     case 'OPEN_COLLECTION_ITEM':
       return { success: true, data: await openCollectionItem(msg.collectionId, msg.itemId) };
+    case 'COLLAPSE_TOPIC':
+      return { success: true, data: await collapseTopic(msg.tabIds, msg.name, msg.collapsed) };
     case 'UPDATE_COLLECTION':
       await updateCollection(msg.collectionId, msg.change);
       return { success: true };
