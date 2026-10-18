@@ -1,6 +1,7 @@
 export type Locale = 'en' | 'ru';
 
 export const translations = {
+  'nav.workspace': { en: 'Cleanup', ru: 'Очистка' },
   // Header
   'app.title': { en: 'AITab', ru: 'AITab' },
   'nav.tabs': { en: 'Tabs', ru: 'Вкладки' },

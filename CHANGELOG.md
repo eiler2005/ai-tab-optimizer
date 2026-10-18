@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Offline duplicate-review screen with per-copy survivor choice, protected tabs and explicit tracking-variant selection.
+- Durable, idempotent close journal, worker-restart reconciliation, partial outcomes and per-operation Undo.
+- Debounced tab/history refresh during bulk operations.
+
 ### Changed
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 

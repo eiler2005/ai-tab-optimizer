@@ -6,6 +6,10 @@ import type { HistoryTimeframe, TabHistoryStats } from './history';
 // --- Requests (Side Panel → Service Worker) ---
 
 export type MessageRequest =
+  | { type: 'WORKSPACE_OVERVIEW' }
+  | { type: 'PREVIEW_DUPLICATES'; windowId?: number }
+  | { type: 'EXECUTE_DUPLICATES'; previewId: string; decisions: import('./workspace').CloseDecision[] }
+  | { type: 'UNDO_TAB_OPERATION'; operationId: string }
   | { type: 'GET_ALL_TABS' }
   | { type: 'CLOSE_TABS'; tabIds: number[] }
   | { type: 'PIN_TAB'; tabId: number; pinned: boolean }

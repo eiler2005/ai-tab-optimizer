@@ -11,6 +11,7 @@ import { HistoryPanel } from './components/HistoryPanel';
 import { AIRecommendations } from './components/AIRecommendations';
 import { CleanupSession } from './components/CleanupSession';
 import { ChatSearch } from './components/ChatSearch';
+import { WorkspaceView } from './components/WorkspaceView';
 
 export function App() {
   const actionError = useStore((state) => state.actionError);
@@ -38,9 +39,12 @@ export function App() {
       }
     }, 20_000);
 
+    let tabsTimer: number | undefined;
+    let historyUpdateTimer: number | undefined;
     const listener = (message: Record<string, unknown>) => {
       if (message.type === 'TABS_UPDATED') {
-        loadTabs();
+        window.clearTimeout(tabsTimer);
+        tabsTimer = window.setTimeout(() => void loadTabs(), 150);
       } else if (message.type === 'SNAPSHOT_CREATED') {
         loadSnapshots();
       } else if (message.type === 'AI_ANALYSIS_COMPLETE' && message.result) {
@@ -86,7 +90,8 @@ export function App() {
       } else if (message.type === 'AI_ANALYSIS_PROGRESS' && message.progress) {
         setAIProgress(message.progress as Parameters<typeof setAIProgress>[0]);
       } else if (message.type === 'HISTORY_UPDATED') {
-        useStore.getState().loadHistory();
+        window.clearTimeout(historyUpdateTimer);
+        historyUpdateTimer = window.setTimeout(() => void useStore.getState().loadHistory(), 200);
       }
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -95,6 +100,8 @@ export function App() {
       window.clearTimeout(aiTimer);
       window.clearTimeout(analyticsTimer);
       window.clearInterval(keepaliveTimer);
+      window.clearTimeout(tabsTimer);
+      window.clearTimeout(historyUpdateTimer);
       keepalivePort.disconnect();
       chrome.runtime.onMessage.removeListener(listener);
     };
@@ -103,6 +110,7 @@ export function App() {
   return (
     <div className="flex flex-col h-screen">
       <Header />
+      {view === 'workspace' && <WorkspaceView />}
       {actionError && <div role="alert" className="p-3 text-xs bg-red-50 text-red-700 flex gap-2">
         <span className="flex-1">{actionError}</span>
         <button aria-label="Dismiss" onClick={() => useStore.getState().setActionError(null)}>✕</button>

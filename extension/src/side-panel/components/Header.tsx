@@ -3,6 +3,7 @@ import { useI18n } from '@shared/i18n';
 import type { View } from '../store';
 
 const NAV_ITEMS: { view: View; key: string; icon: string }[] = [
+  { view: 'workspace', key: 'nav.workspace', icon: '🧹' },
   { view: 'tabs', key: 'nav.tabs', icon: '📋' },
   { view: 'history', key: 'nav.history', icon: '📊' },
   { view: 'ai-recommendations', key: 'nav.ai', icon: '🤖' },

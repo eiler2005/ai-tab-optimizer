@@ -43,6 +43,8 @@ import type {
 import { DEFAULT_SETTINGS } from '@shared/types/messages';
 import { runRules, tabProtectionReason } from '@shared/utils/rules';
 import { restoreWindows } from './session-actions';
+import { readBrowserState } from './browser-state';
+import { executeDuplicateClose, previewDuplicates, undoTabOperation, workspaceOverview } from './workspace-operations';
 import { extractDomain } from '@shared/utils/url';
 import { computeTabFingerprint, createProgressFromRun, summarizeTabStatuses } from './analysis-helpers';
 import {
@@ -111,64 +113,11 @@ function registerKeepalivePort(port: chrome.runtime.Port) {
 // ─── Tab Helpers ─────────────────────────────────────────
 
 async function getAllTabs(): Promise<GetAllTabsResponse['data']> {
-  const tabs = (await chrome.tabs.query({ windowType: 'normal' })).filter((tab) => !tab.incognito);
-  const windows = await chrome.windows.getAll();
-  const groups = await chrome.tabGroups.query({});
-
-  const groupMap = new Map(groups.map((g) => [g.id, g]));
-  const windowFocusMap = new Map(windows.map((w) => [w.id, w.focused ?? false]));
-
-  const windowGroups = new Map<number, WindowGroup>();
-
-  for (const tab of tabs) {
-    const wId = tab.windowId;
-    if (!windowGroups.has(wId)) {
-      windowGroups.set(wId, {
-        windowId: wId,
-        focused: windowFocusMap.get(wId) ?? false,
-        tabs: [],
-      });
-    }
-
-    const record: TabRecord = {
-      id: tab.id!,
-      windowId: wId,
-      index: tab.index,
-      url: tab.url ?? '',
-      title: tab.title ?? '',
-      domain: extractDomain(tab.url ?? ''),
-      favIconUrl: tab.favIconUrl,
-      pinned: tab.pinned,
-      active: tab.active,
-      audible: tab.audible,
-      groupColor: groupMap.get(tab.groupId)?.color,
-      groupCollapsed: groupMap.get(tab.groupId)?.collapsed,
-      groupId: tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE ? tab.groupId : undefined,
-      groupName: tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE
-        ? groupMap.get(tab.groupId)?.title
-        : undefined,
-      lastAccessed: tab.lastAccessed,
-    };
-
-    windowGroups.get(wId)!.tabs.push(record);
-
-    // Populate cache
-    updateTabCache(tab.id!, record.url, record.title);
+  const windowGroups = await readBrowserState();
+  for (const window of windowGroups) {
+    for (const tab of window.tabs) updateTabCache(tab.id, tab.url, tab.title);
   }
-
-  for (const wg of windowGroups.values()) {
-    wg.tabs.sort((a, b) => a.index - b.index);
-  }
-
-  const sorted = [...windowGroups.values()].sort((a, b) => {
-    if (a.focused !== b.focused) return a.focused ? -1 : 1;
-    return a.windowId - b.windowId;
-  });
-
-  return {
-    windowGroups: sorted,
-    totalTabs: tabs.length,
-  };
+  return { windowGroups, totalTabs: windowGroups.reduce((count, window) => count + window.tabs.length, 0) };
 }
 
 // ─── Snapshots ───────────────────────────────────────────
@@ -1957,6 +1906,20 @@ chrome.runtime.onMessage.addListener(
 
 async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
   switch (msg.type) {
+    case 'WORKSPACE_OVERVIEW':
+      return { success: true, data: await workspaceOverview() };
+    case 'PREVIEW_DUPLICATES':
+      return { success: true, data: await previewDuplicates(msg.windowId) };
+    case 'EXECUTE_DUPLICATES': {
+      const result = await executeDuplicateClose(msg.previewId, msg.decisions);
+      broadcastUpdate();
+      return { success: true, data: result };
+    }
+    case 'UNDO_TAB_OPERATION': {
+      const result = await undoTabOperation(msg.operationId);
+      broadcastUpdate();
+      return { success: true, data: result };
+    }
     case 'GET_ALL_TABS': {
       const data = await getAllTabs();
       const flags = await getUserFlags();

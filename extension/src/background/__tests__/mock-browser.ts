@@ -1,0 +1,74 @@
+import { vi } from 'vitest';
+import type { TabRecord } from '@shared/types';
+
+export function mockBrowser(records: TabRecord[]) {
+  let nextId = 1000;
+  const local: Record<string, unknown> = {};
+  const session: Record<string, unknown> = {};
+  const tabs = new Map(records.map((tab) => [tab.id, { ...tab, incognito: false, groupId: tab.groupId ?? -1 }]));
+  const windows = new Map(records.map((tab) => [tab.windowId, { id: tab.windowId, focused: tab.windowId === 1, incognito: false, type: 'normal' }]));
+  const groups = new Map<number, { id: number; windowId: number; title: string; color: string; collapsed: boolean }>();
+  for (const tab of records) if (tab.groupId !== undefined) groups.set(tab.groupId, {
+    id: tab.groupId, windowId: tab.windowId, title: tab.groupName ?? '', color: tab.groupColor ?? 'grey', collapsed: tab.groupCollapsed ?? false,
+  });
+  function store(data: Record<string, unknown>) {
+    return {
+      get: vi.fn(async (keys: string | string[]) => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter((key) => key in data).map((key) => [key, structuredClone(data[key])]))),
+      set: vi.fn(async (changes: Record<string, unknown>) => { Object.assign(data, structuredClone(changes)); }),
+      remove: vi.fn(async (keys: string | string[]) => { for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key]; }),
+    };
+  }
+  function getTab(id: number) {
+    const tab = tabs.get(id);
+    if (!tab) throw new Error('No tab with id: ' + id);
+    return tab;
+  }
+  const api = {
+    storage: { local: store(local), session: store(session) },
+    tabs: {
+      query: vi.fn(async (query: { windowId?: number } = {}) => [...tabs.values()].filter((tab) => query.windowId === undefined || tab.windowId === query.windowId).map((tab) => ({ ...tab }))),
+      get: vi.fn(async (id: number) => ({ ...getTab(id) })),
+      remove: vi.fn(async (id: number) => {
+        getTab(id); tabs.delete(id);
+        for (const [windowId] of windows) if (![...tabs.values()].some((tab) => tab.windowId === windowId)) windows.delete(windowId);
+      }),
+      create: vi.fn(async (properties: { url?: string; windowId?: number; index?: number; pinned?: boolean; active?: boolean }) => {
+        const id = ++nextId;
+        const windowId = properties.windowId ?? [...windows.keys()][0];
+        if (!windows.has(windowId)) throw new Error('No window with id: ' + windowId);
+        const tab = { id, windowId, index: properties.index ?? tabs.size, url: properties.url ?? 'about:blank', title: '', domain: '', pinned: properties.pinned ?? false,
+          active: properties.active ?? false, groupId: -1, incognito: false };
+        tabs.set(id, tab); return { ...tab };
+      }),
+      update: vi.fn(async (id: number, properties: { pinned?: boolean; active?: boolean }) => {
+        const tab = getTab(id); Object.assign(tab, properties); return { ...tab };
+      }),
+      group: vi.fn(async (properties: { tabIds: number[]; groupId?: number }) => {
+        const id = properties.groupId ?? ++nextId;
+        const first = getTab(properties.tabIds[0]);
+        if (!groups.has(id)) groups.set(id, { id, windowId: first.windowId, title: '', color: 'grey', collapsed: false });
+        for (const tabId of properties.tabIds) getTab(tabId).groupId = id;
+        return id;
+      }),
+    },
+    windows: {
+      getAll: vi.fn(async () => [...windows.values()].map((window) => ({ ...window }))),
+      get: vi.fn(async (id: number) => { const window = windows.get(id); if (!window) throw new Error('No window'); return { ...window }; }),
+      create: vi.fn(async (properties: { url?: string; focused?: boolean }) => {
+        const id = ++nextId; windows.set(id, { id, focused: properties.focused ?? false, incognito: false, type: 'normal' });
+        const tabId = ++nextId;
+        const tab = { id: tabId, windowId: id, index: 0, url: properties.url ?? 'about:blank', title: '', domain: '', pinned: false, active: true, incognito: false, groupId: -1 };
+        tabs.set(tabId, tab); return { id, tabs: [{ ...tab }] };
+      }),
+      update: vi.fn(async (id: number, properties: { focused?: boolean }) => ({ id, ...properties })),
+    },
+    tabGroups: {
+      TAB_GROUP_ID_NONE: -1,
+      query: vi.fn(async () => [...groups.values()].map((group) => ({ ...group }))),
+      get: vi.fn(async (id: number) => { const group = groups.get(id); if (!group) throw new Error('No group'); return { ...group }; }),
+      update: vi.fn(async (id: number, properties: object) => { Object.assign(groups.get(id)!, properties); return groups.get(id); }),
+    },
+  };
+  vi.stubGlobal('chrome', api);
+  return { api, tabs, windows, groups, local, session };
+}

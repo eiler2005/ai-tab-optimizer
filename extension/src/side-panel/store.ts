@@ -41,6 +41,7 @@ import { runRules } from '@shared/utils/rules';
 import { getLiveRecommendations } from './recommendation-state';
 
 export type View =
+  | 'workspace'
   | 'tabs'
   | 'snapshots'
   | 'snapshot-detail'
