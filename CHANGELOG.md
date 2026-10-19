@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 
 ### Fixed
+- All four review sections share the same close/save-and-close selection row and Apply plan action. Similar groups expose inline checkboxes, explain retained/protected sources, avoid a second candidate list for grouped pages and keep complementary/local selection manual. Retain-complementary clears that group's closure selection.
 - Large content reviews now use bounded topic-neighbor batches, retain unconfirmed local candidates after sparse AI replies, report actual batch/text coverage and partial failures, and expose current-task guidance for obsolescence.
 - Continue cleanup restores the previous reading position and keyboard focus, advances to the next surviving URL after closure, renders beyond the first hundred rows and ignores stale operations from other plans.
 - Completed cleanup now replaces the stale plan with named closed/restored/remaining pages and saved collection destinations; Continue cleanup refreshes the remaining scope without another automatic AI request, and each batch retains independent Undo.

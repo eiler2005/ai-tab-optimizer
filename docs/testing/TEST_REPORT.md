@@ -8,7 +8,7 @@ pnpm 10.32.1, Vitest 4.1.2, pytest 9.0.2, Playwright 1.64.1 / Chromium 156.
 | Strict TypeScript and production build | Pass |
 | Vitest | 187 passed across 33 files |
 | Python API/runtime/security/review/backup tests | 56 passed |
-| Real Chromium extension E2E | 24 passed |
+| Real Chromium extension E2E | 26 passed |
 | Large isolated workload | 600 synthetic live tabs, 1,000 saved materials, 40 collections/topics |
 | Layout matrix | 360/420/600 px, 100%/200% text; additional Russian 360 px/200% |
 | Whitespace and documentation links/fences | Pass |
@@ -64,9 +64,14 @@ corpus with a smaller 120-live-tab fixture and by the keyboard E2E matrix.
   Completion replaces the disabled Apply label; workspace updates do not queue
   an overview request for every journal write. Errors appear in the fixed header.
 
-- Similar content with only complementary sources and zero selected closures shows
-  its expanded group before the forecast, explains the distinction, exposes source
-  links and a jump-to-results action, collapses finished setup and retains both tabs.
+- Similar groups expose checkboxes next to their source links. The overlap keeper
+  is disabled while the selected other page closes through Apply. Complementary
+  groups initially retain both pages and are excluded from section bulk selection;
+  an explicit inline choice saves and closes one page, leaves its peer open and
+  supports Undo. Repeated group membership shares selection and counts one live tab.
+  Local-only similarity supports explicit save-and-close without AI. Outdated uses
+  the same inline selection/action row and closes only the checked page. Remembering
+  complementary sources clears their close selection.
 
 - Tabs first, shared query, scoped filtered selection and visible hidden-selection
   counts; permanent row menus and recovery/settings remain reachable.

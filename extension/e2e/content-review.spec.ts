@@ -1,6 +1,30 @@
 import { test, expect, request } from './fixtures';
 import type { WorkspaceData } from '../src/shared/types/workspace';
 
+test('local similarity uses the same explicit save-and-close selection without AI', async ({ panel, context, worker }) => {
+  await context.route('http://aitab.test/local-*', route => route.fulfill({ contentType: 'text/html', body: '<title>Postgres vector index migration performance benchmark handbook</title>' }));
+  for (const name of ['a', 'b']) {
+    const page = await context.newPage(); await page.goto(`http://aitab.test/local-${name}`);
+  }
+  const ids = await worker.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url?.includes('/local-')).map(tab => tab.id!));
+  await panel.bringToFront();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Similar content', exact: true }).click();
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  const group = panel.getByTestId('similarity-groups');
+  await expect(group).toContainText('Title overlap — review');
+  for (const id of ids) await expect(group.getByLabel(`Include in optimization ${id}`, { exact: true })).not.toBeChecked();
+  await group.getByLabel(`Include in optimization ${ids[0]}`, { exact: true }).check();
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  await expect(panel.getByTestId('optimization-outcome')).toContainText('Saved in collection:');
+  expect(await panel.evaluate(async id => Boolean(await chrome.tabs.get(id)), ids[1])).toBe(true);
+  await panel.getByRole('button', { name: 'Continue cleanup', exact: true }).click();
+  await expect(panel.getByTestId('similarity-summary')).toContainText('Similar materials: 0 groups');
+  await expect(panel.getByRole('button', { name: 'Apply plan (0)', exact: true })).toBeDisabled();
+  expect(await panel.evaluate(async id => Boolean(await chrome.tabs.get(id)), ids[1])).toBe(true);
+});
+
 test('large review uses topic-neighbor batches and reports text coverage alongside similar and outdated results', async ({ panel, worker, context }) => {
   await context.route('http://aitab.test/quality-*', async route => {
     const index = Number(new URL(route.request().url()).pathname.split('-').pop());
@@ -43,7 +67,7 @@ test('large review uses topic-neighbor batches and reports text coverage alongsi
   await expect(panel.getByRole('button', { name: 'Set task and review options', exact: true })).toBeVisible();
 });
 
-test('Similar content shows complementary groups with zero closures before the forecast', async ({ panel, context, worker }, testInfo) => {
+test('Similar content allows explicit save-and-close directly in complementary groups and Undo', async ({ panel, context, worker }, testInfo) => {
   const ids: number[] = [];
   for (const name of ['author-a', 'author-b']) {
     const page = await context.newPage();
@@ -76,6 +100,54 @@ test('Similar content shows complementary groups with zero closures before the f
   await expect(panel.getByRole('button', { name: 'Apply plan (0)', exact: true })).toBeDisabled();
   for (const id of ids) expect(await panel.evaluate(async id => Boolean(await chrome.tabs.get(id)), id)).toBe(true);
   await panel.screenshot({ path: testInfo.outputPath('similar-complementary.png') });
+  await panel.getByRole('button', { name: 'Select candidates in this section', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Apply plan (0)', exact: true })).toBeDisabled();
+  await group.getByLabel(`Include in optimization ${ids[0]}`, { exact: true }).check();
+  await expect(group).toContainText('Save and close');
+  await group.getByRole('button', { name: 'Retain: complementary sources', exact: true }).click();
+  await expect(group.getByLabel(`Include in optimization ${ids[0]}`, { exact: true })).not.toBeChecked();
+  await group.getByLabel(`Include in optimization ${ids[0]}`, { exact: true }).check();
+  await expect(panel.getByText(/outside category: 0/)).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Apply plan (1)', exact: true })).toBeEnabled();
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  await expect(panel.getByTestId('optimization-outcome')).toContainText('Closed: 1 · Skipped: 0 · Failed: 0');
+  await expect(panel.getByTestId('optimization-outcome')).toContainText('Saved in collection:');
+  expect(await panel.evaluate(async () => (await chrome.tabs.query({})).some(tab => tab.url === 'http://aitab.test/author-a'))).toBe(false);
+  expect(await panel.evaluate(async id => Boolean(await chrome.tabs.get(id)), ids[1])).toBe(true);
+  await panel.getByRole('button', { name: 'Undo optimization', exact: true }).click();
+  await expect.poll(() => panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url === 'http://aitab.test/author-a').length)).toBe(1);
+});
+
+test('overlap groups expose close checkboxes next to their sources and retain the chosen keeper', async ({ panel, context, worker }) => {
+  for (const name of ['inline-a', 'inline-b']) {
+    const page = await context.newPage(); await page.goto(`http://aitab.test/${name}`);
+  }
+  const ids = await worker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    const stored = await chrome.storage.local.get('settings');
+    await chrome.storage.local.set({ settings: { ...stored.settings, localServerUrl: 'http://127.0.0.1:17777' } });
+    return ['inline-a', 'inline-b'].map(name => tabs.find(tab => tab.url === `http://aitab.test/${name}`)!.id!);
+  });
+  await context.route('http://127.0.0.1:17777/workspace-review', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'codex_cli', similarGroups: [{ tabIds: ids, keepTabId: ids[0], relation: 'redundant', confidence: .9, reason: 'Two editions repeat the same content.' }], outdatedTabs: [] }) }));
+  await panel.bringToFront();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Similar content', exact: true }).click();
+  await panel.getByText('Review focus and options', { exact: true }).click();
+  await panel.getByLabel('Include accessible page excerpts', { exact: true }).uncheck();
+  await panel.getByRole('button', { name: 'AI: review content and relevance', exact: true }).click();
+  const groups = panel.getByTestId('similarity-groups');
+  await expect(groups.getByText('Two editions repeat the same content.', { exact: true })).toBeVisible();
+  const keeper = groups.getByText('Retaining this', { exact: true }).locator('..');
+  await expect(keeper.getByRole('checkbox')).toBeDisabled();
+  const close = groups.getByRole('checkbox', { name: /^Include in optimization / });
+  await expect(close).toHaveCount(1);
+  const chosenId = Number((await close.getAttribute('aria-label'))!.split(' ').pop());
+  await close.check();
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  await expect(panel.getByTestId('optimization-outcome')).toContainText('Closed: 1 · Skipped: 0 · Failed: 0');
+  expect(await panel.evaluate(async id => (await chrome.tabs.query({})).some(tab => tab.id === id), chosenId)).toBe(false);
+  expect(await panel.evaluate(async id => Boolean(await chrome.tabs.get(id)), ids.find(id => id !== chosenId)!)).toBe(true);
 });
 
 test('content review separates overlap and topical obsolescence, clears hidden selections and supports Undo', async ({ panel, worker, context }, testInfo) => {
@@ -121,6 +193,9 @@ test('content review separates overlap and topical obsolescence, clears hidden s
   await expect(panel.getByRole('button', { name: 'Apply plan (0)', exact: true })).toBeDisabled();
   await expect(panel.getByLabel(`Include in optimization ${ids[0]}`, { exact: true })).not.toBeAttached();
   await panel.getByLabel(`Include in optimization ${ids[1]}`, { exact: true }).check();
+  const repeated = panel.getByTestId('similarity-groups').getByRole('checkbox', { name: new RegExp(`^Include in optimization ${ids[1]} · `) });
+  await expect(repeated).toHaveCount(1);
+  await expect(repeated).toBeChecked();
   await expect(panel.getByRole('button', { name: 'Apply plan (1)', exact: true })).toBeVisible();
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await panel.screenshot({ path: testInfo.outputPath('similar-content.png'), fullPage: true });
@@ -129,7 +204,10 @@ test('content review separates overlap and topical obsolescence, clears hidden s
   await expect(panel.getByRole('button', { name: 'Apply plan (1)', exact: true })).toBeVisible();
   await panel.getByRole('button', { name: 'Clear selection', exact: true }).click();
   await expect(panel.getByText('registration closed 2024', { exact: true })).toBeVisible();
-  await panel.getByRole('button', { name: 'Select candidates in this section', exact: true }).click();
+  const obsoleteRow = panel.locator(`[data-cleanup-tab-id="${ids[2]}"]`);
+  await expect(obsoleteRow).toContainText('Close tab');
+  await expect(obsoleteRow).toContainText('Possibly outdated');
+  await obsoleteRow.getByLabel(`Include in optimization ${ids[2]}`, { exact: true }).check();
   await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
   await expect(panel.getByText(/Closed: 1 · Skipped: 0 · Failed: 0/)).toBeVisible();
   const workspace = await request<WorkspaceData>(panel, { type: 'WORKSPACE_OVERVIEW' });
