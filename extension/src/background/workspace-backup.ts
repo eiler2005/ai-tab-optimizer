@@ -6,6 +6,8 @@ import { readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-sto
 import { collectionDetails } from '@shared/utils/library';
 import type { CollectionDetails } from '@shared/types/workspace';
 
+import { parseTopicBackup } from './topic-backup';
+
 const IMPORT_PREVIEW_KEY = 'aitab.import-preview.v1';
 const LEGACY_KEYS = ['settings', 'snapshots', 'tabHistory', 'userFlagsV2', 'exportedUrls', 'locale', 'aitab.review-focus'];
 const COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'] as const;
@@ -20,6 +22,7 @@ export interface ImportPreview {
   skipped: number;
   reviewDecisions?: WorkspaceData['reviewDecisions'];
   urlRules?: WorkspaceData['urlRules'];
+  topicCatalog?: WorkspaceData['topicCatalog'];
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -174,7 +177,8 @@ export function parseBackup(json: string): ImportPreview {
     const collectionId = collectionIds.get(rule.collectionId);
     if (collectionId) urlRules.push({ id: crypto.randomUUID(), hostname: rule.hostname.toLowerCase(), collectionId, mode: 'suggest' });
   }
-  return { id: crypto.randomUUID(), createdAt: Date.now(), collections, operations, legacy, reviewDecisions, urlRules, skipped: counter.skipped };
+  const topicCatalog = parseTopicBackup(raw.topicCatalog, collectionIds);
+  return { id: crypto.randomUUID(), createdAt: Date.now(), collections, operations, legacy, reviewDecisions, urlRules, topicCatalog, skipped: counter.skipped };
 }
 
 export async function exportWorkspaceBackup(): Promise<string> {
@@ -182,7 +186,7 @@ export async function exportWorkspaceBackup(): Promise<string> {
     const workspace = await readWorkspace();
     const legacy = await chrome.storage.local.get(LEGACY_KEYS);
     legacy.settings = safeSettings(legacy.settings);
-    return JSON.stringify({ format: 'aitab-backup', version: 1, exportedAt: Date.now(), collections: workspace.collections, operations: workspace.operations, reviewDecisions: workspace.reviewDecisions, urlRules: workspace.urlRules, legacy }, null, 2);
+    return JSON.stringify({ format: 'aitab-backup', version: 1, exportedAt: Date.now(), collections: workspace.collections, operations: workspace.operations, reviewDecisions: workspace.reviewDecisions, urlRules: workspace.urlRules, topicCatalog: workspace.topicCatalog, legacy }, null, 2);
   });
 }
 
@@ -202,6 +206,11 @@ export async function executeBackupImport(previewId: string): Promise<{ imported
     if (!preview || preview.id !== previewId || Date.now() - preview.createdAt > 300_000) throw new Error('Import preview expired');
     if (workspace.importedBackupIds?.includes(previewId)) return { imported: 0, skipped: preview.skipped };
     workspace.collections.push(...preview.collections); workspace.operations.push(...preview.operations);
+    if (preview.topicCatalog) {
+      const currentTopics = workspace.topicCatalog ?? { version: 1 as const, revision: 0, topics: [], history: [], distinct: [] };
+      if (currentTopics.topics.length + preview.topicCatalog.topics.length > 500) throw new Error('Imported catalog exceeds 500 topics');
+      currentTopics.topics.push(...preview.topicCatalog.topics); currentTopics.revision++; workspace.topicCatalog = currentTopics;
+    }
     workspace.reviewDecisions = [...new Map([...(preview.reviewDecisions ?? []), ...(workspace.reviewDecisions ?? [])].map((entry) => [entry.key, entry])).values()].slice(-500);
     workspace.urlRules = [...(workspace.urlRules ?? []), ...(preview.urlRules ?? [])].slice(0, 50);
     workspace.importedBackupIds = [...(workspace.importedBackupIds ?? []), previewId].slice(-100);

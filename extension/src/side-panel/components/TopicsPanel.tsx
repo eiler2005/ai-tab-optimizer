@@ -1,62 +1,76 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@shared/i18n';
-import type { PersistentCluster } from '@shared/types';
+import type { Topic } from '@shared/types/topics';
 import type { CollectionPreview, TabOperation, WorkspaceData } from '@shared/types/workspace';
-import { buildWorkspaceSuggestions } from '@shared/utils/workspace-suggestions';
+import { liveTopicTabs, topicMaterial } from '@shared/utils/topics';
 import { tabProtectionReason } from '@shared/utils/rules';
 import { isStatefulChat } from '@shared/utils/page-safety';
 import { useStore } from '../store';
+import { useTopics } from '../topic-store';
 import { workspaceMessage } from '../workspace-api';
+import { TabItem } from './TabItem';
 
 export function TopicsPanel({ workspace, busy, run, onResult, onFeedback }: { workspace: WorkspaceData | null; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; onResult: (operation: TabOperation) => void; onFeedback: (text: string) => void }) {
-  const { locale } = useI18n();
-  const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
-  const windows = useStore((state) => state.windowGroups);
-  const aiResult = useStore((state) => state.aiResult);
-  const [domains, setDomains] = useState<string[]>([]);
-  useEffect(() => { void chrome.storage.local.get('settings').then((stored) => setDomains((stored.settings as { protectedDomains?: string[] } | undefined)?.protectedDomains ?? [])).catch(() => {}); }, []);
-  const [clusters, setClusters] = useState<PersistentCluster[]>([]);
-  const [keep, setKeep] = useState<Set<number>>(new Set());
+  const { locale } = useI18n(); const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
+  const state = useTopics(); const windows = useStore((store) => store.windowGroups); const analyzedAt = useStore((store) => store.aiAnalyzedAt);
+  const selected = useStore((store) => store.selectedTabIds);
+  const [name, setName] = useState(''); const [focus, setFocus] = useState('');
+  const [domains, setDomains] = useState<string[]>([]); const [keep, setKeep] = useState<Set<number>>(new Set());
   const [preview, setPreview] = useState<CollectionPreview | null>(null);
+  const [materialView, setMaterialView] = useState<'open' | 'saved' | 'all'>('open');
+  const [chosenMaterials, setChosenMaterials] = useState<Set<string>>(new Set());
+  const [limit, setLimit] = useState(100); const list = useRef<HTMLDivElement>(null);
+  useEffect(() => { void state.refresh(); void state.refresh(true); void chrome.storage.local.get('settings').then((stored) => setDomains((stored.settings as { protectedDomains?: string[] } | undefined)?.protectedDomains ?? [])); }, []);
+  useEffect(() => { void state.refresh(); }, [windows, workspace?.revision, analyzedAt]);
   const tabs = windows.flatMap((window) => window.tabs);
-  const topics = useMemo(() => {
-    const result = (workspace?.collections ?? []).filter((collection) => !collection.deletedAt).map((collection) => ({ id: 'collection:' + collection.id, name: collection.name,
-      urls: [...new Set(collection.windows.flatMap((window) => window.tabs.map((tab) => tab.url)))], source: tr('Коллекция', 'Collection'), reason: collection.reason ?? '' }));
-    for (const window of windows) for (const tab of window.tabs) if (tab.groupId !== undefined && !result.some((item) => item.id === 'group:' + tab.groupId)) {
-      result.push({ id: 'group:' + tab.groupId, name: tab.groupName || tr('Группа браузера', 'Browser group'), urls: window.tabs.filter((item) => item.groupId === tab.groupId).map((item) => item.url), source: tr('Группа браузера', 'Browser group'), reason: '' });
-    }
-    for (const [index, item] of buildWorkspaceSuggestions(aiResult?.topicClusters ?? [], windows.flatMap((window) => window.tabs)).entries()) result.push({ id: 'ai:' + index, name: item.name, urls: item.urls, source: 'AI', reason: item.reason });
-    for (const cluster of clusters) result.push({ id: 'persistent:' + cluster.id, name: cluster.name, urls: cluster.tabUrls, source: tr('Сохранённый кластер', 'Persistent cluster'), reason: cluster.description });
-    return result;
-  }, [workspace, windows, aiResult, clusters, locale]);
-  return <section className="space-y-3 text-xs">
-    <h3 className="font-semibold">{tr('Темы и кластеры', 'Topics and clusters')}</h3>
-    <p className="text-gray-600">{tr('Сверните тему в группы браузера или сохраните и закройте ненужные сейчас страницы. Отметьте рабочий минимум, который нужно оставить открытым. Сохранение не означает, что содержание устарело.', 'Collapse a topic into browser groups or save and close pages you do not need now. Select the working minimum to keep open. Saving does not mean the content is obsolete.')}</p>
-    <button disabled={busy} className="border rounded p-2" onClick={() => void run(async () => setClusters(await workspaceMessage<PersistentCluster[]>({ type: 'GET_PERSISTENT_CLUSTERS' })))}>{tr('Загрузить мои сохранённые кластеры', 'Load my persistent clusters')}</button>
-    {!topics.length && <p>{tr('Сохраните коллекцию, создайте группу или выполните AI-анализ для появления тем.', 'Save a collection, create a browser group or run AI analysis to see topics.')}</p>}
-    {topics.map((topic) => {
-      const urls = new Set(topic.urls);
-      const members = tabs.filter((tab) => urls.has(tab.url));
-      const eligible = members.filter((tab) => !keep.has(tab.id) && !isStatefulChat(tab.url) && !tabProtectionReason(tab, domains));
-      return <details key={topic.id} className="border rounded p-2 space-y-2">
-        <summary className="font-medium break-words">{topic.name} · {members.length} {tr('открыто', 'open')} · {topic.source}</summary>
-        <p>{topic.reason}</p><p>{tr('Можно сохранить и закрыть', 'Can save and close')}: {eligible.length} · {tr('Останутся открыты', 'Retain open')}: {members.length - eligible.length}</p>
-        <div className="space-y-2 max-h-56 overflow-auto">{members.map((tab) => <label key={tab.id} className="flex gap-2 items-start"><input type="checkbox" checked={keep.has(tab.id)} aria-label={tr('Оставить в работе', 'Keep working') + ' ' + tab.id} onChange={() => setKeep((current) => { const next = new Set(current); if (next.has(tab.id)) next.delete(tab.id); else next.add(tab.id); return next; })} /><span className="break-words">{tab.title || tab.url}{isStatefulChat(tab.url) || tabProtectionReason(tab, domains) ? ' · ' + tr('защищена от закрытия', 'protected from closing') : ''}</span></label>)}</div>
-        <div className="flex gap-2 flex-wrap">
-          <button disabled={busy || !members.some((tab) => !tab.pinned)} className="border rounded p-2 disabled:opacity-50" onClick={() => void run(async () => { await workspaceMessage({ type: 'COLLAPSE_TOPIC', tabIds: members.map((tab) => tab.id), name: topic.name.slice(0, 120), collapsed: true }); onFeedback(tr('Тема свёрнута. Количество вкладок не изменилось.', 'Topic collapsed. The number of tabs is unchanged.')); })}>{tr('Сгруппировать и свернуть', 'Group and collapse')}</button>
-          <button disabled={busy || !eligible.length} className="border rounded p-2 disabled:opacity-50" onClick={() => void run(async () => setPreview(await workspaceMessage<CollectionPreview>({ type: 'PREVIEW_COLLECTION', name: topic.name.slice(0, 120), tabIds: eligible.map((tab) => tab.id) })))}>{tr('Просмотреть сохранение и закрытие', 'Preview save and close')}</button>
-        </div>
-      </details>;
-    })}
-    {preview && <section className="border border-blue-300 bg-blue-50 rounded p-3 space-y-2">
-      <h4 className="font-medium">{preview.name} · {preview.windows.flatMap((window) => window.tabs).length} {tr('вкладок', 'tabs')}</h4>
-      <p>{tr('Сначала сохраним новую коллекцию. Затем закроем только показанные страницы, если они не изменились и не защищены. Источники и Undo сохраняются.', 'Save a new collection first, then close only these pages if unchanged and unprotected. Sources and Undo are retained.')}</p>
-      <ul className="max-h-40 overflow-auto">{preview.windows.flatMap((window) => window.tabs).map((tab) => <li key={tab.id} className="break-all">{tab.url}</li>)}</ul>
-      <button disabled={busy} className="bg-red-600 text-white rounded p-2" onClick={() => void run(async () => {
-        const result = await workspaceMessage<{ operation?: TabOperation }>({ type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter: true, details: { purpose: 'later', reason: tr('Тематический набор убран из текущей работы', 'Topic set removed from current work') } });
-        setPreview(null); if (result.operation) onResult(result.operation);
-      })}>{tr('Сохранить и закрыть с Undo', 'Save and close with Undo')}</button>
-      <button disabled={busy} className="border rounded p-2 ml-2" onClick={() => setPreview(null)}>{tr('Отмена', 'Cancel')}</button>
-    </section>}
+  const topics = state.catalog.topics.filter((topic) => !topic.deletedAt && !topic.mergedInto);
+  const topic = topics.find((item) => item.id === state.activeId);
+  useEffect(() => { if (topic) { setName(topic.name); setFocus(topic.focus); setChosenMaterials(new Set()); setLimit(100); } }, [topic?.id]);
+  const members = topic ? liveTopicTabs(topic, tabs, state.sessionId) : [];
+  const protectedIds = new Set(members.filter((tab) => isStatefulChat(tab.url) || tabProtectionReason(tab, domains)).map((tab) => tab.id));
+  const eligible = members.filter((tab) => !keep.has(tab.id) && !protectedIds.has(tab.id));
+  const visible = useMemo(() => topics.filter((item) => (!state.query.trim() || [item.name, item.focus, ...item.aliases, ...item.materials.map((material) => material.title)].join('\n').toLocaleLowerCase().includes(state.query.trim().toLocaleLowerCase()))
+    && (state.filter === 'all' || state.filter === 'unassigned' || state.filter === 'proposals' && !item.accepted || state.filter === 'working' && liveTopicTabs(item, tabs, state.sessionId).length > 0)), [state.catalog, state.query, state.filter, windows]);
+  const change = async (patch: { name?: string; focus?: string; accepted?: boolean; deleted?: boolean; removeKeys?: string[]; add?: Topic['materials'] }) => {
+    if (topic) await state.command({ action: 'update', id: topic.id, revision: topic.revision, userRevision: topic.userRevision ?? 0, ...patch });
+  };
+  const activeMaterialKeys = topic?.materials.filter((material) => chosenMaterials.has(material.key) || members.some((tab) => selected.has(tab.id) && tab.url === material.url)).map((material) => material.key) ?? [];
+  const unassigned = tabs.filter((tab) => !topics.some((item) => liveTopicTabs(item, [tab], state.sessionId).length));
+  return <section className="space-y-3 text-xs" data-testid="topics-panel">
+    {state.error && <p role="alert" className="text-amber-800">{state.error}</p>}
+    {!topic ? <>
+      <input aria-label={tr('Поиск тем', 'Search topics')} value={state.query} onChange={(event) => useTopics.setState({ query: event.target.value })} placeholder={tr('Название, задача или материал темы…', 'Topic name, task or material…')} className="border rounded p-2 w-full" />
+      <div className="flex gap-2 flex-wrap"><select aria-label={tr('Фильтр тем', 'Topic filter')} className="border rounded p-2" value={state.filter} onChange={(event) => useTopics.setState({ filter: event.target.value as typeof state.filter })}><option value="all">{tr('Все темы', 'All topics')}</option><option value="working">{tr('В работе', 'Working')}</option><option value="proposals">{tr('Предложения', 'Suggestions')}</option><option value="unassigned">{tr('Без темы', 'Without a topic')}</option></select><button disabled={state.loading} onClick={() => void state.refresh(true)} className="border rounded p-2">{state.loading ? tr('Обновляем…', 'Refreshing…') : tr('Обновить темы', 'Refresh topics')}</button></div>
+      <details><summary>{tr('Создать тему из выбранных вкладок', 'Create topic from selected tabs')} ({selected.size})</summary><div className="space-y-2 pt-2"><input aria-label={tr('Название новой темы', 'New topic name')} value={name} maxLength={120} onChange={(event) => setName(event.target.value)} className="w-full border rounded p-2" /><button disabled={busy || !name.trim()} className="border rounded p-2" onClick={() => void run(async () => { await state.command({ action: 'create', name, materials: tabs.filter((tab) => selected.has(tab.id) && /^https?:\/\//i.test(tab.url)).map((tab) => topicMaterial(tab.url, tab.title, `live:${state.sessionId}:${tab.id}`)) }); setName(''); })}>{tr('Создать тему', 'Create topic')}</button></div></details>
+      <p className="text-gray-500">{tr('Тема объединяет материалы по задаче. Коллекции сохраняют ссылки, группы Chrome организуют открытые вкладки.', 'A topic connects materials around a task. Collections save links; Chrome groups organize open tabs.')}</p>
+      <button disabled={busy || useStore.getState().aiLoading} className="border rounded p-2" onClick={() => useStore.getState().analyzeTabs(true)}>{tr('AI: предложить темы для всех окон', 'AI: suggest topics for all windows')}</button>
+      {state.catalog.serverError && <p className="text-amber-800">{tr('Серверные темы не обновлены; локальные данные доступны.', 'Server topics could not refresh; local data is available.')}</p>}
+      {state.catalog.serverUpdatedAt ? <p>{tr('Серверные данные', 'Server data')}: {new Date(state.catalog.serverUpdatedAt).toLocaleString()}</p> : null}
+      {state.filter === 'unassigned' ? <><p>{unassigned.length} {tr('вкладок без темы', 'tabs without a topic')}</p>{unassigned.slice(0, limit).map((tab) => <TabItem tab={tab} key={tab.id} />)}</> : <div ref={list} onScroll={(event) => useTopics.setState({ scrollTop: event.currentTarget.scrollTop })} className="space-y-2">{visible.slice(0, limit).map((item) => {
+        const live = liveTopicTabs(item, tabs, state.sessionId);
+        const saved = item.materials.filter((material) => material.collectionIds.some((id) => workspace?.collections.some((collection) => collection.id === id && !collection.deletedAt))).length;
+        return <article key={item.id} className="border rounded p-3 space-y-1"><button className="text-left font-medium w-full break-words" onClick={() => { useTopics.setState({ activeId: item.id }); setMaterialView('open'); }}>{item.name} · {live.length} {tr('открыто', 'open')} · {saved} {tr('сохранено', 'saved')}</button><p className="text-gray-500 line-clamp-2">{item.focus}</p>{!item.accepted && <span className="text-amber-800">{tr('Предложение AI — проверьте состав', 'AI suggestion — review membership')}</span>}</article>;
+      })}</div>}
+      {(state.filter === 'unassigned' ? unassigned.length : visible.length) > limit && <button className="border rounded p-2" onClick={() => setLimit(limit + 100)}>{tr('Показать ещё', 'Show more')}</button>}
+      {!state.loading && !topics.length && <p>{tr('Создайте тему из вкладок, сохраните коллекцию или предложите темы с AI.', 'Create a topic from tabs, save a collection or ask AI for topics.')}</p>}
+    </> : <>
+      <button className="text-accent" onClick={() => { useTopics.setState({ activeId: null }); setPreview(null); }}>{tr('← Все темы', '← All topics')}</button>
+      <h3 className="font-semibold text-base break-words">{topic.name}</h3><p>{topic.focus}</p>
+      <p>{members.length} {tr('открыто', 'open')} · {topic.materials.length} {tr('материалов', 'materials')}</p>
+      <div className="flex gap-2 flex-wrap"><button className="border rounded p-2" onClick={() => { useStore.setState({ view: 'tabs', tabTopicUrls: topic.materials.filter((material) => !isStatefulChat(material.url)).map((material) => material.url), tabTopicName: topic.name, searchQuery: '', tabScope: 'all' }); }}>{tr('Работать с темой', 'Work on topic')}</button><button className="border rounded p-2" onClick={() => useStore.getState().openWorkspace('optimize')}>{tr('Разобрать тему…', 'Review topic…')}</button></div>
+      {!topic.accepted && <button disabled={busy} className="border rounded p-2" onClick={() => void run(() => change({ accepted: true }))}>{tr('Принять тему', 'Accept topic')}</button>}
+      <details><summary>{tr('Название, задача и состав', 'Name, task and membership')}</summary><div className="space-y-2 py-2"><input aria-label={tr('Название темы', 'Topic name')} value={name} onChange={(event) => setName(event.target.value)} maxLength={120} className="border rounded p-2 w-full" /><textarea aria-label={tr('Задача темы', 'Topic focus')} value={focus} onChange={(event) => setFocus(event.target.value)} maxLength={1000} className="border rounded p-2 w-full" /><button disabled={busy} className="border rounded p-2" onClick={() => void run(() => change({ name, focus }))}>{tr('Сохранить тему', 'Save topic')}</button><button disabled={busy || !selected.size} className="border rounded p-2" onClick={() => void run(() => change({ add: tabs.filter((tab) => selected.has(tab.id) && /^https?:\/\//i.test(tab.url)).map((tab) => topicMaterial(tab.url, tab.title, `live:${state.sessionId}:${tab.id}`)) }))}>{tr('Добавить выбранные вкладки', 'Add selected tabs')}</button><button disabled={busy || !activeMaterialKeys.length} className="border rounded p-2" onClick={() => void run(() => change({ removeKeys: activeMaterialKeys }))}>{tr('Исключить выбранное из темы', 'Remove selected from topic')}</button><button disabled={busy} className="border rounded p-2 text-red-700" onClick={() => void run(async () => { await change({ deleted: true }); useTopics.setState({ activeId: null }); })}>{tr('Удалить тему, оставить материалы', 'Delete topic, retain materials')}</button><p className="text-gray-500">{tr('Происхождение', 'Sources')}: {topic.sourceKeys.map((key) => key.startsWith('collection:') ? workspace?.collections.find((collection) => 'collection:' + collection.id === key)?.name ?? tr('Коллекция', 'Collection') : key.startsWith('group:') ? 'Chrome' : key.startsWith('persistent:') ? tr('Сохранённая тема', 'Saved topic') : 'AI').join(' · ')}</p></div></details>
+      <div className="flex gap-2">{(['open', 'saved', 'all'] as const).map((value) => <button key={value} aria-pressed={materialView === value} className="border rounded p-2" onClick={() => setMaterialView(value)}>{value === 'open' ? tr('Открытые', 'Open') : value === 'saved' ? tr('Сохранённые', 'Saved') : tr('Все материалы', 'All materials')}</button>)}</div>
+      {materialView === 'open' ? members.slice(0, limit).map((tab) => <div key={tab.id}><TabItem tab={tab} />{keep.has(tab.id) && <p className="text-green-800">{tr('Оставить в работе', 'Keep working')}</p>}{protectedIds.has(tab.id) && <p className="text-amber-800">{tr('Защищена от закрытия', 'Protected from closing')}</p>}</div>) : topic.materials.filter((material) => materialView === 'all' || material.collectionIds.some((id) => workspace?.collections.some((collection) => collection.id === id && !collection.deletedAt))).slice(0, limit).map((material) => <article className="border rounded p-2" key={material.key}><label className="flex gap-2"><input type="checkbox" aria-label={tr('Выбрать материал', 'Select material') + ' ' + material.title} checked={chosenMaterials.has(material.key)} onChange={() => setChosenMaterials((current) => { const next = new Set(current); if (next.has(material.key)) next.delete(material.key); else next.add(material.key); return next; })} /><span className="break-words">{material.title}</span></label><p className="break-all text-gray-500">{material.url}</p><button className="text-accent p-2" onClick={() => void run(async () => { const live = members.find((tab) => tab.url === material.url && !isStatefulChat(tab.url)); if (live) await workspaceMessage({ type: 'FOCUS_TAB', tabId: live.id }); else { const collection = workspace?.collections.find((collection) => !collection.deletedAt && material.collectionIds.includes(collection.id)); const item = collection?.windows.flatMap((window) => window.tabs).find((item) => item.url === material.url); if (collection && item) await workspaceMessage({ type: 'OPEN_COLLECTION_ITEM', collectionId: collection.id, itemId: item.itemId }); else if (!isStatefulChat(material.url)) await workspaceMessage({ type: 'OPEN_URL', url: material.url }); } })}>{tr('Перейти / открыть', 'Focus / open')}</button></article>)}
+      {(materialView === 'open' ? members.length : topic.materials.length) > limit && <button className="border rounded p-2" onClick={() => setLimit(limit + 100)}>{tr('Показать ещё', 'Show more')}</button>}
+      <div className="border-t pt-3 space-y-2"><p>{tr('Можно сохранить и закрыть', 'Can save and close')}: {eligible.length} · {tr('Останутся открыты', 'Retain open')}: {members.length - eligible.length}</p><div className="flex gap-2 flex-wrap">
+        <button disabled={busy || !members.some((tab) => selected.has(tab.id))} className="border rounded p-2" onClick={() => { setKeep((current) => new Set([...current, ...members.filter((tab) => selected.has(tab.id)).map((tab) => tab.id)])); useStore.getState().deselectAll(); }}>{tr('Оставить выбранное в работе', 'Keep selected working')}</button>
+        <button disabled={busy || !keep.size} className="border rounded p-2" onClick={() => setKeep(new Set())}>{tr('Снять рабочий минимум', 'Clear working minimum')}</button>
+        <button disabled={busy || !members.some((tab) => !tab.pinned)} className="border rounded p-2" onClick={() => void run(async () => { await workspaceMessage({ type: 'COLLAPSE_TOPIC', tabIds: members.map((tab) => tab.id), name: topic.name, collapsed: true }); onFeedback(tr('Тема свёрнута; количество вкладок не изменилось.', 'Topic collapsed; tab count unchanged.')); })}>{tr('Сгруппировать и свернуть', 'Group and collapse')}</button>
+        <button disabled={busy || !eligible.length} className="border rounded p-2" onClick={() => void run(async () => setPreview(await workspaceMessage<CollectionPreview>({ type: 'PREVIEW_COLLECTION', name: topic.name, tabIds: eligible.map((tab) => tab.id) })))}>{tr('Просмотреть сохранение и закрытие', 'Preview save and close')}</button>
+      </div></div>
+      {preview && <section className="border rounded p-3 space-y-2"><h4>{preview.name} · {preview.windows.flatMap((window) => window.tabs).length}</h4><p>{tr('Сначала сохраним коллекцию, затем закроем показанные допустимые вкладки. Undo доступен в журнале.', 'Save a collection first, then close the shown eligible tabs. Undo is in the journal.')}</p><ul>{preview.windows.flatMap((window) => window.tabs).map((tab) => <li key={tab.id} className="break-words">{tab.title}</li>)}</ul><button disabled={busy} className="rounded bg-red-600 text-white p-2" onClick={() => void run(async () => { const result = await workspaceMessage<{ operation?: TabOperation }>({ type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter: true, details: { purpose: 'later', focus: topic.focus, reason: tr('Тема отложена', 'Topic deferred') } }); setPreview(null); if (result.operation) onResult(result.operation); })}>{tr('Сохранить и закрыть с Undo', 'Save and close with Undo')}</button><button className="border rounded p-2" onClick={() => setPreview(null)}>{tr('Отмена', 'Cancel')}</button></section>}
+    </>}
+    <details className="border-t pt-2"><summary>{tr('История изменений тем', 'Topic change history')}</summary>{state.catalog.history.slice().reverse().map((entry) => <div className="p-2 border-b flex gap-2" key={entry.id}><span>{new Date(entry.createdAt).toLocaleString()} · {entry.label}</span><button disabled={busy || entry.undone} className="text-accent" onClick={() => void run(() => state.command({ action: 'undo', historyId: entry.id }))}>{entry.undone ? tr('Отменено', 'Undone') : tr('Отменить изменение темы', 'Undo topic change')}</button></div>)}</details>
   </section>;
 }

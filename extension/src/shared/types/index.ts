@@ -1,4 +1,5 @@
 export type { TabRecord, RuleFlags, WindowGroup } from './tab';
+export type { Topic, TopicMaterial, TopicCatalog, TopicCommand, TopicSource } from './topics';
 export type { SnapshotRecord, WindowSnapshot, TabSnapshot } from './snapshot';
 export type {
   MessageRequest,

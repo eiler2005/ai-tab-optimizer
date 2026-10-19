@@ -52,6 +52,7 @@ import { previewContentReview, executeContentReviewClose, rememberReviewDecision
 import { startReviewJob, getReviewJob, cancelReviewJob } from './review-jobs';
 import { previewOptimization, executeOptimization } from './optimization';
 import { collapseTopic } from './topic-actions';
+import { getTopicCatalog, changeTopics } from './topic-catalog';
 import { registerLibraryAutomation, savePageToCollection, saveUrlRules } from './library-automation';
 import { configureBackups, createFullBackup, getFullBackupStatus, previewFullBackupRestore, setupBackupAlarm } from './library-backups';
 import { extractDomain } from '@shared/utils/url';
@@ -1930,6 +1931,20 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
   switch (msg.type) {
     case 'WORKSPACE_OVERVIEW':
       return { success: true, data: await workspaceOverview() };
+    case 'GET_TOPIC_CATALOG': {
+      let server: { clusters: PersistentCluster[]; updatedAt: number; error?: string } | undefined;
+      if (msg.refreshServer) {
+        try { server = { clusters: await getPersistentClusters(), updatedAt: Date.now() }; }
+        catch (error) {
+          const cache = await chrome.storage.local.get('aitab.topic-server-cache');
+          const old = cache['aitab.topic-server-cache'] as { clusters: PersistentCluster[]; updatedAt: number } | undefined;
+          server = { clusters: old?.clusters ?? [], updatedAt: old?.updatedAt ?? 0, error: String(error) };
+        }
+      }
+      return { success: true, data: await getTopicCatalog(server) };
+    }
+    case 'TOPIC_COMMAND':
+      return { success: true, data: await changeTopics(msg.command) };
     case 'PREVIEW_CONTENT_REVIEW':
       return { success: true, data: await previewContentReview(msg.options, extractPageContent) };
     case 'START_CONTENT_REVIEW':

@@ -98,6 +98,7 @@ export interface WorkspaceData {
   revision: number;
   operations: TabOperation[];
   collections: SavedCollection[];
+  topicCatalog?: import('./topics').TopicCatalog;
   importedBackupIds?: string[];
   reviewDecisions?: { key: string; kind: 'keep' | 'complementary'; createdAt: number }[];
   urlRules?: { id: string; hostname: string; collectionId: string; mode: 'suggest' | 'save' }[];

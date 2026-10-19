@@ -7,6 +7,8 @@ import type { HistoryTimeframe, TabHistoryStats } from './history';
 
 export type MessageRequest =
   | { type: 'WORKSPACE_OVERVIEW' }
+  | { type: 'GET_TOPIC_CATALOG'; refreshServer?: boolean }
+  | { type: 'TOPIC_COMMAND'; command: import('./topics').TopicCommand }
   | { type: 'START_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
   | { type: 'GET_CONTENT_REVIEW_JOB' }
   | { type: 'CANCEL_CONTENT_REVIEW'; jobId: string }

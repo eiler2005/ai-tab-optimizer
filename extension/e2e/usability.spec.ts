@@ -1,4 +1,6 @@
-import { test, expect } from './fixtures';
+import { test, expect, request } from './fixtures';
+import type { CollectionPreview } from '../src/shared/types/workspace';
+import type { TopicCatalog } from '../src/shared/types/topics';
 
 test('tabs are first; filtered selection exposes hidden choices and menus remain reachable', async ({ panel, worker }, testInfo) => {
   await worker.evaluate(async () => {
@@ -24,4 +26,32 @@ test('tabs are first; filtered selection exposes hidden choices and menus remain
   await expect(panel.getByRole('heading', { name: 'Journal and Undo', exact: true })).toBeVisible();
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await panel.screenshot({ path: testInfo.outputPath('navigation.png') });
+});
+
+test('topic names and task edits persist through reload; deleting a topic retains saved pages and can be undone', async ({ panel, worker }) => {
+  const id = await worker.evaluate(async () => (await chrome.tabs.create({ url: 'http://aitab.test/topic-persist', active: false })).id!);
+  await expect.poll(async () => panel.evaluate(async (id) => (await chrome.tabs.get(id)).url, id)).toBe('http://aitab.test/topic-persist');
+  const preview = await request<CollectionPreview>(panel, { type: 'PREVIEW_COLLECTION', name: 'Original topic', tabIds: [id] });
+  await request(panel, { type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter: false });
+  await panel.getByRole('button', { name: 'Topics', exact: true }).click();
+  await panel.getByRole('button', { name: 'Original topic · 1 open · 1 saved', exact: true }).click();
+  await panel.getByText('Name, task and membership', { exact: true }).click();
+  await panel.getByLabel('Topic name', { exact: true }).fill('My current task');
+  await panel.getByLabel('Topic focus', { exact: true }).fill('Keep the unique reference');
+  await panel.getByRole('button', { name: 'Save topic', exact: true }).click();
+  await expect(panel.getByRole('heading', { name: 'My current task', exact: true })).toBeVisible();
+  await panel.reload();
+  await panel.getByRole('button', { name: 'Topics', exact: true }).click();
+  await panel.getByRole('button', { name: 'My current task · 1 open · 1 saved', exact: true }).click();
+  await expect(panel.getByRole('paragraph').filter({ hasText: /^Keep the unique reference$/ })).toBeVisible();
+  await panel.getByText('Name, task and membership', { exact: true }).click();
+  await panel.getByRole('button', { name: 'Delete topic, retain materials', exact: true }).click();
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(panel.getByRole('heading', { name: 'My current task', exact: true })).not.toBeVisible();
+  const { catalog } = await request<{ catalog: TopicCatalog }>(panel, { type: 'GET_TOPIC_CATALOG' });
+  const deletion = catalog.history[catalog.history.length - 1];
+  await request(panel, { type: 'TOPIC_COMMAND', command: { action: 'undo', historyId: deletion.id } });
+  await panel.getByRole('button', { name: 'Refresh topics', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'My current task · 1 open · 1 saved', exact: true })).toBeVisible();
+  expect(await panel.evaluate(async (id) => Boolean(await chrome.tabs.get(id)), id)).toBe(true);
 });

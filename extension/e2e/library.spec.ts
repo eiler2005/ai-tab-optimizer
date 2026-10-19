@@ -37,9 +37,10 @@ test('topic UI retains a working page, collapses per window and saves the remain
   const preview = await request<CollectionPreview>(panel, { type: 'PREVIEW_COLLECTION', name: 'Topic Example', tabIds: ids });
   await request(panel, { type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter: false });
   await panel.getByRole('button', { name: 'Topics', exact: true }).click();
-  const topic = panel.locator('details').filter({ has: panel.locator('summary').filter({ hasText: 'Topic Example · 2' }) }).first();
-  await topic.locator('summary').first().click();
-  await topic.getByLabel('Keep working ' + ids[0], { exact: true }).check();
+  const topic = panel.getByTestId('topics-panel');
+  await topic.getByRole('button', { name: 'Topic Example · 2 open · 2 saved', exact: true }).click();
+  await topic.locator(`[data-tab-id="${ids[0]}"]`).getByRole('checkbox').check();
+  await topic.getByRole('button', { name: 'Keep selected working', exact: true }).click();
   await topic.getByRole('button', { name: 'Group and collapse', exact: true }).click();
   const group = await panel.evaluate(async (id) => chrome.tabGroups.get((await chrome.tabs.get(id)).groupId), ids[1]);
   expect(group.collapsed).toBe(true);
