@@ -242,6 +242,7 @@ CI выполняет проверки TypeScript, сборку, Vitest, pytest 
 | [PROJECT.md](PROJECT.md) | Внутренняя спецификация и протокол |
 | [docs/testing/TEST_REPORT.md](docs/testing/TEST_REPORT.md) | Результаты проверок и их границы |
 | [docs/plans/product-development.md](docs/plans/product-development.md) | Ревью TabMerger, выполненные направления и дальнейшее развитие |
+| [docs/plans/usability-tabs-topics.md](docs/plans/usability-tabs-topics.md) | Предложение UX: вкладки первыми, единые темы, поиск и один сценарий разбора; пока план |
 | [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) | Инженерный backlog |
 | [CHANGELOG.md](CHANGELOG.md) | История изменений |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Правила разработки |
