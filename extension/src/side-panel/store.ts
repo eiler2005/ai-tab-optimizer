@@ -39,10 +39,15 @@ import type {
 } from '@shared/types';
 import { runRules } from '@shared/utils/rules';
 import { getLiveRecommendations } from './recommendation-state';
+import { filteredWindows } from './tab-filter';
+
+export type WorkspaceSection = 'optimize' | 'duplicates' | 'similar' | 'outdated' | 'windows' | 'collections' | 'library' | 'ai' | 'history' | 'backups';
 
 export type View =
   | 'workspace'
   | 'tabs'
+  | 'topics'
+  | 'library'
   | 'snapshots'
   | 'snapshot-detail'
   | 'settings'
@@ -57,6 +62,15 @@ interface AppState {
   // Navigation
   view: View;
   setView: (view: View) => void;
+  workspaceSection: WorkspaceSection;
+  openWorkspace: (section: WorkspaceSection) => void;
+  librarySection: 'library' | 'collections';
+  tabScope: 'all' | 'current';
+  tabTopicUrls: string[] | null;
+  tabTopicName: string;
+  showSelectedOnly: boolean;
+  selectedTabUrls: Record<number, string>;
+  tabsScrollTop: number;
 
   // Tabs
   windowGroups: WindowGroup[];
@@ -185,6 +199,15 @@ export const useStore = create<AppState>((set, get) => ({
   // Navigation
   view: 'tabs',
   setView: (view) => set({ view }),
+  workspaceSection: 'optimize',
+  openWorkspace: (workspaceSection) => set({ workspaceSection, view: 'workspace' }),
+  librarySection: 'library',
+  tabScope: 'all',
+  tabTopicUrls: null,
+  tabTopicName: '',
+  showSelectedOnly: false,
+  selectedTabUrls: {},
+  tabsScrollTop: 0,
 
   // Tabs
   windowGroups: [],
@@ -200,16 +223,14 @@ export const useStore = create<AppState>((set, get) => ({
     const selected = new Set(get().selectedTabIds);
     if (selected.has(id)) selected.delete(id);
     else selected.add(id);
-    set({ selectedTabIds: selected });
+    const tab = get().windowGroups.flatMap((window) => window.tabs).find((item) => item.id === id);
+    set({ selectedTabIds: selected, selectedTabUrls: { ...get().selectedTabUrls, ...(tab ? { [id]: tab.url } : {}) } });
   },
   selectAll: () => {
-    const ids = new Set<number>();
-    for (const wg of get().windowGroups) {
-      for (const tab of wg.tabs) ids.add(tab.id);
-    }
-    set({ selectedTabIds: ids });
+    const tabs = filteredWindows(get().windowGroups, get()).flatMap((window) => window.tabs);
+    set({ selectedTabIds: new Set(tabs.map((tab) => tab.id)), selectedTabUrls: Object.fromEntries(tabs.map((tab) => [tab.id, tab.url])) });
   },
-  deselectAll: () => set({ selectedTabIds: new Set() }),
+  deselectAll: () => set({ selectedTabIds: new Set(), selectedTabUrls: {}, showSelectedOnly: false }),
 
   // Recently closed
   recentlyClosed: [],
@@ -731,6 +752,8 @@ export const useStore = create<AppState>((set, get) => ({
         staleCount: ruleResult.staleCount,
         loading: false,
       });
+      const known = get().selectedTabUrls;
+      if (Object.keys(known).length) set({ selectedTabIds: new Set([...get().selectedTabIds].filter((id) => allTabs.some((tab) => tab.id === id && tab.url === known[id]))) });
     } catch {
       set({ loading: false });
     }

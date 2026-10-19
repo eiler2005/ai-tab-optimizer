@@ -13,8 +13,7 @@ test('library searches saved notes, opens one missing page and preserves task me
   const item = collection.windows.flatMap((window) => window.tabs).find((page) => page.url.endsWith('/library-b'))!;
   await request(panel, { type: 'UPDATE_COLLECTION', collectionId: collection.id, change: { itemId: item.itemId, note: 'Unique transaction reference' } });
   await panel.evaluate(async (id) => chrome.tabs.remove(id), ids[1]);
-  await panel.getByRole('button', { name: /Cleanup/ }).click();
-  await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Library', exact: true }).click();
+  await panel.getByRole('button', { name: 'Library', exact: true }).click();
   await panel.getByLabel('Search library', { exact: true }).fill('transaction status:reference');
   await expect(panel.getByRole('status').filter({ hasText: 'Found: 1' })).toBeVisible();
   await panel.getByRole('button', { name: 'Open page', exact: true }).click();
@@ -37,8 +36,7 @@ test('topic UI retains a working page, collapses per window and saves the remain
   await expect.poll(async () => panel.evaluate(async (list) => (await Promise.all(list.map((id) => chrome.tabs.get(id)))).filter((tab) => tab.url?.startsWith('http://aitab.test/')).length, ids)).toBe(2);
   const preview = await request<CollectionPreview>(panel, { type: 'PREVIEW_COLLECTION', name: 'Topic Example', tabIds: ids });
   await request(panel, { type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter: false });
-  await panel.getByRole('button', { name: /Cleanup/ }).click();
-  await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Topics', exact: true }).click();
+  await panel.getByRole('button', { name: 'Topics', exact: true }).click();
   const topic = panel.locator('details').filter({ has: panel.locator('summary').filter({ hasText: 'Topic Example · 2' }) }).first();
   await topic.locator('summary').first().click();
   await topic.getByLabel('Keep working ' + ids[0], { exact: true }).check();

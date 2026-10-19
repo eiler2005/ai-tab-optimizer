@@ -9,7 +9,8 @@ test('real extension UI closes exact duplicates, persists history across a worke
     for (let i = 0; i < 3; i++) await chrome.tabs.create({ url: 'http://aitab.test/article', active: false });
   });
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/article').length)).toBe(3);
-  await panel.getByRole('button', { name: /Cleanup/ }).click();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
   await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Duplicates', exact: true }).click();
   await panel.getByRole('button', { name: 'Find duplicates', exact: true }).click();
   await expect(panel.getByText('Exact duplicates', { exact: true })).toBeVisible();
@@ -69,8 +70,8 @@ test('collection UI saves notes and round-trips a JSON backup without opening im
     const b = await chrome.tabs.create({ windowId: source!.id!, url: 'http://aitab.test/save-b', active: false });
     return { windowId: source!.id!, ids: [source!.tabs![0].id!, b.id!] };
   });
-  await panel.getByRole('button', { name: /Cleanup/ }).click();
-  await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Collections', exact: true }).click();
+  await panel.getByRole('button', { name: 'Library', exact: true }).click();
+  await panel.getByRole('button', { name: 'Collections', exact: true }).click();
   await panel.getByLabel('Collection name', { exact: true }).fill('Research');
   await expect(panel.getByLabel('Tabs to save')).toContainText('Window');
   await panel.getByLabel('Tabs to save').selectOption(String(seed.windowId));
@@ -99,8 +100,8 @@ test('collection UI saves notes and round-trips a JSON backup without opening im
   await panel.screenshot({ path: testInfo.outputPath('collections.png'), fullPage: true });
   await worker.evaluate(async () => chrome.storage.local.set({ locale: 'ru' }));
   await panel.reload();
-  await panel.getByRole('button', { name: /Очистка/ }).click();
-  await panel.getByRole('navigation', { name: 'Раздел очистки' }).getByRole('button', { name: 'Коллекции', exact: true }).click();
+  await panel.getByRole('button', { name: 'Библиотека', exact: true }).click();
+  await panel.getByRole('button', { name: 'Коллекции', exact: true }).click();
   await expect(panel.getByText('Мои коллекции', { exact: true })).toBeVisible();
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await panel.screenshot({ path: testInfo.outputPath('collections-ru.png'), fullPage: true });

@@ -22,14 +22,14 @@ export function App() {
     loadTabs();
     loadSnapshots();
     loadRecentlyClosed();
-    const historyTimer = window.setTimeout(() => loadHistory(), 1500);
+    void chrome.storage.local.get('aitab.tab-scope').then((stored) => { if (stored['aitab.tab-scope'] === 'all' || stored['aitab.tab-scope'] === 'current') useStore.setState({ tabScope: stored['aitab.tab-scope'] }); });
+    const historyTimer = window.setTimeout(() => {}, 1500);
     const aiTimer = window.setTimeout(() => {
       void loadAIResult();
       void loadAITabStatuses();
     }, 2000);
     const analyticsTimer = window.setTimeout(() => {
-      loadAnalytics();
-      loadPersistentClusters();
+      // Analytics are loaded when Reports is opened.
     }, 2500);
     const keepalivePort = chrome.runtime.connect({ name: 'sidepanel-keepalive' });
     const keepaliveTimer = window.setInterval(() => {
@@ -113,7 +113,7 @@ export function App() {
   return (
     <div className="flex flex-col h-screen">
       <Header />
-      {view === 'workspace' && <WorkspaceView />}
+      <div className={['workspace', 'topics', 'library'].includes(view) ? 'flex flex-1 min-h-0 flex-col' : 'hidden'}><WorkspaceView /></div>
       {actionError && <div role="alert" className="p-3 text-xs bg-red-50 text-red-700 flex gap-2">
         <span className="flex-1">{actionError}</span>
         <button aria-label="Dismiss" onClick={() => useStore.getState().setActionError(null)}>✕</button>

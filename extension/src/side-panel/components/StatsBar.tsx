@@ -1,64 +1,23 @@
-import { useMemo } from 'react';
 import { useStore } from '../store';
 import { useI18n } from '@shared/i18n';
+import { workspaceMessage } from '../workspace-api';
 
 export function StatsBar() {
-  const { windowGroups, totalTabs, duplicateCount, staleCount, searchQuery, setSearchQuery } = useStore();
-  const { t } = useI18n();
-
-  const stats = useMemo(() => {
-    const allTabs = windowGroups.flatMap((wg) => wg.tabs);
-    const importantCount = allTabs.filter((t) => t.userFlag === 'important').length;
-    const pinnedCount = allTabs.filter((t) => t.pinned).length;
-
-    const domainCounts = new Map<string, number>();
-    for (const tab of allTabs) {
-      domainCounts.set(tab.domain, (domainCounts.get(tab.domain) ?? 0) + 1);
-    }
-    const topDomains = [...domainCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
-
-    return { importantCount, pinnedCount, topDomains };
-  }, [windowGroups]);
-
-  return (
-    <div className="border-b border-gray-200 bg-surface-secondary px-3 py-2 space-y-2">
-      <div className="flex gap-3 text-xs text-gray-600 flex-wrap">
-        <span className="font-medium text-gray-900">{totalTabs} {t('stats.tabs')}</span>
-        <span>{windowGroups.length} {t('stats.windows')}</span>
-        {duplicateCount > 0 && (
-          <span className="text-warning">{duplicateCount} {t('stats.dupes')}</span>
-        )}
-        {staleCount > 0 && (
-          <span className="text-orange-500">{staleCount} {t('stats.stale')}</span>
-        )}
-        {stats.pinnedCount > 0 && <span>{stats.pinnedCount} {t('stats.pinned')}</span>}
-        {stats.importantCount > 0 && (
-          <span className="text-accent">{stats.importantCount} {t('stats.important')}</span>
-        )}
-      </div>
-
-      {stats.topDomains.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {stats.topDomains.map(([domain, count]) => (
-            <span
-              key={domain}
-              className="text-2xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500"
-            >
-              {domain} ({count})
-            </span>
-          ))}
-        </div>
-      )}
-
-      <input
-        type="text"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder={t('search.placeholder')}
-        className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-      />
+  const { locale } = useI18n(); const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
+  const state = useStore();
+  const current = state.windowGroups.find((window) => window.focused)?.tabs.find((tab) => tab.active);
+  return <div className="border-b p-3 space-y-2 flex-none text-xs">
+    <input aria-label={tr('Поиск материалов', 'Find materials')} value={state.searchQuery} onChange={(event) => state.setSearchQuery(event.target.value)} placeholder={tr('Найти вкладку, тему или материал…', 'Find a tab, topic or material…')} className="w-full border rounded p-2" />
+    <div className="flex gap-2 items-center flex-wrap">
+      <select aria-label={tr('Область вкладок', 'Tab scope')} value={state.tabScope} onChange={(event) => { const tabScope = event.target.value as 'all' | 'current'; useStore.setState({ tabScope }); void chrome.storage.local.set({ 'aitab.tab-scope': tabScope }); }} className="border rounded p-2"><option value="all">{tr('Все окна', 'All windows')}</option><option value="current">{tr('Текущее окно', 'Current window')}</option></select>
+      <span>{state.totalTabs} {tr('вкладок', 'tabs')} · {state.windowGroups.length} {tr('окон', 'windows')}</span>
+      <button className="ml-auto border rounded p-2" onClick={() => state.openWorkspace('optimize')}>{tr('Разобрать…', 'Review…')}</button>
     </div>
-  );
+    {current && <div className="rounded bg-gray-50 p-2 space-y-1">
+      <p className="truncate">{tr('Текущая', 'Current')}: {current.title || current.url}</p>
+      <div className="flex gap-3"><button className="text-accent" onClick={() => document.querySelector(`[data-tab-id="${current.id}"]`)?.scrollIntoView({ block: 'center' })}>{tr('Показать текущую', 'Show current')}</button><button className="text-accent" onClick={() => void workspaceMessage({ type: 'SAVE_PAGE_TO_COLLECTION', tabId: current.id }).catch((error) => state.setActionError(String(error)))}>{tr('Сохранить во Входящие', 'Save to Inbox')}</button></div>
+    </div>}
+    {state.tabTopicUrls && <p>{state.tabTopicName} <button className="text-accent" onClick={() => useStore.setState({ tabTopicUrls: null, tabTopicName: '' })}>{tr('Снять фильтр темы', 'Clear topic filter')}</button></p>}
+    <div className="flex gap-3"><button className="text-accent" onClick={state.selectAll}>{tr('Выбрать результаты', 'Select results')}</button><button className="text-accent" onClick={() => state.openWorkspace('windows')}>{tr('Объединить окна…', 'Merge windows…')}</button></div>
+  </div>;
 }

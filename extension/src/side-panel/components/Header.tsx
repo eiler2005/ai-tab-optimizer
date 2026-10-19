@@ -1,48 +1,30 @@
-import { useStore } from '../store';
+import { useState } from 'react';
+import { useStore, type View } from '../store';
 import { useI18n } from '@shared/i18n';
-import type { View } from '../store';
-
-const NAV_ITEMS: { view: View; key: string; icon: string }[] = [
-  { view: 'workspace', key: 'nav.workspace', icon: '🧹' },
-  { view: 'tabs', key: 'nav.tabs', icon: '📋' },
-  { view: 'history', key: 'nav.history', icon: '📊' },
-  { view: 'ai-recommendations', key: 'nav.ai', icon: '🤖' },
-  { view: 'chat', key: 'nav.chat', icon: '🔍' },
-  { view: 'snapshots', key: 'nav.snapshots', icon: '📸' },
-  { view: 'settings', key: 'nav.settings', icon: '⚙️' },
-];
-
-const VIEW_ALIASES: Partial<Record<View, View>> = {
-  'snapshot-detail': 'snapshots',
-  'cleanup-session': 'ai-recommendations',
-};
 
 export function Header() {
-  const { view, setView } = useStore();
-  const { t } = useI18n();
-  const activeView = VIEW_ALIASES[view] ?? view;
-
-  return (
-    <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
-      <div className="flex items-center justify-between px-3 py-2">
-        <h1 className="text-sm font-semibold text-gray-800">{t('app.title')}</h1>
-      </div>
-      <nav className="flex border-t border-gray-100">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.view}
-            onClick={() => setView(item.view)}
-            className={`flex-1 px-1 py-1.5 text-xs text-center transition-colors ${
-              activeView === item.view
-                ? 'text-accent border-b-2 border-accent font-medium'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-surface-hover'
-            }`}
-          >
-            <span className="mr-0.5">{item.icon}</span>
-            {t(item.key as 'nav.tabs')}
-          </button>
-        ))}
-      </nav>
-    </header>
-  );
+  const { locale } = useI18n();
+  const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
+  const { view, setView, openWorkspace } = useStore();
+  const [more, setMore] = useState(false);
+  const destinations: [View, string][] = [['tabs', tr('Вкладки', 'Tabs')], ['topics', tr('Темы', 'Topics')], ['library', tr('Библиотека', 'Library')]];
+  return <header className="border-b bg-white flex-none z-10 relative">
+    <h1 className="text-sm font-semibold px-3 py-2">AITab</h1>
+    <nav aria-label={tr('Основные разделы', 'Main navigation')} className="flex">
+      {destinations.map(([target, name]) => <button key={target} aria-current={view === target ? 'page' : undefined} onClick={() => { setMore(false); setView(target); }} className={`flex-1 min-w-0 px-1 py-3 text-xs border-b-2 ${view === target ? 'border-accent text-accent font-semibold' : 'border-transparent text-gray-600'}`}>{name}</button>)}
+      <button aria-expanded={more} onClick={() => setMore(!more)} className="px-3 py-3 text-xs">{tr('Ещё', 'More')} ▾</button>
+    </nav>
+    {more && <div className="absolute right-2 left-2 top-full border rounded bg-white shadow-lg p-2 grid gap-1" onKeyDown={(event) => { if (event.key === 'Escape') setMore(false); }}>
+      {([
+        [tr('Разбор вкладок', 'Review tabs'), () => openWorkspace('optimize')],
+        [tr('Журнал и Undo', 'Journal and Undo'), () => openWorkspace('history')],
+        [tr('Отчёты', 'Reports'), () => setView('ai-recommendations')],
+        [tr('Поиск по смыслу', 'Search by meaning'), () => setView('chat')],
+        [tr('Активность', 'Activity'), () => setView('history')],
+        [tr('Восстановление и бэкапы', 'Recovery and backups'), () => openWorkspace('backups')],
+        [tr('Снимки', 'Snapshots'), () => setView('snapshots')],
+        [tr('Настройки', 'Settings'), () => setView('settings')],
+      ] as [string, () => void][]).map(([name, action]) => <button key={name} className="text-left rounded px-3 py-2 text-xs hover:bg-gray-100 focus:bg-gray-100" onClick={() => { action(); setMore(false); }}>{name}</button>)}
+    </div>}
+  </header>;
 }

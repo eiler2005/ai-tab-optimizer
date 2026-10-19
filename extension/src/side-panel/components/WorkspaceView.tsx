@@ -7,6 +7,7 @@ import { workspaceMessage } from '../workspace-api';
 import { WindowMergePanel } from './WindowMergePanel';
 import { CollectionsPanel } from './CollectionsPanel';
 import { LibraryPanel } from './LibraryPanel';
+import { FullBackupsPanel } from './FullBackupsPanel';
 import { TopicsPanel } from './TopicsPanel';
 import { AIWorkspacePanel } from './AIWorkspacePanel';
 import { ContentReviewPanel } from './ContentReviewPanel';
@@ -30,7 +31,9 @@ export function WorkspaceView() {
   const review = useReviewController();
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [section, setSection] = useState<'optimize' | 'duplicates' | 'similar' | 'outdated' | 'windows' | 'collections' | 'library' | 'ai' | 'history'>('optimize');
+  const { view, workspaceSection, librarySection } = useStore();
+  const section = view === 'topics' ? 'ai' : view === 'library' ? librarySection : workspaceSection;
+  const setSection = (next: import('../store').WorkspaceSection) => useStore.setState({ workspaceSection: next });
 
   const refresh = async () => setWorkspace(await workspaceMessage<WorkspaceData>({ type: 'WORKSPACE_OVERVIEW' }));
   useEffect(() => {
@@ -71,7 +74,7 @@ export function WorkspaceView() {
   }
 
   function showResult(operation: TabOperation) {
-    setSection('history');
+    useStore.getState().openWorkspace('history');
     const count = (state: string) => operation.items.filter((item) => item.state === state).length;
     setFeedback(`${tr('Выполнено', 'Completed')}: ${count('done')}; ${tr('пропущено', 'skipped')}: ${count('skipped')}; ${tr('ошибок', 'failed')}: ${count('failed')}; ${tr('восстановлено', 'restored')}: ${count('undone')}`);
   }
@@ -97,11 +100,12 @@ export function WorkspaceView() {
 
   return <ReviewContext.Provider value={review}><WorkspaceFooterContext.Provider value={footer}><div className="flex-1 min-h-0 flex flex-col">
     <div className="flex-none p-3 space-y-2 border-b bg-white">
-    <h2 className="font-semibold text-sm">{tr('Очистка и оптимизация', 'Cleanup and optimization')}</h2>
-    <nav className="flex gap-1 flex-wrap" aria-label={tr('Раздел очистки', 'Cleanup section')}>
-      {([['optimize', tr('Оптимизация', 'Optimize')], ['duplicates', tr('Повторы', 'Duplicates')], ['similar', tr('Похожий контент', 'Similar content')], ['outdated', tr('Устарело по смыслу', 'Outdated content')], ['windows', tr('Окна', 'Windows')], ['collections', tr('Коллекции', 'Collections')], ['library', tr('Библиотека', 'Library')], ['ai', tr('Темы', 'Topics')], ['history', tr('История', 'History')]] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
-    </nav>
-    <ReviewProgress />
+    <h2 className="font-semibold text-sm">{view === 'topics' ? tr('Темы', 'Topics') : view === 'library' ? tr('Библиотека', 'Library') : section === 'history' ? tr('Журнал и Undo', 'Journal and Undo') : section === 'backups' ? tr('Восстановление и бэкапы', 'Recovery and backups') : tr('Разбор вкладок', 'Review tabs')}</h2>
+    {view === 'library' && <div className="flex gap-2">{(['library', 'collections'] as const).map((value) => <button className="border rounded p-2 text-xs" key={value} aria-pressed={librarySection === value} onClick={() => useStore.setState({ librarySection: value })}>{value === 'library' ? tr('Материалы', 'Materials') : tr('Коллекции', 'Collections')}</button>)}</div>}
+    {view === 'workspace' && !['history', 'windows', 'backups'].includes(section) && <nav className="flex gap-1 flex-wrap" aria-label={tr('Раздел очистки', 'Cleanup section')}>
+      {([['optimize', tr('Оптимизация', 'Optimize')], ['duplicates', tr('Повторы', 'Duplicates')], ['similar', tr('Похожий контент', 'Similar content')], ['outdated', tr('Устарело по смыслу', 'Outdated content')], ] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
+    </nav>}
+    {view === 'workspace' && ['optimize', 'duplicates', 'similar', 'outdated'].includes(section) && <ReviewProgress />}
     {busy && <p role="status" className="text-xs text-blue-800">{tr('Выполняем действие и сохраняем результат…', 'Applying action and saving the result…')}</p>}
     </div>
     <div data-testid="workspace-view" className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
@@ -150,6 +154,7 @@ export function WorkspaceView() {
     <p className="text-[10px] text-gray-500">{tr('Отмена закрытия — в Истории. Сохраняемую копию выбирайте радиокнопкой.', 'Undo is in History. Use the radio button to choose the retained copy.')}</p>
     </WorkspaceActionBar>
     </>}
+    {section === 'backups' && <FullBackupsPanel busy={busy} run={run} onFeedback={setFeedback} />}
     {section === 'windows' && <WindowMergePanel busy={busy} run={run} onResult={showResult} />}
     {(section === 'similar' || section === 'outdated') && <ContentReviewPanel mode={section} busy={busy} run={run} onResult={showResult} />}
     {section === 'collections' && <CollectionsPanel workspace={workspace} busy={busy} run={run} onResult={showResult} onFeedback={setFeedback} />}

@@ -1,83 +1,30 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { useI18n } from '@shared/i18n';
+import { filteredWindows } from '../tab-filter';
 import { TabItem } from './TabItem';
 import { RecentlyClosed } from './RecentlyClosed';
 
 export function TabList() {
-  const { windowGroups, loading, searchQuery } = useStore();
-  const { t } = useI18n();
+  const state = useStore(); const { t, locale } = useI18n();
   const [collapsedWindows, setCollapsedWindows] = useState<Set<number>>(new Set());
-
-  const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return windowGroups;
-
-    const q = searchQuery.toLowerCase();
-    return windowGroups
-      .map((wg) => ({
-        ...wg,
-        tabs: wg.tabs.filter(
-          (tab) =>
-            tab.title.toLowerCase().includes(q) ||
-            tab.url.toLowerCase().includes(q) ||
-            tab.domain.toLowerCase().includes(q)
-        ),
-      }))
-      .filter((wg) => wg.tabs.length > 0);
-  }, [windowGroups, searchQuery]);
-
-  const toggleWindow = (windowId: number) => {
-    setCollapsedWindows((prev) => {
-      const next = new Set(prev);
-      if (next.has(windowId)) next.delete(windowId);
-      else next.add(windowId);
-      return next;
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-        {t('tabs.loading')}
-      </div>
-    );
-  }
-
-  if (filteredGroups.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-        {searchQuery ? t('tabs.noMatch') : t('tabs.noTabs')}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      {filteredGroups.map((wg) => (
-        <div key={wg.windowId}>
-          <button
-            onClick={() => toggleWindow(wg.windowId)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-500 bg-surface-secondary hover:bg-surface-hover sticky top-0 z-[1]"
-          >
-            <span className={`transition-transform ${collapsedWindows.has(wg.windowId) ? '' : 'rotate-90'}`}>
-              ▶
-            </span>
-            <span>
-              {t('tabs.window')} {wg.focused ? t('tabs.active') : ''} — {wg.tabs.length} {t('tabs.tabsCount')}
-            </span>
-          </button>
-
-          {!collapsedWindows.has(wg.windowId) && (
-            <div>
-              {wg.tabs.map((tab) => (
-                <TabItem key={tab.id} tab={tab} />
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-
-      <RecentlyClosed />
-    </div>
-  );
+  const [limit, setLimit] = useState(100);
+  const ref = useRef<HTMLDivElement>(null);
+  const groups = useMemo(() => filteredWindows(state.windowGroups, state), [state.windowGroups, state.searchQuery, state.tabScope, state.tabTopicUrls, state.showSelectedOnly, state.selectedTabIds]);
+  const total = groups.reduce((sum, window) => sum + window.tabs.length, 0);
+  useLayoutEffect(() => { if (ref.current) ref.current.scrollTop = useStore.getState().tabsScrollTop; }, []);
+  let shown = 0;
+  return <div ref={ref} className="flex-1 min-h-0 overflow-y-auto" onScroll={(event) => useStore.setState({ tabsScrollTop: event.currentTarget.scrollTop })}>
+    {state.loading && <p className="p-3 text-xs">{t('tabs.loading')}</p>}
+    {!state.loading && !total && <p className="p-3 text-xs">{state.searchQuery ? t('tabs.noMatch') : t('tabs.noTabs')}</p>}
+    {groups.map((window) => {
+      const rows = window.tabs.slice(0, Math.max(0, limit - shown)); shown += rows.length;
+      return <section key={window.windowId}>
+        <button onClick={() => setCollapsedWindows((current) => { const next = new Set(current); if (next.has(window.windowId)) next.delete(window.windowId); else next.add(window.windowId); return next; })} className="w-full text-left sticky top-0 z-[1] bg-gray-50 border-b px-3 py-2 text-xs font-medium">{collapsedWindows.has(window.windowId) ? '▸' : '▾'} {t('tabs.window')} {window.windowId}{window.focused ? ` · ${t('tabs.active')}` : ''} · {window.tabs.length}</button>
+        {!collapsedWindows.has(window.windowId) && rows.map((tab) => <TabItem key={tab.id} tab={tab} />)}
+      </section>;
+    })}
+    {total > limit && <button className="m-3 border rounded p-2 text-xs" onClick={() => setLimit(limit + 100)}>{locale === 'ru' ? 'Показать ещё' : 'Show more'} ({total - limit})</button>}
+    <RecentlyClosed />
+  </div>;
 }

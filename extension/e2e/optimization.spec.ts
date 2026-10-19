@@ -11,7 +11,8 @@ test('optimization keeps distinct chat state, exposes persistent actions, export
   });
   await panel.bringToFront();
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/optimize').length)).toBe(3);
-  await panel.getByRole('button', { name: /Cleanup/ }).click();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
   await panel.getByLabel('Include AI review in the plan', { exact: true }).uncheck();
   await panel.getByRole('button', { name: 'Optimize tabs — prepare plan', exact: true }).click();
   await expect(panel.getByTestId('optimization-forecast')).toContainText('Chats retained: 2');
@@ -52,7 +53,8 @@ test('AI progress remains visible, duplicate selection stays usable and cancella
     await gate;
     await route.fulfill({ contentType: 'application/json', body: '{"provider":"codex_cli","similarGroups":[],"outdatedTabs":[]}' }).catch(() => {});
   });
-  await panel.getByRole('button', { name: /Cleanup/ }).click();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
   const nav = panel.getByRole('navigation', { name: 'Cleanup section' });
   await nav.getByRole('button', { name: 'Similar content', exact: true }).click();
   await panel.getByText('Review focus and options', { exact: true }).click();

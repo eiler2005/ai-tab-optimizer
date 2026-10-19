@@ -31,11 +31,11 @@ export function TabItem({ tab }: TabItemProps) {
       className={`group flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 hover:bg-surface-hover cursor-pointer ${
         isSelected ? 'bg-accent-light' : ''
       } ${tab.active ? 'border-l-2 border-l-accent' : ''}`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      data-tab-id={tab.id}
     >
       {/* Checkbox */}
       <input
+        aria-label={`${t("bulk.selected")} ${tab.title || tab.url}`}
         type="checkbox"
         checked={isSelected}
         onChange={() => toggleTabSelection(tab.id)}
@@ -65,7 +65,7 @@ export function TabItem({ tab }: TabItemProps) {
               {tab.groupName}
             </span>
           )}
-          <span className="text-xs truncate">{tab.title || t('tabs.untitled')}</span>
+          <button className="text-xs text-left break-words line-clamp-2" onClick={(event) => { event.stopPropagation(); handleClick(); }}>{tab.title || t('tabs.untitled')}</button>
         </div>
         <div className="flex items-center gap-1 mt-0.5">
           <span className="text-2xs text-gray-400 truncate">{tab.domain}</span>
@@ -80,17 +80,13 @@ export function TabItem({ tab }: TabItemProps) {
               {t('badge.nearDupe')}
             </span>
           )}
-          {flags?.isStale && (
-            <span className="text-2xs px-1 py-0 bg-gray-100 text-gray-500 rounded font-medium">
-              {t('badge.stale')}
-            </span>
-          )}
+
         </div>
       </div>
 
-      {/* Quick actions (visible on hover) */}
+      <button aria-label={`Actions: ${tab.title || tab.url}`} aria-expanded={showActions} className="p-2" onClick={() => setShowActions(!showActions)}>⋯</button>
       {showActions && (
-        <div className="flex items-center gap-0.5 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-1 max-w-32">
           <button
             onClick={(e) => { e.stopPropagation(); pinTab(tab.id, !tab.pinned); }}
             title={tab.pinned ? t('action.unpin') : t('action.pin')}

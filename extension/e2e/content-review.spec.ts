@@ -32,7 +32,8 @@ test('content review separates overlap and topical obsolescence, clears hidden s
       { tabIds: [ids[1], ids[3]], reason: 'Another unused review group retains the second page.', confidence: .8 },
     ], outdatedTabs: [{ tabId: ids[2], reason: 'The 2024 registration has closed; a current replacement is open.', evidence: 'registration closed 2024', confidence: .95, replacementTabId: ids[3] }] }) });
   });
-  await panel.getByRole('button', { name: /Cleanup/ }).click();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
   const nav = panel.getByRole('navigation', { name: 'Cleanup section' });
   await nav.getByRole('button', { name: 'Similar content', exact: true }).click();
   await panel.getByText('Review focus and options', { exact: true }).click();
@@ -62,7 +63,8 @@ test('content review separates overlap and topical obsolescence, clears hidden s
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/review-old').length)).toBe(1);
   await worker.evaluate(async () => chrome.storage.local.set({ locale: 'ru' }));
   await panel.reload();
-  await panel.getByRole('button', { name: /Очистка/ }).click();
+  await panel.getByRole('button', { name: 'Ещё', exact: false }).click();
+  await panel.getByRole('button', { name: 'Разбор вкладок', exact: true }).click();
   await panel.getByRole('navigation', { name: 'Раздел очистки' }).getByRole('button', { name: 'Устарело по смыслу', exact: true }).click();
   await panel.getByText('Контекст и параметры проверки', { exact: true }).click();
   await expect(panel.getByLabel('Что сейчас актуально (необязательно)', { exact: true })).toBeVisible();
