@@ -28,7 +28,7 @@ test('content review separates overlap and topical obsolescence, clears hidden s
     expect(payload.focus).toBe('Current material only; registration for 2024 is no longer needed');
     expect(payload.tabs.every((tab: { excerpt: string }) => tab.excerpt === '')).toBe(true);
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'codex_cli', similarGroups: [
-      { tabIds: ids.slice(0, 2), reason: 'Both pages cover the same compiler announcement; verify unique examples.', confidence: .9 },
+      { tabIds: ids.slice(0, 2), reason: 'Both pages cover the same compiler announcement; verify unique examples.', confidence: .9, relation: 'redundant' },
       { tabIds: [ids[1], ids[3]], reason: 'Another unused review group retains the second page.', confidence: .8 },
     ], outdatedTabs: [{ tabId: ids[2], reason: 'The 2024 registration has closed; a current replacement is open.', evidence: 'registration closed 2024', confidence: .95, replacementTabId: ids[3] }] }) });
   });
@@ -40,25 +40,28 @@ test('content review separates overlap and topical obsolescence, clears hidden s
   await panel.getByLabel('Include accessible page excerpts', { exact: true }).uncheck();
   await panel.getByLabel('Current focus (optional)', { exact: true }).fill('Current material only; registration for 2024 is no longer needed');
   await panel.getByRole('button', { name: 'AI: review content and relevance', exact: true }).click();
-  await expect(panel.getByText('Both pages cover the same compiler announcement; verify unique examples.', { exact: true })).toBeVisible();
-  await expect(panel.getByRole('button', { name: /Close selected with Undo/ })).toBeDisabled();
-  await expect(panel.getByLabel(`Close candidate ${ids[0]}`, { exact: true })).toBeDisabled();
-  await expect(panel.getByLabel(`Close candidate ${ids[1]}`, { exact: true }).first()).toBeEnabled();
-  await panel.getByLabel(`Close candidate ${ids[1]}`, { exact: true }).first().check();
-  await expect(panel.getByRole('button', { name: 'Close selected with Undo (1)', exact: true })).toBeVisible();
+  await expect(panel.getByTestId('optimization-forecast')).toContainText('AI: 4');
+  await expect(panel.getByRole('button', { name: 'Apply plan (0)', exact: true })).toBeDisabled();
+  await expect(panel.getByLabel(`Include in optimization ${ids[0]}`, { exact: true })).not.toBeAttached();
+  await panel.getByLabel(`Include in optimization ${ids[1]}`, { exact: true }).check();
+  await expect(panel.getByRole('button', { name: 'Apply plan (1)', exact: true })).toBeVisible();
   expect(await panel.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-  await panel.getByTestId('workspace-view').evaluate((element) => { element.scrollTop = 0; });
   await panel.screenshot({ path: testInfo.outputPath('similar-content.png'), fullPage: true });
   await nav.getByRole('button', { name: 'Outdated content', exact: true }).click();
-  await expect(panel.getByRole('button', { name: /Close selected with Undo/ })).toBeDisabled();
+  // Switching category retains the same plan and explicitly selected rows.
+  await expect(panel.getByRole('button', { name: 'Apply plan (1)', exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Clear selection', exact: true }).click();
   await expect(panel.getByText('registration closed 2024', { exact: true })).toBeVisible();
   await panel.getByRole('button', { name: 'Select candidates in this section', exact: true }).click();
-  await panel.getByRole('button', { name: 'Close selected with Undo (1)', exact: true }).click();
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  await expect(panel.getByText(/Closed: 1 · Skipped: 0 · Failed: 0/)).toBeVisible();
   const workspace = await request<WorkspaceData>(panel, { type: 'WORKSPACE_OVERVIEW' });
   expect(workspace.operations[0].items.map((item) => item.tab.id)).toEqual([ids[2]]);
   expect(workspace.operations[0].items[0].keep?.id).toBe(ids[3]);
   expect(await panel.evaluate(async (ids) => Promise.all(ids.map((id) => chrome.tabs.get(id))), [ids[0], ids[1], ids[3]])).toHaveLength(3);
-  await panel.locator('details').first().locator('summary').click();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Journal and Undo', exact: true }).click();
+  await panel.locator('details:visible').first().locator('summary').click();
   await panel.getByRole('button', { name: 'Undo completed actions', exact: true }).click();
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/review-old').length)).toBe(1);
   await worker.evaluate(async () => chrome.storage.local.set({ locale: 'ru' }));

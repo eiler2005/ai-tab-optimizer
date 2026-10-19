@@ -9,6 +9,40 @@ afterEach(() => vi.unstubAllGlobals());
 const seed = () => [1, 2, 3].map((id) => makeTab({ id, url: 'https://same.test/', windowId: 1 }));
 
 describe('optimization execution and reports', () => {
+  it('restricts both comparison and execution to the captured scope and excludes changed URLs', async () => {
+    const browser = mockBrowser(seed());
+    const plan = await previewOptimization(undefined, undefined, { tabIds: [1, 2], expectedUrls: { 1: 'https://same.test/', 2: 'https://same.test/' }, scopeLabel: 'Selected' });
+    expect(plan.tabsBefore).toBe(2); expect(plan.candidates.map((item) => item.tab.id)).toEqual([2]);
+    await executeOptimization(plan.id, [2]);
+    expect(browser.tabs.has(3)).toBe(true);
+    const empty = await previewOptimization(undefined, undefined, { tabIds: [1], expectedUrls: { 1: 'https://old.test/' } });
+    expect(empty.tabsBefore).toBe(0); expect(empty.candidates).toHaveLength(0);
+  });
+  it('saves deferred useful pages and the journal before closing and retains the collection after Undo', async () => {
+    const browser = mockBrowser([makeTab({ id: 1, url: 'https://unique.test/', title: 'Useful unique source' })]);
+    const plan = await previewOptimization(undefined, undefined, { scopeLabel: 'My task' });
+    expect(plan.candidates[0]).toMatchObject({ category: 'defer', recommended: false });
+    browser.api.tabs.remove.mockImplementationOnce(async (id) => {
+      const workspace = (await import('../workspace-storage')).readWorkspace;
+      const saved = await workspace();
+      expect(saved.collections[0].windows[0].tabs[0].url).toBe('https://unique.test/');
+      expect(saved.operations[0].items[0].state).toBe('applying');
+      browser.tabs.delete(id);
+    });
+    const operation = await executeOptimization(plan.id, [1]);
+    expect(operation.optimizationReport).toMatchObject({ closed: 1, archived: 1 });
+    await undoTabOperation(operation.id);
+    expect((await (await import('../workspace-storage')).readWorkspace()).collections).toHaveLength(1);
+  });
+  it('never converts an old ID-only AI suggestion into a close candidate and honors a chosen duplicate survivor', async () => {
+    const browser = mockBrowser(seed());
+    const plan = await previewOptimization(undefined, undefined, {}, [3]);
+    expect(plan.candidates.every((item) => item.keep?.id === 3)).toBe(true);
+    expect(plan.candidates.map((item) => item.tab.id)).toEqual([1, 2]);
+    browser.local.lastAIResult = { result: { tabRecommendations: [{ tabId: 1, action: 'close', reason: 'Untrusted stale recommendation' }] } };
+    browser.tabs.get(1)!.url = 'https://different.test/';
+    expect((await previewOptimization()).candidates.find((item) => item.tab.id === 1)?.category).toBe('defer');
+  });
   it('offers archived pages manually, validates saved revisions and reports archive separately', async () => {
     const browser = mockBrowser([makeTab({ id: 1, url: 'https://a.test/' }), makeTab({ id: 2, url: 'https://b.test/' })]);
     const saved = (await saveCollection((await previewCollection('Later')).id, false, { purpose: 'later' })).collection;

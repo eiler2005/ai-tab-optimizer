@@ -34,10 +34,10 @@ test('optimization keeps distinct chat state, exposes persistent actions, export
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/optimize').length)).toBe(3);
   const nav = panel.getByRole('navigation', { name: 'Cleanup section' });
   await nav.getByRole('button', { name: 'Duplicates', exact: true }).click();
-  await panel.getByRole('button', { name: 'Find duplicates', exact: true }).click();
-  await expect(panel.getByText('Chats sharing an address — manual review', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  await expect(panel.getByText(/Chats sharing an address — manual review/)).toBeVisible();
   const chats = await panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'https://chatgpt.com/').map((tab) => tab.id!));
-  for (const id of chats) await expect(panel.getByLabel(`Close tab ${id}`, { exact: true })).not.toBeChecked();
+  for (const id of chats) await expect(panel.getByLabel(`Include in optimization ${id}`, { exact: true })).not.toBeAttached();
 });
 
 test('AI progress remains visible, duplicate selection stays usable and cancellation releases review controls', async ({ panel, context, worker }) => {
@@ -62,11 +62,11 @@ test('AI progress remains visible, duplicate selection stays usable and cancella
   await panel.getByRole('button', { name: 'AI: review content and relevance', exact: true }).click();
   await expect(panel.getByTestId('review-progress')).toContainText('AI is comparing content');
   await nav.getByRole('button', { name: 'Duplicates', exact: true }).click();
-  await panel.getByRole('button', { name: 'Find duplicates', exact: true }).click();
-  const checkbox = panel.getByRole('checkbox', { name: /^Close tab / }).filter({ visible: true });
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  const checkbox = panel.getByRole('checkbox', { name: /^Include in optimization / }).filter({ visible: true });
   const enabled = await checkbox.evaluateAll((items) => items.filter((item) => !(item as HTMLInputElement).disabled).length);
   expect(enabled).toBeGreaterThan(0);
-  await expect(panel.getByRole('button', { name: 'Close selected copies (1)', exact: true })).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'Apply plan (1)', exact: true })).toBeEnabled();
   await panel.getByRole('button', { name: 'Cancel review', exact: true }).click();
   await expect(panel.getByTestId('review-progress')).toContainText('Review cancelled');
   release();

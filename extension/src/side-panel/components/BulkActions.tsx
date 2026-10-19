@@ -14,7 +14,7 @@ export function BulkActions() {
       <button className="border rounded p-2" onClick={() => useStore.setState({ searchQuery: '', tabScope: 'all', tabTopicUrls: null, showSelectedOnly: !state.showSelectedOnly })}>{state.showSelectedOnly ? tr('Показать все', 'Show all') : tr('Показать выбранные', 'Show selected')}</button>
       <button className="border rounded p-2" onClick={state.deselectAll}>{tr('Снять выбор', 'Clear selection')}</button>
       <button className="border rounded p-2" onClick={() => { useStore.setState({ librarySection: 'collections' }); state.setView('library'); }}>{tr('Сохранить…', 'Save…')}</button>
-      <button className="border rounded p-2" onClick={() => state.openWorkspace('optimize')}>{tr('Разобрать…', 'Review…')}</button>
+      <button className="border rounded p-2" onClick={() => state.beginReview(state.windowGroups.flatMap((window) => window.tabs).filter((tab) => state.selectedTabIds.has(tab.id)), tr('Выбранные вкладки', 'Selected tabs'))}>{tr('Разобрать…', 'Review…')}</button>
       <button className="text-red-700 border rounded p-2" onClick={() => { if (!hidden || confirm(tr(`Закрыть также ${hidden} вкладок вне фильтра?`, `Also close ${hidden} tabs outside the filter?`))) void state.closeTabs([...state.selectedTabIds]); }}>{tr('Закрыть', 'Close')} ({state.selectedTabIds.size})</button>
     </div>
   </div>;

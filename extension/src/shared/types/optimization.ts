@@ -1,6 +1,6 @@
 import type { TabRecord } from './tab';
 
-export type OptimizationCategory = 'exact' | 'tracking' | 'redundant' | 'outdated' | 'saved';
+export type OptimizationCategory = 'exact' | 'tracking' | 'redundant' | 'outdated' | 'saved' | 'defer' | 'manual';
 export interface OptimizationCandidate {
   tab: TabRecord;
   keep?: TabRecord;
@@ -20,6 +20,10 @@ export interface OptimizationPlan {
   relatedGroups: number;
   aiCompared: number;
   warning?: string;
+  scope?: import('../utils/tab-scope').ScopeSnapshot;
+  duplicateGroups?: import('./workspace').DuplicateReviewGroup[];
+  review?: import('./content-review').ContentReviewPreview;
+  localGroups?: import('./content-review').SimilarContentGroup[];
 }
 export interface OptimizationReport {
   tabsBefore: number;
@@ -31,4 +35,5 @@ export interface OptimizationReport {
   archived?: number;
   duplicatesClosed?: number;
   outdatedClosed?: number;
+  otherChanges?: number;
 }

@@ -14,7 +14,8 @@ export async function getReviewJob(): Promise<ContentReviewJob | null> {
     job.status = 'interrupted'; job.error = 'Review interrupted by a worker restart. Start again.';
     job.updatedAt = Date.now(); await chrome.storage.session.set({ [KEY]: job });
   }
-  return { ...job, preview: job.previewId ? await readContentPreview(job.previewId) : undefined };
+  const preview = job.previewId ? await readContentPreview(job.previewId, true) : undefined;
+  return { ...job, preview, previewExpired: preview ? Date.now() - preview.createdAt > 300_000 : undefined };
 }
 
 export async function startReviewJob(options: ContentReviewOptions, extract?: (id: number) => Promise<PageExtraction>): Promise<ContentReviewJob> {

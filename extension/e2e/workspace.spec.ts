@@ -12,9 +12,8 @@ test('real extension UI closes exact duplicates, persists history across a worke
   await panel.getByRole('button', { name: 'More', exact: false }).click();
   await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
   await panel.getByRole('navigation', { name: 'Cleanup section' }).getByRole('button', { name: 'Duplicates', exact: true }).click();
-  await panel.getByRole('button', { name: 'Find duplicates', exact: true }).click();
-  await expect(panel.getByText('Exact duplicates', { exact: true })).toBeVisible();
-  await panel.getByRole('button', { name: 'Close selected copies (2)', exact: true }).click();
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  await panel.getByRole('button', { name: 'Apply plan (2)', exact: true }).click();
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/article').length)).toBe(1);
   const before = await request<WorkspaceData>(panel, { type: 'WORKSPACE_OVERVIEW' });
   expect(before.operations[0].status).toBe('completed');
@@ -23,7 +22,9 @@ test('real extension UI closes exact duplicates, persists history across a worke
   await cdp.send('ServiceWorker.stopAllWorkers');
   const after = await request<WorkspaceData>(panel, { type: 'WORKSPACE_OVERVIEW' });
   expect(after.operations[0].id).toBe(before.operations[0].id);
-  await panel.locator('details').first().locator('summary').click();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Journal and Undo', exact: true }).click();
+  await panel.locator('details:visible').first().locator('summary').click();
   await panel.getByRole('button', { name: 'Undo completed actions', exact: true }).click();
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/article').length)).toBe(3);
   const undone = await request<WorkspaceData>(panel, { type: 'WORKSPACE_OVERVIEW' });

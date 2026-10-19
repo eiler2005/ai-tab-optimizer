@@ -72,3 +72,26 @@ test('shared search finds a saved note from Tabs, opens one page and keeps compa
   await panel.getByRole('button', { name: 'Focus open page', exact: true }).click();
   expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/search-saved').length)).toBe(1);
 });
+
+test('a selected-tab review stays scoped and survives navigation while unrelated copies remain open', async ({ panel, worker }) => {
+  const ids = await worker.evaluate(async () => {
+    const ids: number[] = [];
+    for (let index = 0; index < 3; index++) ids.push((await chrome.tabs.create({ url: 'http://aitab.test/scoped-copy', active: false })).id!);
+    return ids;
+  });
+  await panel.getByLabel('Find materials', { exact: true }).fill('scoped-copy');
+  await expect(panel.locator('[data-tab-id]')).toHaveCount(3);
+  for (const id of ids.slice(0, 2)) await panel.locator(`[data-tab-id="${id}"]`).getByRole('checkbox').check();
+  await panel.getByRole('button', { name: 'Review…', exact: true }).last().click();
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  await expect(panel.getByTestId('optimization-forecast')).toContainText('2 → 1');
+  await panel.getByRole('button', { name: 'Topics', exact: true }).click();
+  await expect(panel.getByTestId('workspace-actions')).not.toBeVisible();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  await expect(panel.getByTestId('optimization-forecast')).toContainText('2 → 1');
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  await expect(panel.getByText(/Closed: 1 · Skipped: 0 · Failed: 0/)).toBeVisible();
+  expect(await panel.evaluate(async (id) => Boolean(await chrome.tabs.get(id)), ids[2])).toBe(true);
+  expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/scoped-copy').length)).toBe(2);
+});

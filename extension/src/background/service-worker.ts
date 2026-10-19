@@ -52,6 +52,7 @@ import { previewContentReview, executeContentReviewClose, rememberReviewDecision
 import { startReviewJob, getReviewJob, cancelReviewJob } from './review-jobs';
 import { previewOptimization, executeOptimization } from './optimization';
 import { collapseTopic } from './topic-actions';
+import { applyTabScope, type ScopeSnapshot } from '@shared/utils/tab-scope';
 import { getTopicCatalog, changeTopics } from './topic-catalog';
 import { registerLibraryAutomation, savePageToCollection, saveUrlRules } from './library-automation';
 import { configureBackups, createFullBackup, getFullBackupStatus, previewFullBackupRestore, setupBackupAlarm } from './library-backups';
@@ -1411,6 +1412,7 @@ async function getLatestServerAnalysisRun(serverUrl: string, fingerprint?: strin
 
 async function persistLocalAiResult(snapshot: ServerAnalysisRunSnapshot): Promise<void> {
   const cached: CachedAIResult = {
+    tabs: snapshot.allTabs.map((tab) => ({ id: tab.id, url: tab.url })),
     result: snapshot.result,
     analyzedAt: snapshot.analyzedAt ?? snapshot.updatedAt,
     metadata: snapshot.metadata,
@@ -1419,7 +1421,7 @@ async function persistLocalAiResult(snapshot: ServerAnalysisRunSnapshot): Promis
   await chrome.storage.local.set({ lastAIResult: cached });
 }
 
-async function analyzeTabsViaServer(forceRefresh = false, resume = false): Promise<void> {
+async function analyzeTabsViaServer(forceRefresh = false, resume = false, scope: ScopeSnapshot = {}): Promise<void> {
   const runToken = ++currentAnalysisRunId;
   const controller = new AbortController();
   currentAnalysisController = controller;
@@ -1429,7 +1431,8 @@ async function analyzeTabsViaServer(forceRefresh = false, resume = false): Promi
 
   try {
     const { windowGroups } = await getAllTabs();
-    const currentTabs = windowGroups.flatMap((wg) => wg.tabs);
+    const currentTabs = applyTabScope(windowGroups.flatMap((wg) => wg.tabs), scope);
+    if (!currentTabs.length) throw new Error('No unchanged tabs in the selected scope.');
     const fingerprint = computeTabFingerprint(currentTabs.map((tab) => tab.url));
     settings = await getSettings();
 
@@ -1957,7 +1960,7 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
       await rememberReviewDecision(msg.previewId, msg.kind, msg.tabIds);
       return { success: true };
     case 'PREVIEW_OPTIMIZATION':
-      return { success: true, data: await previewOptimization(msg.windowId, msg.reviewId) };
+      return { success: true, data: await previewOptimization(msg.windowId, msg.reviewId, msg.scope, msg.keepTabIds) };
     case 'EXECUTE_OPTIMIZATION': {
       const result = await executeOptimization(msg.planId, msg.tabIds);
       broadcastUpdate();
@@ -2299,7 +2302,8 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
     }
 
     case 'ANALYZE_TABS': {
-      analyzeTabsViaServer(msg.forceRefresh ?? false, msg.resume ?? false).catch((err) => {
+      if (currentAnalysisController && !currentAnalysisController.signal.aborted) return { success: true, data: { status: 'already-running' } };
+      analyzeTabsViaServer(msg.forceRefresh ?? false, msg.resume ?? false, msg.scope).catch((err) => {
         if (isAbortError(err)) {
           return;
         }

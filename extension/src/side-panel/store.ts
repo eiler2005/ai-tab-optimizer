@@ -64,6 +64,8 @@ interface AppState {
   setView: (view: View) => void;
   workspaceSection: WorkspaceSection;
   openWorkspace: (section: WorkspaceSection) => void;
+  reviewScope: (import('@shared/utils/tab-scope').ScopeSnapshot & { id: string; returnView: View; focus?: string }) | null;
+  beginReview: (tabs: TabRecord[], label: string, focus?: string) => void;
   librarySection: 'library' | 'collections';
   tabScope: 'all' | 'current';
   tabTopicUrls: string[] | null;
@@ -124,7 +126,8 @@ interface AppState {
   aiTabStatuses: TabAnalysisStatus[];
   aiStatusSummary: TabAnalysisStatusSummary | null;
   aiTabStatusLoading: boolean;
-  analyzeTabs: (forceRefresh?: boolean, resume?: boolean) => void;
+  analyzeTabs: (forceRefresh?: boolean, resume?: boolean, scope?: import('@shared/utils/tab-scope').ScopeSnapshot) => void;
+  aiScope: import('@shared/utils/tab-scope').ScopeSnapshot | null;
   resumeAIAnalysis: () => void;
   stopAIAnalysis: () => Promise<void>;
   loadAIResult: () => Promise<void>;
@@ -202,7 +205,12 @@ export const useStore = create<AppState>((set, get) => ({
   view: 'tabs',
   setView: (view) => set({ view, ...(view !== get().view && ['tabs', 'library', 'topics'].includes(view) ? { searchScope: view === 'tabs' ? 'open' : view === 'library' ? 'saved' : 'all', searchMatchIds: null } : {}) }),
   workspaceSection: 'optimize',
-  openWorkspace: (workspaceSection) => set({ workspaceSection, view: 'workspace' }),
+  openWorkspace: (workspaceSection) => set({ workspaceSection, view: 'workspace', ...(workspaceSection === 'optimize' ? { reviewScope: null } : {}) }),
+  reviewScope: null,
+  beginReview: (tabs, scopeLabel, focus) => set({ view: 'workspace', workspaceSection: 'optimize', reviewScope: {
+    id: crypto.randomUUID(), tabIds: tabs.map((tab) => tab.id), expectedUrls: Object.fromEntries(tabs.map((tab) => [tab.id, tab.url])),
+    scopeLabel, focus, returnView: get().view === 'workspace' ? get().reviewScope?.returnView ?? 'tabs' : get().view,
+  } }),
   librarySection: 'library',
   tabScope: 'all',
   tabTopicUrls: null,
@@ -304,6 +312,7 @@ export const useStore = create<AppState>((set, get) => ({
   aiResult: null,
   aiAnalyzedAt: null,
   aiLoading: false,
+  aiScope: null,
   aiError: null,
   aiProgress: null,
   aiMetadata: null,
@@ -314,8 +323,10 @@ export const useStore = create<AppState>((set, get) => ({
   aiTabStatuses: [],
   aiStatusSummary: null,
   aiTabStatusLoading: false,
-  analyzeTabs: (forceRefresh, resume) => {
+  analyzeTabs: (forceRefresh, resume, scope) => {
+    if (get().aiLoading) return;
     set({
+      aiScope: scope ?? null,
       aiResult: resume ? get().aiResult : null,
       aiAnalyzedAt: resume ? get().aiAnalyzedAt : null,
       aiLoading: true,
@@ -327,12 +338,12 @@ export const useStore = create<AppState>((set, get) => ({
       aiResumeAvailable: false,
     });
     // Fire-and-forget: results come via broadcasts
-    sendMessage({ type: 'ANALYZE_TABS', forceRefresh, resume }).catch((err) => {
+    sendMessage({ type: 'ANALYZE_TABS', forceRefresh, resume, scope }).catch((err) => {
       set({ aiLoading: false, aiError: String(err), aiProgress: null });
     });
   },
   resumeAIAnalysis: () => {
-    get().analyzeTabs(false, true);
+    get().analyzeTabs(false, true, get().aiScope ?? undefined);
   },
   stopAIAnalysis: async () => {
     const currentProgress = get().aiProgress;

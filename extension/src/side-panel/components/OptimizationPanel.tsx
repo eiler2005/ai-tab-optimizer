@@ -1,95 +1,101 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@shared/i18n';
-import type { OptimizationPlan } from '@shared/types/optimization';
+import type { OptimizationCategory, OptimizationPlan } from '@shared/types/optimization';
+import type { ContentReviewOptions } from '@shared/types/content-review';
 import type { TabOperation } from '@shared/types/workspace';
 import { optimizationMarkdown } from '@shared/utils/optimization';
 import { useWorkspaceReview } from '../review-controller';
 import { workspaceMessage } from '../workspace-api';
-import { useStore } from '../store';
+import { useStore, type WorkspaceSection } from '../store';
 import { ReviewOptions } from './ReviewOptions';
+import { ReviewProgress } from './ReviewProgress';
 import { WorkspaceActionBar } from './WorkspaceActionBar';
 
-export function OptimizationPanel({ busy, run }: { busy: boolean; run: (action: () => Promise<void>) => Promise<void> }) {
+const scopeKey = (value: ContentReviewOptions) => JSON.stringify([value.tabIds, value.expectedUrls, value.windowId, value.focus ?? '', value.readContent, value.includeSaved ?? false, value.deepUrls]);
+export function OptimizationPanel({ busy, run, filter = 'optimize' }: { busy: boolean; run: (action: () => Promise<void>) => Promise<void>; filter?: WorkspaceSection }) {
   const { locale } = useI18n(); const tr = (ru: string, en: string) => locale === 'ru' ? ru : en;
   const { job, options, start } = useWorkspaceReview();
+  const { reviewScope, view } = useStore();
   const [plan, setPlan] = useState<OptimizationPlan | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [operation, setOperation] = useState<TabOperation | null>(null);
-  const [includeAi, setIncludeAi] = useState(true);
-  const [preparing, setPreparing] = useState(false);
-  const awaiting = useRef<string | null>(null);
+  const [includeAi, setIncludeAi] = useState(true); const [preparing, setPreparing] = useState(false);
+  const [category, setCategory] = useState<'all' | OptimizationCategory>('all'); const [limit, setLimit] = useState(100);
+  const [now, setNow] = useState(Date.now()); const [feedback, setFeedback] = useState('');
+  const awaiting = useRef<{ id: string; scope: string } | null>(null); const touched = useRef(false);
   const error = (failure: unknown) => useStore.getState().setActionError(String(failure));
-  const acceptPlan = (next: OptimizationPlan) => { setPlan(next); setSelected(new Set(next.candidates.filter((item) => item.recommended).map((item) => item.tab.id))); setOperation(null); };
-
+  useEffect(() => { setPlan(null); setSelected(new Set()); setOperation(null); awaiting.current = null; touched.current = false; }, [reviewScope?.id]);
+  useEffect(() => { if (view !== 'workspace') return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, [view]);
+  const accept = (next: OptimizationPlan, preserve = false) => {
+    setPlan(next); setOperation(null); setLimit(100);
+    setSelected((previous) => preserve || touched.current ? new Set([...previous].filter((id) => next.candidates.some((item) => item.tab.id === id && plan?.candidates.some((old) => old.tab.id === id && old.tab.url === item.tab.url)))) : new Set(next.candidates.filter((item) => item.recommended).map((item) => item.tab.id)));
+  };
+  const requestPlan = (reviewId?: string, keepTabIds?: number[]) => workspaceMessage<OptimizationPlan>({ type: 'PREVIEW_OPTIMIZATION', windowId: options.windowId, reviewId,
+    scope: { tabIds: options.tabIds, expectedUrls: options.expectedUrls, scopeLabel: options.scopeLabel, windowId: options.windowId }, keepTabIds });
   useEffect(() => {
-    if (job?.status === 'completed' && job.preview && awaiting.current === job.id) {
-      awaiting.current = null;
-      if (busy || operation) return;
-      void workspaceMessage<OptimizationPlan>({ type: 'PREVIEW_OPTIMIZATION', windowId: job.options.windowId, reviewId: job.preview.id }).then(acceptPlan).catch(error);
+    if (job?.status === 'completed' && job.preview && awaiting.current?.id === job.id) {
+      const expected = awaiting.current.scope; awaiting.current = null;
+      if (expected !== scopeKey(options) || scopeKey(job.options) !== expected || job.preview.savedSources || operation || busy) return;
+      void requestPlan(job.preview.id).then((next) => accept(next, touched.current)).catch(error);
     }
   }, [job?.status, job?.id, job?.preview?.id]);
-
-  async function prepare() {
-    setPreparing(true);
+  async function prepare(useAi = includeAi) {
+    setPreparing(true); setFeedback(''); awaiting.current = null;
     try {
-      const reusable = job?.status === 'completed' && job.preview && !job.preview.savedSources && Date.now() - job.preview.createdAt <= 300_000
-        && job.options.windowId === options.windowId && job.options.focus === options.focus && job.options.readContent === options.readContent;
-      // Request excerpt permission directly from this click, before asynchronous work.
-      const nextJob = includeAi && !reusable && job?.status !== 'running' ? start(true).catch((failure) => { error(failure); return null; }) : undefined;
-      acceptPlan(await workspaceMessage<OptimizationPlan>({ type: 'PREVIEW_OPTIMIZATION', windowId: options.windowId, reviewId: includeAi && reusable ? job.preview?.id : undefined }));
-      if (nextJob) awaiting.current = (await nextJob)?.id ?? null;
-      else if (includeAi && job?.status === 'running') awaiting.current = job.id;
+      const reusable = useAi && job?.status === 'completed' && job.preview && !job.preview.savedSources && Date.now() - job.preview.createdAt <= 300_000 && scopeKey(job.options) === scopeKey(options);
+      const nextJob = useAi && !reusable && job?.status !== 'running' ? start(true).catch((failure) => { error(failure); return null; }) : undefined;
+      accept(await requestPlan(reusable ? job.preview?.id : undefined));
+      if (nextJob) { const next = await nextJob; if (next && scopeKey(next.options) === scopeKey(options)) awaiting.current = { id: next.id, scope: scopeKey(options) }; }
+      else if (useAi && job?.status === 'running' && scopeKey(job.options) === scopeKey(options)) awaiting.current = { id: job.id, scope: scopeKey(options) };
     } finally { setPreparing(false); }
+  }
+  async function chooseKeeper(ids: number[], keep: number) {
+    if (!plan) return;
+    touched.current = true;
+    const old = [...(plan.duplicateGroups?.map((group) => group.keepTabId) ?? []), ...(plan.review?.similarGroups.map((group) => group.keepTabId) ?? [])].filter((id) => !ids.includes(id));
+    accept(await workspaceMessage<OptimizationPlan>({ type: 'PREVIEW_OPTIMIZATION', scope: plan.scope, windowId: plan.windowId, reviewId: plan.review?.id, keepTabIds: [...new Set([...old, keep])] }), true);
   }
   function download() {
     if (!plan) return;
-    const blob = new Blob([optimizationMarkdown(plan, [...selected], operation ?? undefined)], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
-    anchor.href = url; anchor.download = `aitab-optimization-${new Date(plan.createdAt).toISOString().slice(0, 10)}.md`; anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const url = URL.createObjectURL(new Blob([optimizationMarkdown(plan, [...selected], operation ?? undefined)], { type: 'text/markdown;charset=utf-8' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `aitab-review-${new Date(plan.createdAt).toISOString().slice(0, 10)}.md`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const labels = { exact: tr('Одинаковый URL', 'Exact URL copy'), tracking: tr('Tracking-вариант — проверить', 'Tracking variant — review'), redundant: tr('Повтор информации', 'Redundant content'), outdated: tr('Устарело по смыслу — проверить', 'Outdated — review'), saved: tr('Уже сохранено в коллекции — можно закрыть', 'Already saved in a collection — can close') };
+  const labels: Record<OptimizationCategory, string> = { exact: tr('Точные копии', 'Exact copies'), tracking: tr('Tracking-варианты', 'Tracking variants'), redundant: tr('Пересечение информации', 'Information overlap'), outdated: tr('Возможно неактуально', 'Possibly outdated'), saved: tr('Уже сохранено', 'Already saved'), defer: tr('Сохранить и закрыть', 'Save and close'), manual: tr('Рекомендация AI — ручная проверка', 'AI suggestion — manual review') };
+  const matches = (value: OptimizationCategory) => category !== 'all' ? value === category : filter === 'duplicates' ? ['exact', 'tracking'].includes(value) : filter === 'similar' ? value === 'redundant' : filter === 'outdated' ? value === 'outdated' : true;
+  const candidates = plan?.candidates.filter((item) => matches(item.category)) ?? [];
+  const expired = Boolean(plan && now - plan.createdAt > 300_000);
   const requiredBy = (id: number) => plan?.candidates.some((item) => selected.has(item.tab.id) && item.keep?.id === id);
+  const canChoose = (item: NonNullable<typeof plan>['candidates'][number]) => !requiredBy(item.tab.id) && !(item.keep && selected.has(item.keep.id));
+  const hiddenSelected = plan?.candidates.filter((item) => selected.has(item.tab.id) && !matches(item.category)).length ?? 0;
+  const archiveCount = plan?.candidates.filter((item) => selected.has(item.tab.id) && ['saved', 'defer'].includes(item.category)).length ?? 0;
+  const review = plan?.review;
   return <section className="space-y-3 text-xs" data-testid="optimization-panel">
-    <h3 className="font-semibold text-sm">{tr('Меньше вкладок, полезные материалы остаются', 'Fewer tabs, useful material retained')}</h3>
-    <p className="text-gray-600">{tr('Подготовим план по точным копиям и имеющемуся AI-анализу. Чаты, защищённые страницы и разные подходы сохраняем. Сначала увидите расчёт и список; закрытие запускается отдельно.', 'Prepare a plan using exact copies and available AI analysis. Retain chats, protected pages and distinct approaches. Review the forecast and pages before applying.')}</p>
-    <details><summary className="cursor-pointer">{tr('Контекст и параметры', 'Focus and options')}</summary><div className="pt-2"><ReviewOptions /></div></details>
+    <h3 className="font-semibold text-sm">{tr('Один план: меньше вкладок, полезное сохранено', 'One plan: fewer tabs, useful material retained')}</h3>
+    {reviewScope && <button className="text-accent" onClick={() => useStore.getState().setView(reviewScope.returnView)}>{tr('← Вернуться к работе', '← Return to work')}</button>}
+    <p>{tr('Область новой проверки', 'New review scope')}: <strong>{options.scopeLabel ?? tr('Все обычные окна', 'All normal windows')}</strong>{options.tabIds ? ` · ${options.tabIds.length}` : ''}</p>
+    <details><summary>{tr('Контекст и параметры проверки', 'Review focus and options')}</summary><ReviewOptions /></details>
     <label className="flex gap-2"><input type="checkbox" checked={includeAi} disabled={preparing || job?.status === 'running'} onChange={(event) => setIncludeAi(event.target.checked)} />{tr('Дополнить план проверкой AI', 'Include AI review in the plan')}</label>
-    <button disabled={busy || preparing} onClick={() => void prepare().catch(error)} className="w-full p-3 bg-accent text-white rounded font-medium disabled:opacity-50">{preparing ? tr('Готовим план…', 'Preparing plan…') : tr('Оптимизировать вкладки — подготовить план', 'Optimize tabs — prepare plan')}</button>
-    {awaiting.current && job?.status === 'running' && <p>{tr('Локальный план уже доступен. После AI он обновится; до подтверждения ничего не закрывается.', 'The local plan is available. AI will refine it; nothing closes before you apply.')}</p>}
+    <button disabled={busy || preparing} onClick={() => void prepare().catch(error)} className="w-full p-3 bg-accent text-white rounded disabled:opacity-50">{preparing ? tr('Готовим план…', 'Preparing plan…') : tr('Оптимизировать вкладки — подготовить план', 'Optimize tabs — prepare plan')}</button>
+    <div className="flex gap-2 flex-wrap"><button disabled={busy || preparing || job?.status === 'running'} className="border rounded p-2" onClick={() => void prepare(true).catch(error)}>{tr('AI: проверить содержание и актуальность', 'AI: review content and relevance')}</button><button disabled={busy || preparing} className="border rounded p-2" onClick={() => void prepare(false).catch(error)}>{tr('Сравнить локально без AI', 'Compare locally without AI')}</button></div>
+    {job && !job.options.includeSaved && scopeKey(job.options) === scopeKey(options) && <ReviewProgress />}
+    {feedback && <p role="status">{feedback}</p>}
     {plan && <>
-      <div className="rounded border border-blue-200 bg-blue-50 p-3 space-y-1" data-testid="optimization-forecast">
-        <strong className="text-lg">{plan.tabsBefore} → {plan.tabsBefore - selected.size}</strong>
-        <p>{tr('Предлагается закрыть', 'Proposed to close')}: <strong>{selected.size}</strong> ({plan.tabsBefore ? Math.round(selected.size / plan.tabsBefore * 100) : 0}%)</p>
-        <p>{tr('Чатов сохраняем', 'Chats retained')}: {plan.chatCount} · {tr('Защищённых', 'Protected')}: {plan.protectedCount} · {tr('Групп альтернатив', 'Alternative groups')}: {plan.relatedGroups}</p>
-        <p>AI: {plan.aiCompared} · {tr('Дополнительно для ручного выбора', 'Additional manual choices')}: {plan.candidates.filter((item) => !item.recommended).length}</p>
-      </div>
+      <div className="rounded border bg-blue-50 p-3 space-y-1" data-testid="optimization-forecast"><p>{tr('План для', 'Plan for')}: {plan.scope?.scopeLabel ?? tr('Все обычные окна', 'All normal windows')}</p><strong className="text-lg">{plan.tabsBefore} → {plan.tabsBefore - selected.size}</strong><p>{tr('Предлагается закрыть', 'Proposed to close')}: {selected.size} · {tr('с сохранением', 'with saving')}: {archiveCount}</p><p>{tr('Чатов сохраняем', 'Chats retained')}: {plan.chatCount} · {tr('Защищённых', 'Protected')}: {plan.protectedCount} · {tr('Групп альтернатив', 'Alternative groups')}: {plan.relatedGroups}</p><p>AI: {plan.aiCompared}</p></div>
+      {expired && !operation && <p role="alert" className="text-amber-800">{tr('Предпросмотр истёк — подготовьте новый план. Объяснения доступны для просмотра.', 'Preview expired — prepare a new plan. Explanations remain available.')}</p>}
       {plan.warning && <p role="alert" className="text-amber-800">{plan.warning}</p>}
-      {operation?.optimizationReport && <div className="rounded bg-green-50 p-3 space-y-2" role="status">
-        <strong>{tr('Фактически', 'Actual')}: {operation.optimizationReport.tabsBefore} → {operation.optimizationReport.tabsAfter}</strong>
-        <p>{tr('Закрыто', 'Closed')}: {operation.optimizationReport.closed} · {tr('Пропущено', 'Skipped')}: {operation.optimizationReport.skipped} · {tr('Ошибок', 'Failed')}: {operation.optimizationReport.failed}</p>
-        <p>{tr('В коллекциях', 'Archived')}: {operation.optimizationReport.archived ?? 0} · {tr('Повторов', 'Duplicates')}: {operation.optimizationReport.duplicatesClosed ?? 0} · {tr('Неактуальных', 'Outdated')}: {operation.optimizationReport.outdatedClosed ?? 0}</p>
-        <button disabled={busy || !operation.items.some((item) => item.state === 'done')} onClick={() => void run(async () => setOperation(await workspaceMessage<TabOperation>({ type: 'UNDO_TAB_OPERATION', operationId: operation.id })))} className="border rounded px-2 py-1 bg-white">{tr('Отменить оптимизацию', 'Undo optimization')}</button>
-      </div>}
-      {!plan.candidates.length && <p>{tr('Обоснованных кандидатов на сокращение нет. Полезные альтернативы и чаты оставлены.', 'No supported reduction candidates. Useful alternatives and chats are retained.')}</p>}
-      {plan.candidates.map((item) => {
-        const needed = requiredBy(item.tab.id);
-        const retainedSelected = item.keep && selected.has(item.keep.id);
-        return <div key={item.tab.id} className="border rounded p-2 space-y-1">
-          <label className="flex gap-2 items-start"><input type="checkbox" aria-label={tr('Включить в оптимизацию', 'Include in optimization') + ' ' + item.tab.id} disabled={busy || Boolean(operation) || Boolean(needed) || Boolean(retainedSelected)} checked={selected.has(item.tab.id)} onChange={() => setSelected((previous) => { const next = new Set(previous); if (next.has(item.tab.id)) next.delete(item.tab.id); else next.add(item.tab.id); return next; })} /><span className="min-w-0 break-words font-medium">{item.tab.title || item.tab.url}</span></label>
-          <p className="text-[10px] text-gray-500 break-all">{item.tab.url}</p><p className="font-medium">{labels[item.category]}</p>
-          <p>{item.category === 'exact' ? tr('Сохраняем одну копию с тем же URL.', 'Retain one copy with the same URL.') : item.reason}</p>
-          {item.keep && <p className="text-green-800 break-words">{tr('Останется', 'Retained')}: {item.keep.title || item.keep.url}</p>}
-          {needed && <p className="text-amber-800">{tr('Нужна для выбранных страниц: сначала снимите их выбор.', 'Needed by selected pages: clear their selections first.')}</p>}
-          {retainedSelected && <p className="text-amber-800">{tr('Сохраняемая версия отмечена на закрытие: сначала снимите её выбор.', 'The retained version is selected to close: clear its selection first.')}</p>}
-        </div>;
+      {operation?.optimizationReport && <div className="rounded bg-green-50 p-3 space-y-2" role="status"><strong>{tr('Фактически', 'Actual')}: {operation.optimizationReport.tabsBefore} → {operation.optimizationReport.tabsAfter}</strong><p>{tr('Закрыто', 'Closed')}: {operation.optimizationReport.closed} · {tr('Пропущено', 'Skipped')}: {operation.optimizationReport.skipped} · {tr('Ошибок', 'Failed')}: {operation.optimizationReport.failed}</p><p>{tr('В коллекциях', 'Archived')}: {operation.optimizationReport.archived ?? 0} · {tr('Повторов', 'Duplicates')}: {operation.optimizationReport.duplicatesClosed ?? 0} · {tr('Неактуальных', 'Outdated')}: {operation.optimizationReport.outdatedClosed ?? 0}</p>{operation.optimizationReport.otherChanges ? <p>{tr('Изменения вне операции', 'Changes outside this operation')}: {operation.optimizationReport.otherChanges}</p> : null}<button disabled={busy || !operation.items.some((item) => item.state === 'done')} className="border rounded p-2" onClick={() => void run(async () => setOperation(await workspaceMessage<TabOperation>({ type: 'UNDO_TAB_OPERATION', operationId: operation.id })))}>{tr('Отменить оптимизацию', 'Undo optimization')}</button></div>}
+      <label className="block">{tr('Категория предложений', 'Suggestion category')}<select aria-label={tr('Категория предложений', 'Suggestion category')} className="border rounded p-2 ml-2" value={category} onChange={(event) => { setCategory(event.target.value as typeof category); setLimit(100); }}><option value="all">{tr('Текущий раздел', 'Current section')}</option>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label} ({plan.candidates.filter((item) => item.category === value).length})</option>)}</select></label>
+      <p>{tr('Галочка выбирает строку. Действие указано в карточке и общей панели. Защищённые страницы и чаты не закрываются этим планом.', 'Checkboxes select rows. Each card and the action bar state the effect. Protected pages and chats are not closed by this plan.')}</p>
+      {candidates.slice(0, limit).map((item) => {
+        const evidence = review?.outdatedTabs.find((entry) => entry.tabId === item.tab.id);
+        return <article key={item.tab.id} className="border rounded p-3 space-y-1"><label className="flex gap-2"><input aria-label={tr('Включить в оптимизацию', 'Include in optimization') + ' ' + item.tab.id} type="checkbox" disabled={busy || Boolean(operation) || expired || !canChoose(item)} checked={selected.has(item.tab.id)} onChange={() => { touched.current = true; setSelected((previous) => { const next = new Set(previous); if (next.has(item.tab.id)) next.delete(item.tab.id); else next.add(item.tab.id); return next; }); }} /><span className="font-medium break-words">{item.tab.title || item.tab.url}</span></label><button className="text-accent break-all text-left" onClick={() => void workspaceMessage({ type: 'FOCUS_TAB', tabId: item.tab.id }).catch(error)}>{item.tab.url}</button><p className="font-semibold">{labels[item.category]}</p><p>{item.category === 'exact' ? tr('Остаётся копия с тем же URL.', 'A copy with the same URL is retained.') : item.reason}</p>{item.category === 'defer' && <p className="text-green-800">{tr('Сначала сохраним в новую коллекцию «Позже», затем закроем. Это не оценка неактуальности.', 'Save to a new Later collection before closing. This is not an obsolescence assessment.')}</p>}{item.keep && <p className="text-green-800">{tr('Останется', 'Retained')}: {item.keep.title || item.keep.url}</p>}{!canChoose(item) && <p className="text-amber-800">{tr('Сохраняемая копия конфликтует с выбором. Сначала снимите зависимые строки.', 'The retained copy conflicts with the selection. Clear dependent rows first.')}</p>}{evidence && <><blockquote className="border-l-2 pl-2">{evidence.evidence}</blockquote><button className="border rounded p-2" disabled={expired || busy} onClick={() => void run(async () => { await workspaceMessage({ type: 'REMEMBER_REVIEW_DECISION', previewId: review!.id, kind: 'keep', tabIds: [item.tab.id] }); setSelected((previous) => { const next = new Set(previous); next.delete(item.tab.id); return next; }); setFeedback(tr('Решение «ещё нужно» сохранено.', 'Still useful decision remembered.')); })}>{tr('Это всё ещё нужно — запомнить', 'Still useful — remember')}</button></>}</article>;
       })}
+      {candidates.length > limit && <button className="border rounded p-2" onClick={() => setLimit(limit + 100)}>{tr('Показать ещё', 'Show more')}</button>}
+      {!candidates.length && <p>{tr('В этой категории кандидатов нет.', 'No candidates in this category.')}</p>}
+      {(filter === 'duplicates' || filter === 'optimize') && plan.duplicateGroups?.map((group) => <details key={group.id} className="border rounded p-2"><summary>{group.kind === 'stateful' ? tr('Чаты с одинаковым адресом — ручная проверка', 'Chats sharing an address — manual review') : tr('Выбрать оставляемую копию', 'Choose retained copy')} ({group.tabs.length})</summary>{group.kind === 'stateful' ? <p>{tr('Одинаковый адрес может содержать разные чаты и черновики. Проверьте их во Вкладках; этот план их сохраняет.', 'The same address may hold different chats and drafts. Review them in Tabs; this plan retains them.')}</p> : group.tabs.map((tab) => <label key={tab.id} className="flex gap-2 p-2"><input type="radio" name={'retain-' + group.id} aria-label={tr('Оставить копию', 'Keep copy') + ' ' + tab.id} disabled={busy || expired || Boolean(operation)} checked={group.keepTabId === tab.id} onChange={() => void run(() => chooseKeeper(group.tabs.map((item) => item.id), tab.id))} /><span className="break-words">{tab.title || tab.url}</span></label>)}</details>)}
+      {(filter === 'similar' || filter === 'optimize') && plan.localGroups?.map((group) => <details key={group.id} className="border rounded p-2"><summary>{tr('Совпадение заголовков — проверить', 'Title overlap — review')}</summary><p>{tr('Это локальное сходство слов, а не доказательство повторения содержания. Источники остаются открытыми.', 'This is local word similarity, not evidence of content redundancy. Sources remain open.')}</p>{group.tabIds.map((id) => <p key={id}>{useStore.getState().windowGroups.flatMap((window) => window.tabs).find((tab) => tab.id === id)?.title}</p>)}</details>)}
+      {(filter === 'similar' || filter === 'optimize') && review?.similarGroups.map((group) => <details key={group.id} className="border rounded p-2"><summary>{group.relation === 'related' ? tr('Дополняющие материалы — оставить', 'Complementary material — retain') : tr('Пересечение содержания', 'Content overlap')}</summary><p>{group.reason}</p>{group.uniqueValue && <p>{group.uniqueValue}</p>}{group.tabIds.map((id) => { const tab = review.tabs.find((tab) => tab.id === id); const evidence = review.evidence?.[id]; return tab ? <div key={id} className="py-2 border-t"><p>{tab.title}</p>{group.relation === 'redundant' && <button disabled={busy || expired || Boolean(operation)} className="border rounded p-2" onClick={() => void run(() => chooseKeeper(group.tabIds, id))}>{group.keepTabId === id ? tr('Оставляем эту', 'Retaining this') : tr('Оставить эту версию', 'Keep this version')}</button>}{evidence ? <details><summary>{tr('Доказательства', 'Evidence')} · {new Date(evidence.capturedAt).toLocaleString()}</summary><blockquote className="whitespace-pre-wrap break-words">{evidence.text}</blockquote></details> : <p className="text-amber-800">{tr('Только заголовок и URL; текст не проверен.', 'Title and URL only; text unverified.')}</p>}</div> : null; })}<button disabled={busy || expired} className="border rounded p-2" onClick={() => void run(async () => { await workspaceMessage({ type: 'REMEMBER_REVIEW_DECISION', previewId: review.id, kind: 'complementary', tabIds: group.tabIds }); setFeedback(tr('Дополняющие источники запомнены.', 'Complementary sources remembered.')); })}>{tr('Оставить: источники дополняют друг друга', 'Retain: complementary sources')}</button></details>)}
     </>}
-    <WorkspaceActionBar>
-      <p className="text-xs">{tr('Выбрано к закрытию', 'Selected to close')}: <strong>{selected.size}</strong>{plan ? ` · ${tr('после останется', 'forecast remaining')}: ${plan.tabsBefore - selected.size}` : ''}</p>
-      <div className="flex gap-2"><button disabled={!plan || busy} onClick={download} className="border rounded p-2 text-xs disabled:opacity-50">{tr('Скачать отчёт', 'Download report')}</button><button disabled={busy || !selected.size || Boolean(operation)} onClick={() => void run(async () => {
-        if (plan) setOperation(await workspaceMessage<TabOperation>({ type: 'EXECUTE_OPTIMIZATION', planId: plan.id, tabIds: [...selected] }));
-      })} className="flex-1 rounded bg-red-600 text-white p-2 text-xs disabled:opacity-50">{tr('Применить план', 'Apply plan')} ({selected.size})</button></div>
-    </WorkspaceActionBar>
+    {view === 'workspace' && ['optimize', 'duplicates', 'similar', 'outdated'].includes(filter) && <WorkspaceActionBar><p>{tr('Выбрано к закрытию', 'Selected to close')}: <strong>{selected.size}</strong> · {tr('вне категории', 'outside category')}: {hiddenSelected} · {tr('с сохранением', 'with saving')}: {archiveCount}{plan ? ` · ${tr('после останется', 'forecast remaining')}: ${plan.tabsBefore - selected.size}` : ''}</p><div className="flex gap-2 flex-wrap"><button disabled={!plan || busy || expired || Boolean(operation)} className="border rounded p-2" onClick={() => { touched.current = true; const next = new Set(selected); for (const item of candidates) if (canChoose(item) && !(item.keep && next.has(item.keep.id))) next.add(item.tab.id); setSelected(next); }}>{tr('Выбрать кандидатов этого раздела', 'Select candidates in this section')}</button><button disabled={!selected.size || busy} className="border rounded p-2" onClick={() => { touched.current = true; setSelected(new Set()); }}>{tr('Снять выбор', 'Clear selection')}</button><button disabled={!plan} className="border rounded p-2" onClick={download}>{tr('Скачать отчёт', 'Download report')}</button></div><button disabled={busy || !selected.size || Boolean(operation) || expired} className="w-full rounded bg-red-600 text-white p-2 disabled:opacity-50" onClick={() => void run(async () => { if (plan) setOperation(await workspaceMessage<TabOperation>({ type: 'EXECUTE_OPTIMIZATION', planId: plan.id, tabIds: [...selected] })); })}>{tr('Применить план', 'Apply plan')} ({selected.size})</button></WorkspaceActionBar>}
   </section>;
 }

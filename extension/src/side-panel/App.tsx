@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from './store';
 import { GlobalSearch } from './components/GlobalSearch';
 import { Header } from './components/Header';
@@ -9,29 +9,30 @@ import { SnapshotsList } from './components/SnapshotsList';
 import { SnapshotDetail } from './components/SnapshotDetail';
 import { SettingsView } from './components/SettingsView';
 import { HistoryPanel } from './components/HistoryPanel';
-import { AIRecommendations } from './components/AIRecommendations';
-import { CleanupSession } from './components/CleanupSession';
+import { ReportsPanel } from './components/ReportsPanel';
+import { TaskCenter } from './components/TaskCenter';
+import { ReviewContext, useReviewController } from './review-controller';
 import { ChatSearch } from './components/ChatSearch';
 import { WorkspaceView } from './components/WorkspaceView';
 import { LibraryHintBanner } from './components/LibraryHintBanner';
 
 export function App() {
+  const review = useReviewController();
+  const reviewScope = useStore((state) => state.reviewScope);
+  const lastScope = useRef<string | null>(null);
+  useEffect(() => { if (lastScope.current === (reviewScope?.id ?? null)) return; lastScope.current = reviewScope?.id ?? null; review.setOptions({ ...review.options, windowId: reviewScope?.windowId, tabIds: reviewScope?.tabIds, expectedUrls: reviewScope?.expectedUrls, scopeLabel: reviewScope?.scopeLabel, focus: reviewScope?.focus ?? review.options.focus }); }, [reviewScope?.id]);
   const actionError = useStore((state) => state.actionError);
-  const { view, loadTabs, loadSnapshots, loadRecentlyClosed, loadHistory, loadAIResult, loadAITabStatuses, loadAnalytics, loadPersistentClusters, setAIResult, setAIPartialResult, setAIError, setAIProgress, setAIStopped, setAITabStatuses } = useStore();
+  const { view, loadTabs, loadSnapshots, loadRecentlyClosed, loadHistory, loadAIResult, loadAITabStatuses, setAIResult, setAIPartialResult, setAIError, setAIProgress, setAIStopped, setAITabStatuses } = useStore();
 
   useEffect(() => {
     loadTabs();
     loadSnapshots();
     loadRecentlyClosed();
     void chrome.storage.local.get('aitab.tab-scope').then((stored) => { if (stored['aitab.tab-scope'] === 'all' || stored['aitab.tab-scope'] === 'current') useStore.setState({ tabScope: stored['aitab.tab-scope'] }); });
-    const historyTimer = window.setTimeout(() => {}, 1500);
     const aiTimer = window.setTimeout(() => {
       void loadAIResult();
       void loadAITabStatuses();
     }, 2000);
-    const analyticsTimer = window.setTimeout(() => {
-      // Analytics are loaded when Reports is opened.
-    }, 2500);
     const keepalivePort = chrome.runtime.connect({ name: 'sidepanel-keepalive' });
     const keepaliveTimer = window.setInterval(() => {
       try {
@@ -100,9 +101,7 @@ export function App() {
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => {
-      window.clearTimeout(historyTimer);
       window.clearTimeout(aiTimer);
-      window.clearTimeout(analyticsTimer);
       window.clearInterval(keepaliveTimer);
       window.clearTimeout(tabsTimer);
       window.clearTimeout(historyUpdateTimer);
@@ -112,8 +111,9 @@ export function App() {
   }, [loadTabs, loadSnapshots, loadHistory]);
 
   return (
-    <div className="flex flex-col h-screen">
+    <ReviewContext.Provider value={review}><div className="flex flex-col h-screen min-w-0">
       <Header />
+      <TaskCenter />
       <GlobalSearch />
       <div className={(['workspace', 'topics', 'library'].includes(view) || view === 'tabs' && useStore.getState().searchScope !== 'open') ? 'flex flex-1 min-h-0 flex-col' : 'hidden'}><WorkspaceView /></div>
       {actionError && <div role="alert" className="p-3 text-xs bg-red-50 text-red-700 flex gap-2">
@@ -132,9 +132,8 @@ export function App() {
       {view === 'snapshot-detail' && <SnapshotDetail />}
       {view === 'settings' && <SettingsView />}
       {view === 'history' && <HistoryPanel />}
-      {view === 'ai-recommendations' && <AIRecommendations />}
-      {view === 'cleanup-session' && <CleanupSession />}
+      {view === 'ai-recommendations' && <ReportsPanel />}
       {view === 'chat' && <ChatSearch />}
-    </div>
+    </div></ReviewContext.Provider>
   );
 }

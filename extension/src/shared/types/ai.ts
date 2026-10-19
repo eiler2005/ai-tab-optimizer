@@ -143,6 +143,7 @@ export interface AIProgress {
 }
 
 export interface CachedAIResult {
+  tabs?: { id: number; url: string }[];
   result: AIAnalysisResult;
   analyzedAt: number;
   metadata?: AIAnalysisMetadata;

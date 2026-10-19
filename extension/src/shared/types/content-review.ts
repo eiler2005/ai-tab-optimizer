@@ -39,6 +39,7 @@ export interface ReviewProgress {
 }
 
 export interface ContentReviewJob extends ReviewProgress {
+  previewExpired?: boolean;
   id: string;
   status: 'running' | 'completed' | 'cancelled' | 'failed' | 'interrupted';
   startedAt: number;
@@ -51,6 +52,9 @@ export interface ContentReviewJob extends ReviewProgress {
 }
 
 export interface ContentReviewOptions {
+  tabIds?: number[];
+  expectedUrls?: Record<number, string>;
+  scopeLabel?: string;
   windowId?: number;
   useAi: boolean;
   readContent: boolean;

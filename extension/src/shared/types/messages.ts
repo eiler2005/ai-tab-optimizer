@@ -13,7 +13,7 @@ export type MessageRequest =
   | { type: 'GET_CONTENT_REVIEW_JOB' }
   | { type: 'CANCEL_CONTENT_REVIEW'; jobId: string }
   | { type: 'REMEMBER_REVIEW_DECISION'; previewId: string; kind: 'keep' | 'complementary'; tabIds: number[] }
-  | { type: 'PREVIEW_OPTIMIZATION'; windowId?: number; reviewId?: string }
+  | { type: 'PREVIEW_OPTIMIZATION'; windowId?: number; reviewId?: string; scope?: import('../utils/tab-scope').ScopeSnapshot; keepTabIds?: number[] }
   | { type: 'EXECUTE_OPTIMIZATION'; planId: string; tabIds: number[] }
   | { type: 'PREVIEW_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
   | { type: 'EXECUTE_CONTENT_REVIEW'; previewId: string; decisions: import('./content-review').ReviewCloseDecision[] }
@@ -56,7 +56,7 @@ export type MessageRequest =
   | { type: 'CLEAR_SERVER_DB' }
   | { type: 'GET_TAB_HISTORY'; timeframe: HistoryTimeframe; limit?: number; offset?: number }
   | { type: 'GET_TAB_ANALYSIS_STATUS'; forceRefresh?: boolean }
-  | { type: 'ANALYZE_TABS'; forceRefresh?: boolean; resume?: boolean }
+  | { type: 'ANALYZE_TABS'; forceRefresh?: boolean; resume?: boolean; scope?: import('../utils/tab-scope').ScopeSnapshot }
   | { type: 'STOP_AI_ANALYSIS' }
   | { type: 'GET_AI_RESULT' }
   | { type: 'EXTRACT_PAGE'; tabId: number }

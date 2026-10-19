@@ -16,7 +16,7 @@ export function Header() {
     </nav>
     {more && <div className="absolute right-2 left-2 top-full border rounded bg-white shadow-lg p-2 grid gap-1" onKeyDown={(event) => { if (event.key === 'Escape') setMore(false); }}>
       {([
-        [tr('Разбор вкладок', 'Review tabs'), () => openWorkspace('optimize')],
+        [tr('Разбор вкладок', 'Review tabs'), () => useStore.setState({ view: 'workspace', workspaceSection: 'optimize' })],
         [tr('Журнал и Undo', 'Journal and Undo'), () => openWorkspace('history')],
         [tr('Отчёты', 'Reports'), () => setView('ai-recommendations')],
         [tr('Активность', 'Activity'), () => setView('history')],

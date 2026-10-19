@@ -10,6 +10,7 @@ import { isStatefulChat } from '@shared/utils/page-safety';
 import { readEvidence, storeEvidence } from './content-evidence';
 import { extractDeepText } from './deep-extraction';
 import { applyReviewDecisions, decisionKey } from './review-decisions';
+import { applyTabScope } from '@shared/utils/tab-scope';
 
 const KEY = 'aitab.content-review.preview';
 const MAX_AI_TABS = 600;
@@ -21,8 +22,8 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
   const stored = await chrome.storage.local.get('settings');
   const settings = stored.settings as { protectedDomains?: string[]; localServerUrl?: string } | undefined;
   const domains = (settings?.protectedDomains ?? []).map((domain) => domain.trim().toLowerCase()).filter(Boolean);
-  const tabs = (await readBrowserState()).filter((window) => options.windowId === undefined || window.windowId === options.windowId)
-    .flatMap((window) => window.tabs).filter((tab) => /^https?:\/\//i.test(tab.url) && (!options.deepUrls || options.deepUrls.includes(tab.url)));
+  const tabs = applyTabScope((await readBrowserState()).flatMap((window) => window.tabs), options)
+    .filter((tab) => /^https?:\/\//i.test(tab.url) && (!options.deepUrls || options.deepUrls.includes(tab.url)));
   const preview: ContentReviewPreview = { id: crypto.randomUUID(), createdAt: Date.now(), tabs,
     similarGroups: [], outdatedTabs: [], protectedDomains: domains,
     extractedCount: 0, extractionFailed: 0, aiTabCount: 0 };
@@ -127,10 +128,10 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
   return preview;
 }
 
-export async function readContentPreview(id: string): Promise<ContentReviewPreview | undefined> {
+export async function readContentPreview(id: string, forDisplay = false): Promise<ContentReviewPreview | undefined> {
   const stored = await chrome.storage.session.get(KEY);
   const preview = stored[KEY] as ContentReviewPreview | undefined;
-  return preview?.id === id && Date.now() - preview.createdAt <= 300_000 ? preview : undefined;
+  return preview?.id === id && (forDisplay || Date.now() - preview.createdAt <= 300_000) ? preview : undefined;
 }
 
 export async function rememberReviewDecision(previewId: string, kind: 'keep' | 'complementary', ids: number[]): Promise<void> {

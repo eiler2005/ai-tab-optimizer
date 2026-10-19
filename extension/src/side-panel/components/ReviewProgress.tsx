@@ -22,6 +22,6 @@ export function ReviewProgress() {
       <button onClick={() => void cancel().catch((failure) => console.error(failure))} className="border rounded bg-white px-2 py-1">{tr('Отменить проверку', 'Cancel review')}</button>
     </>}
     {job.error && <p role="alert">{job.error}</p>}
-    {job.status === 'completed' && !job.preview && <p>{tr('Предпросмотр истёк. Запустите новую проверку.', 'Preview expired. Start a new review.')}</p>}
+    {job.status === 'completed' && (!job.preview || job.previewExpired) && <p>{tr('Предпросмотр истёк. Запустите новую проверку.', 'Preview expired. Start a new review.')}</p>}
   </aside>;
 }

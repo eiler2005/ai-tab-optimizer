@@ -1,5 +1,6 @@
 import { useStore } from '../store';
 import { useI18n } from '@shared/i18n';
+import { filteredWindows } from '../tab-filter';
 import { workspaceMessage } from '../workspace-api';
 
 export function StatsBar() {
@@ -10,7 +11,7 @@ export function StatsBar() {
     <div className="flex gap-2 items-center flex-wrap">
       <select aria-label={tr('Область вкладок', 'Tab scope')} value={state.tabScope} onChange={(event) => { const tabScope = event.target.value as 'all' | 'current'; useStore.setState({ tabScope }); void chrome.storage.local.set({ 'aitab.tab-scope': tabScope }); }} className="border rounded p-2"><option value="all">{tr('Все окна', 'All windows')}</option><option value="current">{tr('Текущее окно', 'Current window')}</option></select>
       <span>{state.totalTabs} {tr('вкладок', 'tabs')} · {state.windowGroups.length} {tr('окон', 'windows')}</span>
-      <button className="ml-auto border rounded p-2" onClick={() => state.openWorkspace('optimize')}>{tr('Разобрать…', 'Review…')}</button>
+      <button className="ml-auto border rounded p-2" onClick={() => state.beginReview(filteredWindows(state.windowGroups, state).flatMap((window) => window.tabs), tr('Текущие результаты', 'Current results'))}>{tr('Разобрать…', 'Review…')}</button>
     </div>
     {current && <div className="rounded bg-gray-50 p-2 space-y-1">
       <p className="truncate">{tr('Текущая', 'Current')}: {current.title || current.url}</p>

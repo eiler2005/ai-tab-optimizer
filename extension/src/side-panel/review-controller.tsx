@@ -6,6 +6,8 @@ export function useReviewController() {
   const [job, setJob] = useState<ContentReviewJob | null>(null);
   const [options, setOptionsState] = useState<ContentReviewOptions>({ useAi: true, readContent: true, focus: '' });
   const changed = useRef(false);
+  const running = useRef(false);
+  useEffect(() => { running.current = job?.status === 'running'; }, [job?.status]);
   function setOptions(next: ContentReviewOptions) { changed.current = true; setOptionsState(next); }
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -19,14 +21,15 @@ export function useReviewController() {
     return () => clearTimeout(timer);
   }, [options.focus]);
   useEffect(() => {
-    let disposed = false; let pending = false;
+    let disposed = false; let pending = false; let lastPoll = 0;
     const poll = async () => {
-      if (pending) return;
-      pending = true;
+      if (pending || (!running.current && Date.now() - lastPoll < 10_000)) return;
+      lastPoll = Date.now(); pending = true;
       try {
         const next = await workspaceMessage<ContentReviewJob | null>({ type: 'GET_CONTENT_REVIEW_JOB' });
         if (!disposed) setJob((current) => next && (!current || next.startedAt > current.startedAt
-          || (next.id === current.id && next.updatedAt >= current.updatedAt)) ? next : current);
+          || (next.id === current.id && (next.updatedAt > current.updatedAt || (next.updatedAt === current.updatedAt
+            && (next.status !== current.status || next.previewExpired !== current.previewExpired || next.previewId !== current.previewId))))) ? next : current);
       } catch (failure) { if (!disposed) setError(String(failure)); }
       finally { pending = false; }
     };
