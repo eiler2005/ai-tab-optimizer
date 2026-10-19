@@ -9,6 +9,10 @@ export type MessageRequest =
   | { type: 'WORKSPACE_OVERVIEW' }
   | { type: 'GET_TOPIC_CATALOG'; refreshServer?: boolean }
   | { type: 'TOPIC_COMMAND'; command: import('./topics').TopicCommand }
+  | { type: 'GET_TOPIC_SUGGESTIONS' }
+  | { type: 'START_TOPIC_PAIR_REVIEW'; topicIds: string[]; readEvidence: boolean }
+  | { type: 'GET_TOPIC_PAIR_REVIEW' }
+  | { type: 'CANCEL_TOPIC_PAIR_REVIEW'; jobId: string }
   | { type: 'START_CONTENT_REVIEW'; options: import('./content-review').ContentReviewOptions }
   | { type: 'GET_CONTENT_REVIEW_JOB' }
   | { type: 'CANCEL_CONTENT_REVIEW'; jobId: string }

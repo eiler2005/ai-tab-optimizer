@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import tempfile
+import sys
 import time
 from uuid import uuid4
 from collections import Counter, defaultdict
@@ -47,6 +48,7 @@ from server_core.codex_command import build_codex_command
 from server_core.content_review import ContentReviewRequest, REVIEW_SCHEMA, REVIEW_SYSTEM_PROMPT, normalize_content_review
 from server_core.review_runtime import await_review_call
 from server_core.workspace_backups import router as workspace_backup_router
+from server_core.topic_review import create_topic_review_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -629,6 +631,7 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(title="AITab Server", lifespan=lifespan)
 app.include_router(workspace_backup_router)
+app.include_router(create_topic_review_router(sys.modules[__name__]))
 
 app.add_middleware(
     CORSMiddleware,

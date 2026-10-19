@@ -3,6 +3,11 @@ import type { TabRecord } from '@shared/types';
 import { isStatefulChat } from './page-safety';
 
 export const emptyTopicCatalog = (): TopicCatalog => ({ version: 1, revision: 0, topics: [], history: [], distinct: [] });
+export function resolveTopic(catalog: TopicCatalog, id: string): Topic | undefined {
+  let topic = catalog.topics.find((item) => item.id === id); const visited = new Set<string>();
+  while (topic?.mergedInto && !visited.has(topic.id)) { visited.add(topic.id); topic = catalog.topics.find((item) => item.id === topic!.mergedInto); }
+  return topic && !topic.deletedAt && !topic.mergedInto ? topic : undefined;
+}
 const materialSignature = (items: TopicMaterial[]) => JSON.stringify(items.map((item) => [item.key, item.url, item.title, [...item.collectionIds].sort()]));
 export const topicMaterial = (url: string, title: string, source: string, collectionIds: string[] = []): TopicMaterial => ({
   key: isStatefulChat(url) ? source : url, url, title, collectionIds,
@@ -27,6 +32,23 @@ export function reconcileTopics(catalog: TopicCatalog, sources: TopicSource[]): 
     let topic = next.topics.find((item) => item.sourceKeys.includes(source.key));
     const visited = new Set<string>();
     while (topic?.mergedInto && !visited.has(topic.id)) { visited.add(topic.id); topic = next.topics.find((item) => item.id === topic!.mergedInto); }
+    if (!topic && source.key.startsWith('ai:')) {
+      const keys = new Set(source.materials.map((material) => material.key));
+      const matches = next.topics.filter((item) => item.sourceKeys.some((key) => key.startsWith('ai:'))
+        && ((item.aiLineage ?? []).some((lineage) => lineage.name.trim().toLocaleLowerCase() === source.name.trim().toLocaleLowerCase()
+          && lineage.materialKeys.filter((key) => keys.has(key)).length / Math.max(1, Math.max(keys.size, lineage.materialKeys.length)) >= .8)
+          || !item.aiLineage?.length && [item.name, ...item.aliases].some((name) => name.trim().toLocaleLowerCase() === source.name.trim().toLocaleLowerCase())
+            && item.materials.filter((material) => keys.has(material.key)).length / Math.max(1, Math.max(keys.size, item.materials.length)) >= .8));
+      const canonical = new Map<string, Topic>();
+      for (const match of matches) {
+        let current: Topic | undefined = match; const visited = new Set<string>();
+        while (current?.mergedInto && !visited.has(current.id)) { visited.add(current.id); current = next.topics.find((item) => item.id === current!.mergedInto); }
+        if (current) canonical.set(current.id, current);
+      }
+      if (canonical.size === 1) topic = [...canonical.values()][0];
+      const seen = new Set<string>();
+      while (topic?.mergedInto && !seen.has(topic.id)) { seen.add(topic.id); topic = next.topics.find((item) => item.id === topic!.mergedInto); }
+    }
     if (topic?.deletedAt) continue;
     if (!topic) topic = next.topics.find((item) => !item.deletedAt && !item.mergedInto
       && item.name.trim().toLocaleLowerCase() === source.name.trim().toLocaleLowerCase() && item.focus === source.focus
@@ -42,6 +64,12 @@ export function reconcileTopics(catalog: TopicCatalog, sources: TopicSource[]): 
     const materials = mergeMaterials([...topic.materials, ...source.materials.filter((material) => !topic!.excludedKeys.includes(material.key))]);
     if (materialSignature(materials) !== materialSignature(topic.materials) || sourcesBefore !== topic.sourceKeys.length) {
       topic.materials = materials; topic.revision++; topic.updatedAt = Date.now();
+    }
+    if (source.key.startsWith('ai:')) {
+      const previous = topic.aiLineage ?? [];
+      const lineage = [...previous.filter((item) => item.name.toLocaleLowerCase() !== source.name.toLocaleLowerCase()), { name: source.name, materialKeys: source.materials.map((material) => material.key).sort() }].sort((a, b) => a.name.localeCompare(b.name));
+      const signature = (items: typeof lineage) => JSON.stringify(items.map((item) => [item.name, item.materialKeys]));
+      if (signature(lineage) !== signature(previous)) { topic.aiLineage = lineage; topic.revision++; topic.updatedAt = Date.now(); }
     }
   }
   return next;

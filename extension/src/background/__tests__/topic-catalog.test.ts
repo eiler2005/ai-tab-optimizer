@@ -7,6 +7,7 @@ import { mockBrowser } from './mock-browser';
 import { makeTab } from '@shared/utils/__tests__/fixtures';
 import { readWorkspace, WORKSPACE_KEY } from '../workspace-storage';
 import type { Topic } from '@shared/types/topics';
+import { suggestTopicPairs } from '@shared/utils/topic-pairs';
 
 afterEach(() => vi.unstubAllGlobals());
 const material = (url: string) => topicMaterial(url, url, 'source:' + url);
@@ -128,4 +129,35 @@ it('does not rewrite the catalog when Chrome storage returns object keys in a di
   const next = await getTopicCatalog();
   expect(next.catalog.revision).toBe(first.catalog.revision);
   expect(next.catalog.topics[0].revision).toBe(first.catalog.topics[0].revision);
+});
+
+it('undoes distinct-topic decisions and keeps related topics separate without repeated suggestions', async () => {
+  mockBrowser([]); const a = await create('Research A', ['https://shared.test/', 'https://a.test/']); const b = await create('Research B', ['https://shared.test/', 'https://b.test/']);
+  const decision = await changeTopics({ action: 'different', ids: [a.id, b.id], revisions: { [a.id]: a.revision, [b.id]: b.revision } });
+  expect(await suggestTopicPairs(decision)).toHaveLength(0);
+  const restored = await changeTopics({ action: 'undo', historyId: decision.history[decision.history.length - 1].id });
+  expect(await suggestTopicPairs(restored)).toHaveLength(1);
+  const updated = restored.topics;
+  const linked = await changeTopics({ action: 'link', ids: [a.id, b.id], revisions: Object.fromEntries(updated.map((topic) => [topic.id, topic.revision])) });
+  expect(linked.topics[0].relatedIds).toContain(b.id);
+  expect(await suggestTopicPairs(linked)).toHaveLength(0);
+});
+
+it('carries distinct-topic memory across imports with new IDs and rebinds saved chat exclusions', async () => {
+  mockBrowser([]); const a = await create('Task A', ['https://common.test/', 'https://a.test/']); const b = await create('Task B', ['https://common.test/', 'https://b.test/']);
+  await changeTopics({ action: 'different', ids: [a.id, b.id], revisions: { [a.id]: a.revision, [b.id]: b.revision } });
+  const preview = await previewBackupImport(await exportWorkspaceBackup());
+  expect(preview.topicCatalog!.distinct).toHaveLength(1);
+  await executeBackupImport(preview.id);
+  const current = (await readWorkspace()).topicCatalog!;
+  const imported = { ...current, topics: preview.topicCatalog!.topics, distinct: current.distinct.filter((item) => preview.topicCatalog!.topics.some((topic) => topic.id === item.a)) };
+  expect(await suggestTopicPairs(imported)).toHaveLength(0);
+  const browser = mockBrowser([makeTab({ id: 1, url: 'https://chatgpt.com/' }), makeTab({ id: 2, url: 'https://chatgpt.com/' })]);
+  await saveCollection((await previewCollection('Chats')).id, false);
+  const topic = (await getTopicCatalog()).catalog.topics[0];
+  await changeTopics({ action: 'update', id: topic.id, revision: topic.revision, removeKeys: [topic.materials[0].key] });
+  const importedChats = await previewBackupImport(await exportWorkspaceBackup()); await executeBackupImport(importedChats.id);
+  const restored = (await getTopicCatalog()).catalog.topics.find((item) => item.id === importedChats.topicCatalog!.topics[0].id)!;
+  expect(restored.materials).toHaveLength(1); expect(restored.excludedKeys[0]).toContain(importedChats.collections[0].id);
+  expect(browser.api.tabs.remove).not.toHaveBeenCalled();
 });

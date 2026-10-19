@@ -24,7 +24,7 @@ def backup_root() -> Path:
 def sanitize_workspace(raw: dict) -> dict:
     if raw.get("format") != "aitab-backup" or raw.get("version") != 1 or not isinstance(raw.get("collections"), list):
         raise HTTPException(422, "Expected an AITab backup version 1")
-    result = {key: raw[key] for key in ("format", "version", "exportedAt", "collections", "operations", "reviewDecisions", "urlRules") if key in raw}
+    result = {key: raw[key] for key in ("format", "version", "exportedAt", "collections", "operations", "reviewDecisions", "urlRules", "topicCatalog") if key in raw}
     legacy = raw.get("legacy") if isinstance(raw.get("legacy"), dict) else {}
     result["legacy"] = {key: legacy[key] for key in ("snapshots", "tabHistory", "userFlagsV2", "exportedUrls", "locale", "aitab.review-focus") if key in legacy}
     if isinstance(legacy.get("settings"), dict):

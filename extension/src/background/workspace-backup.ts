@@ -6,6 +6,7 @@ import { readWorkspace, saveWorkspace, withWorkspaceLock } from './workspace-sto
 import { collectionDetails } from '@shared/utils/library';
 import type { CollectionDetails } from '@shared/types/workspace';
 
+import { topicPairFingerprint } from '@shared/utils/topics';
 import { parseTopicBackup } from './topic-backup';
 
 const IMPORT_PREVIEW_KEY = 'aitab.import-preview.v1';
@@ -101,6 +102,7 @@ export function parseBackup(json: string): ImportPreview {
   const counter = { skipped: 0, tabs: 0 };
   const collections: SavedCollection[] = [];
   const collectionIds = new Map<string, string>();
+  const itemKeys = new Map<string, string>();
   for (const entry of raw.collections) {
     if (!record(entry) || typeof entry.name !== 'string' || !entry.name.trim()) { counter.skipped += 1; continue; }
     const windows = parseWindows(entry.windows, counter);
@@ -108,7 +110,15 @@ export function parseBackup(json: string): ImportPreview {
     collections.push({ id: crypto.randomUUID(), name: text(entry.name, 120), createdAt: timestamp(entry.createdAt),
       updatedAt: Date.now(), revision: 1, deletedAt: typeof entry.deletedAt === 'number' ? timestamp(entry.deletedAt) : undefined,
       ...collectionDetails({ purpose: entry.purpose, reason: entry.reason, focus: entry.focus, reviewAt: entry.reviewAt } as CollectionDetails), windows });
-    if (typeof entry.id === 'string') collectionIds.set(entry.id, collections[collections.length - 1].id);
+    if (typeof entry.id === 'string') {
+      const id = collections[collections.length - 1].id; collectionIds.set(entry.id, id);
+      const originals: Record<string, unknown>[] = [];
+      if (Array.isArray(entry.windows)) for (const window of entry.windows) if (record(window) && Array.isArray(window.tabs)) for (const item of window.tabs) {
+        if (record(item) && typeof item.url === 'string' && item.url.length <= 65_536 && isRestorableUrl(item.url)) originals.push(item);
+      }
+      const detached = windows.flatMap((window) => window.tabs);
+      originals.forEach((item, index) => { if (typeof item.itemId === 'string' && detached[index]) itemKeys.set(`saved:${entry.id}:${item.itemId}`, `saved:${id}:${detached[index].itemId}`); });
+    }
   }
   const operations: TabOperation[] = [];
   if (Array.isArray(raw.operations)) {
@@ -177,7 +187,7 @@ export function parseBackup(json: string): ImportPreview {
     const collectionId = collectionIds.get(rule.collectionId);
     if (collectionId) urlRules.push({ id: crypto.randomUUID(), hostname: rule.hostname.toLowerCase(), collectionId, mode: 'suggest' });
   }
-  const topicCatalog = parseTopicBackup(raw.topicCatalog, collectionIds);
+  const topicCatalog = parseTopicBackup(raw.topicCatalog, collectionIds, itemKeys);
   return { id: crypto.randomUUID(), createdAt: Date.now(), collections, operations, legacy, reviewDecisions, urlRules, topicCatalog, skipped: counter.skipped };
 }
 
@@ -209,7 +219,14 @@ export async function executeBackupImport(previewId: string): Promise<{ imported
     if (preview.topicCatalog) {
       const currentTopics = workspace.topicCatalog ?? { version: 1 as const, revision: 0, topics: [], history: [], distinct: [] };
       if (currentTopics.topics.length + preview.topicCatalog.topics.length > 500) throw new Error('Imported catalog exceeds 500 topics');
-      currentTopics.topics.push(...preview.topicCatalog.topics); currentTopics.revision++; workspace.topicCatalog = currentTopics;
+      currentTopics.topics.push(...preview.topicCatalog.topics);
+      for (const decision of preview.topicCatalog.distinct) {
+        const a = preview.topicCatalog.topics.find((topic) => topic.id === decision.a);
+        const b = preview.topicCatalog.topics.find((topic) => topic.id === decision.b);
+        if (a && b) currentTopics.distinct.push({ a: a.id, b: b.id, fingerprint: await topicPairFingerprint(a, b) });
+      }
+      currentTopics.distinct = currentTopics.distinct.slice(-500);
+      currentTopics.revision++; workspace.topicCatalog = currentTopics;
     }
     workspace.reviewDecisions = [...new Map([...(preview.reviewDecisions ?? []), ...(workspace.reviewDecisions ?? [])].map((entry) => [entry.key, entry])).values()].slice(-500);
     workspace.urlRules = [...(workspace.urlRules ?? []), ...(preview.urlRules ?? [])].slice(0, 50);

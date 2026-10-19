@@ -10,7 +10,7 @@ function strings(value: unknown, max: number, limit: number): string[] {
   if (!Array.isArray(value) || value.length > limit) throw new Error('Invalid topic backup list');
   return value.map((item) => text(item, max));
 }
-export function parseTopicBackup(raw: unknown, collectionIds: Map<string, string>): TopicCatalog | undefined {
+export function parseTopicBackup(raw: unknown, collectionIds: Map<string, string>, itemKeys = new Map<string, string>()): TopicCatalog | undefined {
   if (raw === undefined) return undefined;
   if (!object(raw) || raw.version !== 1 || !Array.isArray(raw.topics) || raw.topics.length > 500) throw new Error('Unsupported topic catalog backup');
   const catalog = emptyTopicCatalog(); const remap = new Map<string, string>();
@@ -35,15 +35,20 @@ export function parseTopicBackup(raw: unknown, collectionIds: Map<string, string
       const key = text(item.key, 9000);
       const locations = strings(item.collectionIds, 200, 200).flatMap((old) => collectionIds.has(old) ? [collectionIds.get(old)!] : []);
       // Imported chat entries remain distinct and cannot inherit a live tab ID.
-      topic.materials.push(topicMaterial(url, text(item.title, 4000), `imported:${id}:${key}`, locations));
+      topic.materials.push(topicMaterial(url, text(item.title, 4000), itemKeys.get(key) ?? `imported:${id}:${key}`, locations));
     }
-    topic.excludedKeys = strings(entry.excludedKeys, 9000, 2000).filter((key) => /^https?:\/\//i.test(key));
+    topic.excludedKeys = strings(entry.excludedKeys, 9000, 2000).map((key) => itemKeys.get(key) ?? (/^https?:\/\//i.test(key) ? key : `imported:${id}:${key}`));
     catalog.topics.push(topic);
+    if (Array.isArray(entry.aiLineage)) topic.aiLineage = entry.aiLineage.slice(0, 500).flatMap((item) => object(item) ? [{ name: text(item.name, 120), materialKeys: strings(item.materialKeys, 65_536, 2000) }] : []);
   }
   if (catalog.topics.some((topic) => topic.mergedInto === topic.id)) throw new Error('Cyclic topic alias');
   for (const topic of catalog.topics) {
     let current: Topic | undefined = topic; const visited = new Set<string>();
     while (current?.mergedInto) { if (visited.has(current.id)) throw new Error('Cyclic topic alias'); visited.add(current.id); current = catalog.topics.find((item) => item.id === current!.mergedInto); }
+  }
+  if (Array.isArray(raw.distinct)) for (const item of raw.distinct.slice(-500)) {
+    if (object(item) && typeof item.a === 'string' && typeof item.b === 'string' && item.a !== item.b && remap.has(item.a) && remap.has(item.b)
+      && typeof item.fingerprint === 'string' && /^[a-f0-9]{64}$/.test(item.fingerprint)) catalog.distinct.push({ a: remap.get(item.a)!, b: remap.get(item.b)!, fingerprint: item.fingerprint });
   }
   // Imported structural history and old-session source identities are not executable.
   return catalog;

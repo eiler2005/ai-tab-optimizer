@@ -57,6 +57,7 @@ export async function changeTopics(command: TopicCommand): Promise<TopicCatalog>
   return withWorkspaceLock(async () => {
     const workspace = await readWorkspace(); const catalog = structuredClone(workspace.topicCatalog ?? emptyTopicCatalog());
     const before: Topic[] = []; const touched = new Set<string>();
+    const distinctBefore = structuredClone(catalog.distinct);
     const take = (id: string, revision?: number) => {
       const topic = catalog.topics.find((item) => item.id === id && !item.deletedAt && !item.mergedInto);
       const metadataOnly = command.action === 'update' && command.userRevision !== undefined && !command.add && !command.removeKeys && !command.deleted;
@@ -87,6 +88,8 @@ export async function changeTopics(command: TopicCommand): Promise<TopicCatalog>
         const previous = record.before.find((topic) => topic.id === id);
         if (previous && entry.after[id] === previous.revision) entry.after[id] = catalog.topics.find((topic) => topic.id === id)!.revision;
       }
+      const affected = new Set(Object.keys(record.after));
+      catalog.distinct = [...catalog.distinct.filter((item) => !(affected.has(item.a) && affected.has(item.b))), ...(record.distinctBefore ?? [])];
       record.undone = true;
     } else {
       if (command.action === 'create') create(command.name, command.focus ?? '', command.materials);
@@ -118,13 +121,16 @@ export async function changeTopics(command: TopicCommand): Promise<TopicCatalog>
           target.excludedKeys = target.excludedKeys.filter((key) => source.excludedKeys.includes(key));
           target.focus = [...new Set([target.focus, source.focus].filter(Boolean))].join('\n').slice(0, 1000);
           target.relatedIds = [...new Set([...target.relatedIds, ...source.relatedIds])].filter((id) => !command.ids.includes(id));
+          target.aiLineage = [...new Map([...(source.aiLineage ?? []), ...(target.aiLineage ?? [])].map((item) => [item.name.toLocaleLowerCase(), item])).values()];
           source.mergedInto = target.id;
-        } else if (command.action === 'link') {
-          for (const topic of pair) topic.relatedIds = [...new Set([...topic.relatedIds, pair.find((item) => item !== topic)!.id])];
-        } else catalog.distinct = [...catalog.distinct.filter((item) => !command.ids.includes(item.a) || !command.ids.includes(item.b)), { a: pair[0].id, b: pair[1].id, fingerprint: await topicPairFingerprint(pair[0], pair[1]) }].slice(-500);
+        } else {
+          if (command.action === 'link') for (const topic of pair) topic.relatedIds = [...new Set([...topic.relatedIds, pair.find((item) => item !== topic)!.id])];
+          catalog.distinct = [...catalog.distinct.filter((item) => !command.ids.includes(item.a) || !command.ids.includes(item.b)), { a: pair[0].id, b: pair[1].id, fingerprint: await topicPairFingerprint(pair[0], pair[1]) }].slice(-500);
+        }
       }
       for (const id of touched) { const topic = catalog.topics.find((item) => item.id === id)!; topic.revision++; topic.userRevision = (topic.userRevision ?? 0) + 1; topic.updatedAt = Date.now(); }
-      catalog.history.push({ id: crypto.randomUUID(), createdAt: Date.now(), label: command.action, before,
+      const affectedDecisions = distinctBefore.filter((item) => touched.has(item.a) && touched.has(item.b));
+      catalog.history.push({ distinctBefore: affectedDecisions, id: crypto.randomUUID(), createdAt: Date.now(), label: command.action, before,
         after: Object.fromEntries([...touched].map((id) => [id, catalog.topics.find((item) => item.id === id)!.revision])) });
       catalog.history = catalog.history.slice(-30);
     }

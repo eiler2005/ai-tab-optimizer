@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from './store';
+import { useTopicAdvicePolling } from './topic-advice-controller';
 import { GlobalSearch } from './components/GlobalSearch';
 import { Header } from './components/Header';
 import { StatsBar } from './components/StatsBar';
@@ -17,6 +18,7 @@ import { WorkspaceView } from './components/WorkspaceView';
 import { LibraryHintBanner } from './components/LibraryHintBanner';
 
 export function App() {
+  useTopicAdvicePolling();
   const review = useReviewController();
   const reviewScope = useStore((state) => state.reviewScope);
   const lastScope = useRef<string | null>(null);

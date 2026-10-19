@@ -19,6 +19,7 @@ export interface Topic {
   materials: TopicMaterial[];
   excludedKeys: string[];
   relatedIds: string[];
+  aiLineage?: { name: string; materialKeys: string[] }[];
   deletedAt?: number;
   mergedInto?: string;
 }
@@ -27,7 +28,7 @@ export interface TopicCatalog {
   version: 1;
   revision: number;
   topics: Topic[];
-  history: { id: string; label: string; createdAt: number; before: Topic[]; after: Record<string, number>; undone?: boolean }[];
+  history: { id: string; label: string; createdAt: number; before: Topic[]; after: Record<string, number>; distinctBefore?: { a: string; b: string; fingerprint: string }[]; undone?: boolean }[];
   distinct: { a: string; b: string; fingerprint: string }[];
   serverUpdatedAt?: number;
   serverError?: string;

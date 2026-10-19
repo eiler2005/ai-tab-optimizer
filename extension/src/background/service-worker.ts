@@ -54,6 +54,10 @@ import { previewOptimization, executeOptimization } from './optimization';
 import { collapseTopic } from './topic-actions';
 import { applyTabScope, type ScopeSnapshot } from '@shared/utils/tab-scope';
 import { getTopicCatalog, changeTopics } from './topic-catalog';
+import { startTopicAdvice, getTopicAdviceJob, cancelTopicAdvice } from './topic-advice';
+import { suggestTopicPairs } from '@shared/utils/topic-pairs';
+import { readWorkspace } from './workspace-storage';
+import { emptyTopicCatalog } from '@shared/utils/topics';
 import { registerLibraryAutomation, savePageToCollection, saveUrlRules } from './library-automation';
 import { configureBackups, createFullBackup, getFullBackupStatus, previewFullBackupRestore, setupBackupAlarm } from './library-backups';
 import { extractDomain } from '@shared/utils/url';
@@ -1948,6 +1952,14 @@ async function handleMessage(msg: MessageRequest): Promise<AnyResponse> {
     }
     case 'TOPIC_COMMAND':
       return { success: true, data: await changeTopics(msg.command) };
+    case 'GET_TOPIC_SUGGESTIONS':
+      return { success: true, data: await suggestTopicPairs((await readWorkspace()).topicCatalog ?? emptyTopicCatalog()) };
+    case 'START_TOPIC_PAIR_REVIEW':
+      return { success: true, data: await startTopicAdvice(msg.topicIds, msg.readEvidence) };
+    case 'GET_TOPIC_PAIR_REVIEW':
+      return { success: true, data: await getTopicAdviceJob() };
+    case 'CANCEL_TOPIC_PAIR_REVIEW':
+      return { success: true, data: await cancelTopicAdvice(msg.jobId) };
     case 'PREVIEW_CONTENT_REVIEW':
       return { success: true, data: await previewContentReview(msg.options, extractPageContent) };
     case 'START_CONTENT_REVIEW':
