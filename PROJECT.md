@@ -1,835 +1,150 @@
-# AITab — Project Documentation
+# AITab — product and implementation reference
 
-> Current v0.3 workspace: [WORKSPACE.md](docs/WORKSPACE.md), [reliability](docs/RELIABILITY.md), [migration](docs/MIGRATION.md). The new offline workspace complements the original analysis/history architecture below.
+Current workspace: 2026-10-19. Start with [README](README.md), [SETUP](SETUP.md)
+and [architecture](docs/ARCHITECTURE.md). Source types/routes linked below are
+canonical; this document describes contracts instead of duplicating interfaces.
 
-> Content review adds separate lists for overlapping information and topical
-> obsolescence, current-focus input, verified quoted evidence and explicit closing
-> with Undo. It compares up to 600 pages via `POST /workspace-review`; visit age is
-> not used. Codex defaults to `gpt-5.6-terra` with low reasoning. See the workspace
-> guide above for current flows and coverage limits.
+## Product contract
 
-> Cleanup now starts with a unified optimization plan: conservative selections,
-> before/after forecast, separate Apply action, persistent footer, actual outcome
-> report and Markdown download. Review jobs expose stage/count/time and cancellation
-> without blocking local actions. Stateful chats and complementary material are
-> retained. Numeric optimization reports survive validated backup/import.
+Reduce open-tab load while retaining access to useful sources. Distinguish exact
+copies, semantic overlap, complementary sources, topical obsolescence and useful
+material that can be deferred. Topic similarity is not redundancy. Visit age is
+not evidence of obsolescence. AI proposes; explicit validated actions execute.
+URL/layout recovery cannot restore arbitrary unsent state.
 
-> Task collections and Library now connect live and saved pages, notes and task context.
-> Library comparison uses isolated saved-source IDs, timestamped evidence and explicit
-> two-URL deep review. Remembered user decisions are bound to evidence/focus for 30 days.
-> Topics and clusters can retain a working minimum or save/close the rest with Undo.
-> Exact-host rules and Inbox commands save idempotently. Full local backup bundles
-> combine workspace JSON, consistent SQLite and SHA-256 manifests with optional scheduling.
+## Workspace
 
-> **This is the full internal spec — every type, every endpoint, every component.** If you're new here, start with the [README](README.md) for the elevator pitch, then read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architectural tour. Use this file once you need the exhaustive view.
-
----
-
-## Product Vision
-
-AITab is a Chrome Extension that acts as an intelligent browser workspace manager. It helps users with 100+ open tabs regain control of their browser without losing valuable context. The tool combines tab management, AI-driven analysis, and a persistent knowledge base in Obsidian to turn browser chaos into an organized, searchable archive of past work sessions.
-
-The core promise: **reduce open tabs while preserving access to useful sources and explaining proposed closures.** URL/layout recovery cannot guarantee preservation of unsaved page state or complete content equivalence.
-
----
-
-## User Problems & Use Cases
-
-### Primary Problems
-1. **Cognitive overload** — 100+ tabs create mental overhead and slow down focus
-2. **Fear of closing** — users hesitate to close tabs because they might need them later
-3. **Lost context** — after closing a session, users forget what they were working on
-4. **Duplicate waste** — same or similar pages open multiple times
-5. **No structure** — unrelated topics mixed together with no grouping
-6. **No memory** — browser has no searchable history of past work sessions
-
-### Use Cases
-| Use Case | Description |
+| Destination | Purpose |
 |---|---|
-| Daily cleanup | User wants to reduce tab count at end of day |
-| Topic grouping | User wants to organize research by theme |
-| Session handoff | User saves context before going offline |
-| Recovery | User reopens a work context from last week |
-| Knowledge capture | User turns a set of tabs into an Obsidian note cluster |
-| Deduplication | User removes near-identical tabs automatically |
-| Read later | User defers tabs without losing them |
-| Conversational recall | User asks the extension to find and summarize tabs from SQLite-backed memory |
+| Tabs (default) | Current work, window scope, search, selection, Inbox and contextual Review |
+| Topics | Permanent task catalog, working minimum, common/unique comparison, merge/link/split |
+| Library | Saved materials and task collections, notes, open/focus one page, optional comparison |
+| More → Review tabs | Resume one scoped plan; category filters retain selection |
+| More → Journal and Undo | Actual browser outcomes and separate structural topic history |
+| More → Reports / Activity | Analytics, habits, activity and refreshable insights |
+| More → Snapshots / Recovery / Settings | Session snapshots, backups, providers and diagnostics |
+| Search → By meaning / ask a question | Separately labelled server-history/analysis search |
 
----
+Shared local search covers titles, URLs, notes, reasons, task focus and topic names.
+Scopes are Open/Saved/Everything. Filters: `domain:`, `collection:`, `topic:`,
+`window:` and `status:`. Hidden selections remain visible in a counter. Review
+captures IDs and exact URLs at entry; navigation retains its plan and background jobs.
 
-## Implemented Features (v0.2)
-
-### Tab Visibility
-- List all open tabs across all windows, grouped by window (collapsible)
-- Display: title, URL, domain, favicon, pinned state, active state, Chrome tab group name
-- Search/filter by title or domain
-
-### Tab Management Actions
-- Close single tab or multiple selected tabs (bulk action)
-- Pin / unpin tab
-- Mark tab as "important" (local flag, persisted in `chrome.storage.local`)
-- Restore recently closed tabs (via `chrome.sessions` API)
-
-### Rule-Based Analysis (no AI)
-- Detect exact duplicate URLs (string equality on normalized URL)
-- Detect near-duplicate URLs (same domain + path similarity > 0.8)
-- Flag stale tabs (not accessed in N days, configurable threshold)
-- Group tabs by domain
-- Badges on each tab indicating detected issues
-
-### Overview / Stats Bar
-- Total tab count, duplicate count, stale count, important count
-- Top 5 domains by tab count
-
-### AI Analysis (via Local Server)
-- FastAPI server (`agent.py`) orchestrating local AI CLIs (`claude_code`, `codex_cli`)
-- Per-tab recommendations: keep / close / group / read_later / archive
-- Theme-first topic clusters with names, descriptions, tags
-- Session summary and stats (estimated closable, main themes)
-- **SQLite-backed per-URL caching**: results stored in `tab_analysis.db` with a 180-day TTL
-- **SQLite-backed settings**: provider choice, fallback chain, model, and retention settings persist server-side in `app_settings`
-- Already-analyzed URLs are skipped server-side; only uncached tabs are sent to AI
-- Automatic provider failover: the server can retry a batch with Codex CLI if Claude Code CLI is unavailable or rate-limited, then fall back to heuristic recommendations if both providers fail
-- Provider timeouts ensure a stuck CLI is abandoned and the batch can continue through the next provider
-- **Incremental batch analysis**: the service worker sends tabs in batches of 30 and updates the UI after every completed batch
-- **Fire-and-forget**: `ANALYZE_TABS` returns immediately, results come via broadcast events (no message channel timeout on 1000+ tabs)
-- Progress UI: phase indicator, progress bar, elapsed timer, cached/new/saved/processed counts, current batch
-- Runtime provider status card: active CLI/model, configured chain, and recorded failover errors during the current analysis run
-- Per-tab coverage UI shows which current tabs are cached, newly analyzed, still pending, or failed
-- Metadata tracking: accumulated duration, input/output tokens, cost across all batches
-- "From cache" badge, "Re-analyze" button and amber ↻ Refresh button with confirmation dialog to force full re-analysis (bypasses server-side URL cache)
-- Analytics section: ↻ Refresh button sends aggregated SQLite data (top domains, habits, clusters, recommendation stats) to LLM via `POST /analytics/refresh`, displays AI Insight card with browsing patterns summary, improvement suggestions, cluster insights, and habits commentary
-- "Stop analysis" persists partial run state in SQLite and can resume later for the same tab fingerprint
-- Intermediate recommendations appear as each completed batch is saved
-- Client-side heuristic fallback results are imported back into SQLite so per-URL coverage remains accurate
-- Server-side logging in `runtime_logs` SQLite table + persisted session history in `analysis_sessions`
-- LLM call logging in `llm_call_logs` SQLite table with per-call details (provider, model, tokens, duration, status)
-- Server endpoints: `GET /stats`, `GET /cache-stats`, `GET /db-status`, `GET /runtime-logs`, `GET /tab-history`, `GET /snapshots`, `POST /snapshots/import`, `POST /tab-history/import`, `POST /db/clear`, `GET /llm-call-logs`, `GET /cache/urls`, `DELETE /cache/urls`, `GET /sessions`, `DELETE /sessions/{id}`, `GET /insights`, `GET /habits-score`, `POST /recommendation-actions`, `GET /recommendation-stats`, `GET /activity-heatmap`, `GET /clusters`, `POST /clusters/merge`, `PUT /clusters/{id}`, `DELETE /clusters/{id}`, `POST /analysis-runs`, `PUT /analysis-runs/{id}`, `GET /analysis-runs/{id}`, `GET /analysis-runs/latest`, `POST /tab-analysis-status`, `POST /url-analysis/import`, `POST /chat`, `POST /analytics/refresh`
-
-### Search Dialog (SQLite-backed)
-- Dedicated **Search** tab with conversational dialog UI
-- Retrieves candidates from `url_analysis` and `tab_history_events` via consolidated UNION ALL query, plus persistent topic clusters
-- Uses the same provider chain and model configured in Settings for AI Analysis (20s LLM timeout, up to 6 keyword patterns)
-- Falls back to SQLite-only ranking if the model is disabled or unavailable
-- Response includes a grounded answer, relevant URLs, provider/model metadata, and follow-up prompts
-- Result cards can focus an already-open tab, open a URL, or close the matching open tab
-- Search input stays active while query is processing — user can type the next query without waiting
-
-### Cleanup Session Mode
-- Pre-cleanup auto-snapshot for undo capability
-- Step-by-step guided flow: one recommendation at a time
-- Accept / Skip / Change Action per recommendation
-- Completion screen with summary (closed, grouped, saved, skipped)
-- Export cleanup report to Obsidian
-
-### Tab History
-- Track tab events: opened, closed, activated
-- In-memory tab info cache for `onRemoved` (tab data unavailable after close)
-- Persist tab history events in server-side SQLite with local fallback buffering when the server is unavailable
-- History panel with timeframe filters (day / week / month)
-- Search by title/domain, sort by recent or visit count
-- Per-URL stats: activation count, first/last seen, last opened time, still-open badge
-- Daily cleanup alarm to prune old entries (configurable retention)
-
-### Snapshots
-- Manual snapshot creation with optional name
-- Auto-snapshots via Chrome Alarms API (configurable interval 1–24 hours)
-- Pre-cleanup snapshots (trigger: `pre-cleanup`)
-- Snapshot stores: tab list, window layout, basic stats
-- Snapshots persist in server-side SQLite and survive extension reload/removal
-- Snapshots history screen (list + detail)
-- Restore all tabs or selected tabs from snapshot
-- Delete snapshot, max snapshots cap with auto-pruning
-
-### Obsidian Integration
-- **LinkNote** — single tab export to `TabOptimizer/Links/{domain}/{slug}.md`
-- **TopicCluster** — AI cluster export to `TabOptimizer/Topics/{topic-slug}.md`
-- **TabSessionSnapshot** — snapshot export to `TabOptimizer/Sessions/{date}-{name-slug}.md`
-- **CleanupReview** — cleanup report export to `TabOptimizer/Cleanups/{date}-cleanup.md`
-- Vault path configurable in Settings
-- File System Access API for writing to vault
-- Dedup check (don't export same URL twice)
-
-### Content Script
-- On-demand page extraction (`page-extractor.ts`)
-- Extracts: meta description, first H1, text excerpt (500 chars)
-- Injected via `chrome.scripting.executeScript`
-
-### Settings
-- AI provider selection: none / local_server
-- Local server URL (default: `http://localhost:8765`) + "Test Connection" button
-- Primary server AI provider: Claude Code CLI or Codex CLI
-- Fallback server AI provider: none / Claude Code CLI / Codex CLI
-- Codex model input (default: `gpt-5.6-terra`)
-- Optional CLI path overrides for `claude` and `codex`
-- SQLite tools in Settings: refresh DB info, sync local extension buffers, clear server-side DB state, inspect recent runtime logs from `runtime_logs` table
-- LLM call logs viewer: browse individual LLM API calls with provider, model, tokens, duration, and status
-- URL cache browser: view and delete cached per-URL AI analysis entries
-- Analysis sessions list: view and delete past analysis session records
-- Obsidian vault path
-- Protected domains list
-- Stale tab threshold (days, default: 7)
-- Max snapshots to keep (default: 30)
-- Auto-snapshot toggle + interval (hours)
-- History retention days (7–90, default: 30)
-
-### Extension Infrastructure
-- Side Panel as primary UI (React + Zustand)
-- Popup (minimal — opens side panel + shows tab count)
-- Service worker with message routing (76 request types)
-- 9 broadcast events
-- 9 views in side panel
-- React view and workspace components
-- i18n (English / Russian, ~345 keys)
-- Manifest V3 compliant
-
----
-
-## Extension Architecture
-
-### Source Structure
-
-```
-extension/src/
-├── background/
-│   ├── service-worker.ts      # Chrome API bridge, listeners, router entrypoint
-│   ├── transport.ts           # Local server transport helpers
-│   ├── persistence.ts         # Settings/local persistence helpers
-│   └── analysis-helpers.ts    # Shared analysis state helpers
-├── side-panel/
-│   ├── index.html
-│   ├── main.tsx               # React app entry
-│   ├── App.tsx                # Root component (view routing, broadcast listener)
-│   ├── store.ts               # Zustand store (9 state slices incl. Search)
-│   └── components/            # React view and workspace components
-│       ├── AIRecommendations.tsx
-│       ├── BulkActions.tsx
-│       ├── ChatSearch.tsx
-│       ├── CleanupSession.tsx
-│       ├── Header.tsx
-│       ├── HistoryPanel.tsx
-│       ├── RecentlyClosed.tsx
-│       ├── SettingsView.tsx
-│       ├── SnapshotDetail.tsx
-│       ├── SnapshotsList.tsx
-│       ├── StatsBar.tsx
-│       ├── TabItem.tsx
-│       └── TabList.tsx
-├── popup/
-│   ├── index.html
-│   └── main.tsx               # Minimal popup (open side panel)
-├── content/
-│   └── page-extractor.ts      # Extract page metadata on demand
-├── shared/
-│   ├── types/
-│   │   ├── index.ts           # Re-exports
-│   │   ├── tab.ts             # TabRecord, RuleFlags, WindowGroup
-│   │   ├── snapshot.ts        # SnapshotRecord, WindowSnapshot, TabSnapshot
-│   │   ├── messages.ts        # MessageRequest, BroadcastEvent, UserSettings
-│   │   ├── ai.ts              # AIAnalysisResult, TopicCluster, TabRecommendation, etc.
-│   │   └── history.ts         # TabHistoryEntry, TabHistoryStats, HistoryTimeframe
-│   ├── utils/
-│   │   ├── url.ts             # URL normalization, domain extraction
-│   │   ├── rules.ts           # Rule engine (duplicates, stale, domain grouping)
-│   │   └── obsidian.ts        # Obsidian export functions (4 export types)
-│   └── i18n/
-│       ├── index.ts           # useTranslation hook
-│       └── translations.ts    # en/ru translations (~345 keys)
-└── styles.css                 # Tailwind entry
+```mermaid
+flowchart TD
+  Tabs["Tabs: find / current / selection"] --> Topic["Topic: task and working minimum"]
+  Tabs --> Review["Scoped review"]
+  Topic --> Review
+  Topic --> Save["Save before closing"]
+  Review --> Plan["One plan: reasons, keepers, forecast"]
+  Plan --> Apply["Explicit apply + current-state checks"]
+  Apply --> Journal["Actual report + Undo"]
+  Save --> Library["Retrieve only what is needed"]
+  Library --> Tabs
 ```
 
-### Component Responsibilities
+## Entities and ownership
 
-| Component | Role |
+| Entity | Identity / owner | Meaning |
+|---|---|---|
+| Live tab | Chrome session, ID and current URL | Stateful page; ID alone is not durable close proof |
+| Topic | Local stable UUID, source/manual revisions | Task name, focus, materials, aliases, exclusions and relations |
+| Collection | Local UUID/revision, saved-item UUIDs | Detached links, notes, purpose, reason, focus and review reminder |
+| Chrome group | Window/group IDs | Layout; collapse does not reduce tab count |
+| Persistent cluster | SQLite | AI source adapted into the catalog, not a second user-facing entity |
+| Review job / plan | Session ID, scope, expiry | Temporary analysis and reviewed proposals |
+| Browser operation | Durable UUID/per-item states | Write-before-effect journal and idempotent Undo |
+| Topic change | Structural snapshots and revision guards | Reversible organization without browser effects |
+
+Topics adapt collections, groups, recent AI topics and cached server clusters.
+Manual names/focus/exclusions survive refresh. AI lineage preserves manual merge
+and split decisions. Merge retains aliases, unique material and source references;
+different tasks can stay linked. Notes remain in source collections. Import remaps
+saved-chat identity as well as topic/collection IDs. See [TOPICS](docs/TOPICS.md).
+
+## Review invariants
+
+- One plan serves exact/tracking copies, redundancy, outdated content, already-saved
+  material and explicit useful deferral. Each live tab counts once.
+- Exact unprotected copies can start selected. Default AI redundancy selection
+  requires confidence ≥0.95 and excerpts for every member. Other categories require
+  explicit selection; related sources remain available.
+- Stateful chat roots/conversations are excluded from automatic optimization.
+  Same URL can contain different drafts. Explicit manual close remains possible.
+- Protected/important, pinned, active, audible and protected-domain pages are
+  excluded from automatic closing. Keepers and dependent actions are checked.
+- Action previews expire after five minutes. Explanations can stay visible, but
+  execution requires a fresh plan and revalidates URL, group/window and revisions.
+- Save-and-close persists collection and journal before effects. Storage failure
+  prevents closing. Partial outcomes and unrelated count changes are reported.
+- Undo restores confirmed successes once. Imported live IDs cannot target current
+  tabs. Incognito is excluded. Structural topic Undo has no Chrome effects.
+
+Details: [REVIEW](docs/REVIEW.md), [WORKSPACE](docs/WORKSPACE.md),
+[RELIABILITY](docs/RELIABILITY.md).
+
+## AI boundaries
+
+| Operation | Supplied input | Result |
+|---|---|---|
+| Topic suggestions | Explicit batched tab analysis/cache | Suggestions and analysis history |
+| Content/relevance | ≤600 normal non-chat HTTP(S) entries, optional ≤1,200-char excerpts | Session advice; no browser mutation |
+| Library comparison | Balanced live/saved unique URLs within 600-entry cap | Read-only advice; saved IDs cannot close tabs |
+| Deep page pair | Two selected URLs, accessible live text ≤8,000 chars each | Evidence; saved pages never open for extraction |
+| Topic pair | Two topics, ≤60 sampled materials each, cached excerpts ≤1,200 chars | Relation and common/unique explanation with verified quotes |
+| History question | SQLite retrieval and configured provider | Answer in a separately labelled scope |
+
+Page metadata is JSON-quoted untrusted data. IDs and quotes are validated against
+supplied sources; changed topic revisions invalidate pair advice. Missing text and
+partial coverage are explicit. No external web verification or full-page equivalence
+guarantee exists. The local server orchestrates CLIs that can send data to providers.
+Codex defaults to `gpt-5.6-terra`, low reasoning; CLI-managed ChatGPT authentication
+is described in SETUP. The task center shows stages, measured counts, elapsed time
+and cancellation. AI wait is indeterminate: 90-second server budget, 100-second client.
+
+## Canonical implementation contracts
+
+| Layer | Files |
 |---|---|
-| `service-worker.ts` | Tab CRUD, Chrome API bridge, tab history logging, AI server proxy, snapshot management, auto-snapshot scheduler, content script injection, Smart Tab Groups via `chrome.tabs.group()`, message router (76 request types), SQLite-backed Search dialog bridge |
-| `side-panel` (React) | Primary UI — 9 views, state management via Zustand, 9 broadcast event types, Tab Insights dashboard, Smart Tab Groups, SQLite-backed Search dialog |
-| `popup` | Lightweight entry point — opens side panel |
-| `page-extractor.ts` | Content script injected on demand — extracts meta description, H1, body text excerpt |
-| `agent.py` | FastAPI server — routes AI requests to Claude Code CLI or Codex CLI, persists cache/history/snapshots/settings in SQLite, and powers Search over SQLite memory |
-
-### Message Passing Architecture
-
-```
-Side Panel (React/Zustand) ←→ Service Worker ←→ Chrome APIs (tabs, tabGroups, sessions, storage, alarms, scripting)
-                                    ↕                        ↕
-                            Content Scripts          Local AI Server
-                            (on-demand)              (localhost:8765)
-```
-
-All communication uses `chrome.runtime.sendMessage` / `chrome.runtime.onMessage`. Message types are a discriminated union in `shared/types/messages.ts`.
-
-### Message Types
-
-**Requests (76; legacy base list below, additions at end):**
-`GET_ALL_TABS`, `CLOSE_TABS`, `PIN_TAB`, `SET_USER_FLAG`, `CREATE_SNAPSHOT`, `GET_SNAPSHOTS`, `GET_SNAPSHOT`, `DELETE_SNAPSHOT`, `RESTORE_SNAPSHOT`, `GET_SETTINGS`, `SAVE_SETTINGS`, `GET_SERVER_DB_STATUS`, `GET_SERVER_RUNTIME_LOGS`, `SYNC_SERVER_PERSISTENCE`, `CLEAR_SERVER_DB`, `GET_TAB_HISTORY`, `GET_TAB_ANALYSIS_STATUS`, `ANALYZE_TABS`, `STOP_AI_ANALYSIS`, `GET_AI_RESULT`, `EXTRACT_PAGE`, `START_CLEANUP_SESSION`, `APPLY_CLEANUP_ACTION`, `GET_LLM_CALL_LOGS`, `GET_URL_CACHE_LIST`, `DELETE_URL_CACHE`, `GET_ANALYSIS_SESSIONS`, `DELETE_ANALYSIS_SESSION`, `GROUP_TABS_BY_CLUSTER`, `GET_TAB_INSIGHTS`, `GET_HABITS_SCORE`, `TRACK_RECOMMENDATION`, `GET_RECOMMENDATION_STATS`, `GET_ACTIVITY_HEATMAP`, `GET_PERSISTENT_CLUSTERS`, `MERGE_AI_CLUSTERS`, `RENAME_CLUSTER`, `DELETE_CLUSTER`, `FOCUS_ON_CLUSTER`, `EXIT_FOCUS_MODE`, `GET_CLUSTER_TAB_MATCHES`, `OPEN_URL`, `FOCUS_TAB`, `CHAT_SEARCH`, `REFRESH_ANALYTICS`
-
-**Broadcasts (9):**
-`TAB_OPERATION_COMPLETE`, `TABS_UPDATED`, `SNAPSHOT_CREATED`, `AI_ANALYSIS_COMPLETE`, `AI_ANALYSIS_ERROR`, `AI_ANALYSIS_CANCELED`, `AI_ANALYSIS_PROGRESS`, `AI_ANALYSIS_PARTIAL`, `HISTORY_UPDATED`
-
----
-
-## Service Worker Architecture
-
-The service worker remains the runtime entrypoint, but low-risk helper modules now isolate transport, settings persistence, and analysis-state utilities. The entry file still owns listeners, alarms, orchestration, and the message switch.
-
-### Sections
-1. **In-memory tab cache** — `Map<number, {url, title, domain}>` for `onRemoved` events (tab data unavailable after close)
-2. **Tab helpers** — `getAllTabs()` queries all tabs/windows/groups, normalizes into `WindowGroup[]`
-3. **Snapshots** — `createSnapshot()`, `getSnapshots()`, `saveSnapshots()` with max-cap pruning
-4. **Settings** — `getSettings()`, `saveSettings()` with defaults merge
-5. **User flags** — `getUserFlags()`, `setUserFlag()` for important/read_later/protected marks
-6. **Tab history** — `logTabEvent()`, `getTabHistory()`, `cleanupOldHistory()` with timeframe filtering and per-URL stats aggregation
-7. **AI analysis** — `analyzeTabsViaServer()` builds `AISessionInput`, POSTs to local server, broadcasts progress, persists analysis runs to SQLite for resume, auto-merges topic clusters on completion
-8. **Analysis run persistence** — `analysis_runs` table stores full run state (pending tabs, per-tab statuses, result, metadata) for stop/resume across extension reloads
-9. **Per-tab analysis status** — `getTabAnalysisStatus()` returns per-tab coverage from server SQLite, used by TabStatusCoverageCard
-10. **Content script injection** — `extractPageContent()` injects and messages the content script
-11. **Auto-snapshots** — `setupAutoSnapshot()` manages Chrome Alarm
-12. **Analytics helpers** — habits score, recommendation tracking, activity heatmap, persistent clusters, focus mode
-13. **Search dialog** — conversational retrieval over SQLite-backed AI results, history, and clusters using the same provider chain as AI analysis
-14. **Message handler** — `handleMessage()` switch on 76 request types
-15. **Tab event listeners** — `onCreated`, `onRemoved`, `onActivated`, `onUpdated`, `onMoved`, `onAttached`, `onDetached`
-16. **Startup** — sets up auto-snapshot alarm + daily history cleanup alarm
-
----
-
-## Zustand Store (Side Panel)
-
-### Views
-`'tabs' | 'snapshots' | 'snapshot-detail' | 'settings' | 'history' | 'ai-recommendations' | 'chat' | 'cleanup-session' | 'workspace'`
-
-### State Slices
-1. **Navigation** — `currentView`, `setView()`
-2. **Tabs** — `windowGroups`, `totalTabs`, `selectedTabIds`, `searchQuery`, `loadTabs()`, `toggleTabSelection()`, `selectAll()`, `deselectAll()`
-3. **Snapshots** — `snapshots`, `selectedSnapshot`, `loadSnapshots()`, `selectSnapshot()`
-4. **Recently closed** — `recentlyClosed`, `loadRecentlyClosed()`
-5. **History** — `historyStats`, `historyTimeframe`, `historySearchQuery`, `historyLoading`, `loadHistory()`, `setHistoryTimeframe()`
-6. **AI** — `aiResult`, `aiAnalyzedAt`, `aiLoading`, `aiError`, `aiProgress`, `aiMetadata`, `aiFromCache`, `aiWasCanceled`, `aiResumeAvailable`, `aiRunId`, `aiTabStatuses`, `aiStatusSummary`, `analyzeTabs()`, `resumeAIAnalysis()`, `stopAIAnalysis()`, `loadAIResult()`, `loadAITabStatuses()`, `setAIResult()`, `setAIPartialResult()`, `setAIError()`, `setAIProgress()`, `setAIStopped()`, `setAITabStatuses()`
-7. **Cleanup** — `cleanupStep`, `cleanupActions`, `cleanupRecommendations`, `startCleanupSession()`, `applyCleanupAction()`, `skipCleanupStep()`, `finishCleanup()`
-8. **Focus Mode** — `focusClusterId`, `focusClusterName`, `focusMatchedTabIds`, `setFocusMode()`, `exitFocusMode()`
-9. **Search** — `chatMessages`, `chatLoading`, `sendChatQuery()`, `clearChat()`
-
----
-
-## Data Model
-
-### Core Types
-
-```typescript
-interface TabRecord {
-  id: number;
-  windowId: number;
-  index: number;
-  url: string;
-  title: string;
-  domain: string;
-  favIconUrl?: string;
-  pinned: boolean;
-  active: boolean;
-  groupId?: number;
-  groupName?: string;
-  lastAccessed?: number;
-  ruleFlags?: RuleFlags;
-  userFlag?: 'important' | 'read_later' | 'protected';
-}
-
-interface RuleFlags {
-  isExactDuplicate: boolean;
-  duplicateOfTabId?: number;
-  isNearDuplicate: boolean;
-  isStale: boolean;
-  domainGroup: string;
-}
-
-interface WindowGroup {
-  windowId: number;
-  focused: boolean;
-  tabs: TabRecord[];
-}
-```
-
-### Snapshot Types
-
-```typescript
-interface SnapshotRecord {
-  id: string;
-  name: string;
-  createdAt: number;
-  trigger: 'manual' | 'auto' | 'pre-cleanup';
-  windows: WindowSnapshot[];
-  stats: {
-    totalTabs: number;
-    totalWindows: number;
-    topDomains: string[];
-  };
-}
-
-interface WindowSnapshot {
-  windowId: number;
-  focused: boolean;
-  tabs: TabSnapshot[];
-}
-
-interface TabSnapshot {
-  url: string;
-  title: string;
-  domain: string;
-  pinned: boolean;
-  favIconUrl?: string;
-  groupName?: string;
-}
-```
-
-### AI Types
-
-```typescript
-interface AISessionInput {
-  tabs: {
-    id: number;
-    title: string;
-    url: string;
-    domain: string;
-    pinned: boolean;
-    active: boolean;
-    groupId?: number;
-    groupName?: string;
-    pageExcerpt?: string;
-    metaDescription?: string;
-  }[];
-}
-
-interface AIAnalysisResult {
-  summary: string;
-  topicClusters: TopicCluster[];
-  tabRecommendations: TabRecommendation[];
-  duplicateGroups: DuplicateGroup[];
-  staleTabIds: number[];
-  sessionStats: {
-    estimatedClosable: number;
-    mainThemes: string[];
-    urgentItems: number;
-    actionBreakdown?: Partial<Record<RecommendedAction, number>>;
-  };
-}
-
-type RecommendedAction = 'keep' | 'group' | 'read_later' | 'archive' | 'close';
-
-interface TabRecommendation {
-  tabId: number;
-  action: RecommendedAction;
-  confidence: number;
-  reason: string;
-  suggestedGroupName?: string;
-}
-
-type AIProviderId = 'claude_code' | 'codex_cli';
-
-interface AIProviderAttempt {
-  provider: AIProviderId;
-  model: string | null;
-  status: 'succeeded' | 'failed';
-  error?: string | null;
-}
-
-interface AIProviderRuntimeStatus {
-  primaryProvider: AIProviderId | 'none';
-  fallbackProvider: AIProviderId | 'none';
-  currentProvider: AIProviderId | null;
-  currentModel: string | null;
-  attempts: AIProviderAttempt[];
-  lastError: string | null;
-  servedFromCacheOnly: boolean;
-}
-
-interface AIAnalysisMetadata {
-  durationMs: number;
-  durationApiMs: number;
-  totalCostUsd: number | null;
-  inputTokens: number;
-  outputTokens: number;
-  tabCount: number;
-  providerUsed?: AIProviderId | null;
-  modelUsed?: string | null;
-  providerAttempts?: AIProviderAttempt[];
-  providerStatus?: AIProviderRuntimeStatus;
-}
-
-interface AIProgress {
-  phase: 'preparing' | 'sending' | 'analyzing' | 'persisting' | 'processing' | 'stopping' | 'stopped';
-  tabsTotal: number;
-  tabsCached: number;
-  tabsNew: number;
-  tabsAnalyzed: number;
-  tabsProcessed: number;
-  tabsRemaining: number;
-  tabsSaved: number;
-  batchesTotal: number;
-  batchesCompleted: number;
-  currentBatch: number;
-  startedAt: number;
-  providerStatus?: AIProviderRuntimeStatus;
-}
-
-type TabAnalysisState = 'pending' | 'cached' | 'analyzed' | 'failed';
-type TabAnalysisSource = 'pending' | 'database' | 'provider' | 'heuristic';
-
-interface TabAnalysisStatus {
-  tabId: number;
-  url: string;
-  title: string;
-  domain: string;
-  status: TabAnalysisState;
-  source: TabAnalysisSource;
-  action?: RecommendedAction | null;
-  confidence?: number | null;
-  reason?: string | null;
-  analyzedAt?: number | null;
-  provider?: AIProviderId | null;
-  model?: string | null;
-}
-
-interface TabAnalysisStatusSummary {
-  total: number;
-  cached: number;
-  analyzed: number;
-  pending: number;
-  failed: number;
-}
-```
-
-### Analytics Types
-
-```typescript
-interface HabitsScore {
-  score: number;
-  trend: 'improving' | 'stable' | 'declining';
-  components: HabitsScoreComponent[];
-  computedAt: number;
-}
-
-interface HabitsScoreComponent {
-  name: string;
-  value: number;
-  normalizedScore: number;
-  weight: number;
-}
-
-interface RecommendationActionStats {
-  totalActions: number;
-  acceptanceRate: number;
-  byAiAction: Record<string, { total: number; accepted: number; skipped: number; modified: number; avgConfidence: number }>;
-  confidenceCorrelation: { bucket: string; acceptanceRate: number }[];
-}
-
-interface ActivityHeatmapData {
-  grid: number[][];  // 7×24 (days × hours)
-  domains: string[];
-}
-
-interface PersistentCluster {
-  id: number;
-  name: string;
-  description: string;
-  tags: string[];
-  tabUrls: string[];
-  createdAt: number;
-  updatedAt: number;
-}
-```
-
-### Management & Insights Types
-
-```typescript
-interface LLMCallLogEntry {
-  id: number;
-  sessionId: string;
-  provider: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  durationMs: number;
-  status: 'succeeded' | 'failed';
-  error?: string;
-  createdAt: string;
-}
-
-interface UrlCacheEntry {
-  url: string;
-  domain: string;
-  provider: string;
-  model: string;
-  analyzedAt: string;
-  expiresAt: string;
-}
-
-interface AnalysisSessionEntry {
-  id: string;
-  tabCount: number;
-  provider: string;
-  model: string;
-  durationMs: number;
-  totalCostUsd: number | null;
-  inputTokens: number;
-  outputTokens: number;
-  createdAt: string;
-}
-
-interface TabInsights {
-  topDomains: { domain: string; count: number }[];
-  avgTabsPerWindow: number;
-  avgSessionDuration: number;
-  snapshotTrend: { date: string; count: number }[];
-}
-```
-
-### Settings
-
-```typescript
-interface UserSettings {
-  obsidianVaultPath: string;
-  protectedDomains: string[];
-  staleDaysThreshold: number;
-  maxStoredSnapshots: number;
-  aiProvider: 'anthropic' | 'openai' | 'ollama' | 'local_server' | 'none';
-  serverAiProvider: 'none' | 'claude_code' | 'codex_cli';
-  fallbackAiProvider: 'none' | 'claude_code' | 'codex_cli';
-  apiKey: string;
-  ollamaEndpoint: string;
-  localServerUrl: string;
-  claudeCliPath: string;
-  codexCliPath: string;
-  codexModel: string;
-  autoSnapshotEnabled: boolean;
-  autoSnapshotIntervalHours: number;
-  historyRetentionDays: number;
-}
-```
-
----
-
-## Storage Keys
-
-| Key | Type | Purpose |
-|---|---|---|
-| `snapshots` | `SnapshotRecord[]` | Temporary offline snapshot buffer before sync to server SQLite |
-| `settings` | `UserSettings` | Local mirror of server-backed settings persisted in SQLite |
-| `userFlags` | `Record<number, string>` | Per-tab user flags (important/read_later/protected) |
-| `tabHistory` | `TabHistoryEntry[]` | Temporary offline history buffer before sync to server SQLite |
-| `lastAIResult` | `CachedAIResult` | Cached aggregated AI analysis with fingerprint and metadata |
-| `exportedUrls` | `string[]` | Dedup guard for Obsidian exports |
-
----
-
-## AI Pipeline
-
-### Local Server (`agent.py`)
-
-FastAPI server wrapping local AI CLIs. Runs on port 8765 (configurable via `PORT` env var).
-
-**Endpoints:**
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | Connection test → `{ status: "ok" }` |
-| GET | `/db-status` | Database statistics (table counts, DB size, timestamps) |
-| GET | `/runtime-logs` | Recent provider/analysis/database log entries |
-| GET | `/cache-stats` | Current SQLite URL-cache counts and timestamps |
-| GET | `/settings` | Load persisted server/extension settings from SQLite |
-| POST | `/settings` | Save merged server/extension settings to SQLite |
-| POST | `/analyze` | Accepts tab list, returns `{ result, metadata, cacheStats }` with `tabsFromCache`, `tabsAnalyzed`, `tabsSaved` |
-| POST | `/analyze/cancel` | Cancel a running analysis — kills CLI subprocess, sets cancel event, returns `{ cancelled }` |
-| GET | `/stats` | Cumulative usage stats (total analyses, cost, tokens, avg duration) |
-| POST | `/tab-history/events` | Append a single tab history event |
-| POST | `/tab-history/import` | Bulk import locally buffered history events |
-| GET | `/tab-history` | Aggregated tab history stats by timeframe |
-| POST | `/tab-history/prune` | Prune old history entries by retention days |
-| GET | `/snapshots` | List all persisted snapshots |
-| GET | `/snapshots/{id}` | Get a single snapshot by ID |
-| POST | `/snapshots` | Save a snapshot to SQLite |
-| POST | `/snapshots/import` | Bulk import locally buffered snapshots |
-| DELETE | `/snapshots/{id}` | Delete a snapshot |
-| POST | `/db/clear` | Clear all tables (optionally preserve settings) |
-| GET | `/llm-call-logs` | Individual LLM call log entries (provider, model, tokens, duration, status) |
-| GET | `/cache/urls` | List cached per-URL AI analysis entries |
-| DELETE | `/cache/urls` | Delete cached URL analysis entries |
-| GET | `/sessions` | List analysis session records |
-| DELETE | `/sessions/{id}` | Delete a specific analysis session |
-| GET | `/insights` | Tab insights dashboard (top domains, avg stats, snapshot trend) |
-| GET | `/habits-score` | Composite tab habits/health score with weighted components and trend |
-| POST | `/recommendation-actions` | Log accepted / skipped / modified cleanup actions |
-| GET | `/recommendation-stats` | Aggregate recommendation acceptance and confidence stats |
-| GET | `/activity-heatmap` | 7x24 activity heatmap from persisted tab history events |
-| GET | `/clusters` | List persistent topic clusters |
-| POST | `/clusters/merge` | Merge AI clusters into persistent storage |
-| PUT | `/clusters/{id}` | Rename a persistent cluster |
-| DELETE | `/clusters/{id}` | Delete a persistent cluster |
-| POST | `/analysis-runs` | Persist a new partial/final analysis run snapshot |
-| PUT | `/analysis-runs/{id}` | Update a server-backed analysis run during batching |
-| GET | `/analysis-runs/{id}` | Read one persisted analysis run |
-| GET | `/analysis-runs/latest` | Read the latest persisted analysis run |
-| POST | `/tab-analysis-status` | Return per-tab SQLite-backed analysis coverage for the current tab set |
-| POST | `/url-analysis/import` | Import heuristic/client-side per-URL analysis rows into SQLite |
-| POST | `/chat` | Search and summarize SQLite-backed browser memory via the configured provider chain |
-| POST | `/analytics/refresh` | Send aggregated SQLite analytics to LLM, returns AI insight (browsing patterns, suggestions, cluster insights, habits commentary) |
-| POST | `/workspace-review` | Content overlap and topical obsolescence with current-focus context, bounded excerpts and validated page IDs/quotes |
-
-**How it works:**
-1. Extension service worker preflights `/tab-analysis-status` to learn which current tabs already have fresh SQLite results
-2. Server loads persisted app settings from SQLite to determine provider chain and model
-3. Server looks up per-URL cache entries in `tab_analysis.db` and filters out fresh hits
-4. Only tabs without fresh coverage are formatted into compact prompts and analyzed in batches of 30 via the configured CLI provider
-5. If the primary CLI fails or hits a usage limit, the server retries the batch with the fallback CLI provider
-6. The extension persists partial/final run state with per-tab statuses in `analysis_runs`, so stop/resume survives reloads
-7. If a batch falls back to heuristics, those per-URL results are still persisted to `url_analysis` either directly on the server or via `/url-analysis/import`, so per-tab coverage stays in sync with what the user just analyzed
-8. The server stores per-URL results + session metrics in SQLite, then returns the aggregated `AnalyzeResponse`
-9. The Search dialog uses `/chat` to retrieve SQLite candidates and, when useful, summarize/rank them with the same provider/model chain as AI Analysis
-
-**Prompt strategy:**
-- System prompt: role definition + exact JSON output schema
-- User prompt: compact tab list (not raw JSON, for token efficiency)
-
----
-
-## Chrome Permissions
-
-### Manifest (actual)
-```json
-{
-  "permissions": [
-    "tabs",           // read tab info, close/pin/move tabs
-    "tabGroups",      // read and manage tab groups
-    "storage",        // store settings, snapshots, history
-    "alarms",         // scheduled auto-snapshots + history cleanup
-    "sessions",       // access recently closed tabs
-    "sidePanel",      // use side panel UI
-    "scripting",      // inject content script on demand
-    "contextMenus"    // save a page link to Inbox
-  ],
-  "host_permissions": [
-    "http://localhost/*"   // for local AI server communication
-  ],
-  "optional_host_permissions": [
-    "<all_urls>"           // for content script injection (page extraction)
-  ]
-}
-```
-
-### Privacy Notes
-- `<all_urls>` is optional and only used when user explicitly triggers page content extraction
-- No tab data is sent anywhere without user action
-- The extension only talks to the localhost server; downstream CLI providers may still use cloud-backed inference depending on the configured provider
-- API keys stored in `chrome.storage.local` (not sync)
-- No analytics or telemetry
-
----
-
-## UX Structure — Screens
-
-### Screen Map
-```
-Side Panel
-├── Tabs                     # Main tab list with search, filters, bulk actions
-├── History                  # Tab activity history with timeframe filters
-├── AI Recommendations       # AI analysis results + topic clusters (↻ refresh buttons on both Analysis/Analytics)
-│   └── Cleanup Session      # Guided cleanup flow (step-by-step)
-├── Search                   # SQLite-backed dialog over AI results, history, and theme clusters (non-blocking input)
-├── Snapshots History        # List of saved snapshots
-│   └── Snapshot Detail      # View / restore / export individual snapshot
-└── Settings                 # AI provider, vault path, preferences
-```
-
-### Navigation
-Top bar with 7 nav items: Cleanup, Tabs, History, AI, Search, Snapshots, Settings. Sub-views (`snapshot-detail`, `cleanup-session`) alias back to their parent nav item.
-
-### Tab List Item
-Each tab shows:
-- Favicon + title (truncated) + domain
-- Status badges: `duplicate`, `stale`, `pinned`, user flags
-- Quick actions: close, pin, flag, Obsidian export
-- Checkbox for bulk selection
-
----
-
-## Obsidian Entity Types
-
-| Entity | Status | Output Path |
-|---|---|---|
-| `LinkNote` | Implemented | `TabOptimizer/Links/{domain}/{slug}.md` |
-| `TopicCluster` | Implemented | `TabOptimizer/Topics/{topic-slug}.md` |
-| `TabSessionSnapshot` | Implemented | `TabOptimizer/Sessions/{date}-{name-slug}.md` |
-| `CleanupReview` | Implemented | `TabOptimizer/Cleanups/{date}-cleanup.md` |
-| `ReadingList` | Planned (v0.3) | — |
-| `WorkContext` | Planned (v0.3) | — |
-
-All exports use YAML frontmatter + Markdown body with Obsidian tags.
-
----
-
-## Roadmap
-
-### MVP (v0.1) — Complete
-- Tab list view across all windows
-- Rule-based deduplication + stale detection
-- Manual snapshot creation + restore
-- Basic Obsidian export (LinkNote)
-- Settings: vault path, protected domains
-- i18n (English / Russian)
-
-### v0.2 — Complete
-- Tab History panel (event tracking, stats, timeframe filters)
-- AI analysis via local Python server (FastAPI + Claude Code CLI / Codex CLI)
-- AI recommendations panel with per-tab actions, action breakdown pills, model display, per-tab coverage, and stop/resume
-- Richer AI summary with action breakdown, yellow banner for partial results after stop
-- Topic clusters from AI with Obsidian export, theme-first clustering, and tag-based comparison against persistent clusters
-- Smart Tab Groups: create Chrome Tab Groups from AI topic clusters via `chrome.tabs.group()`
-- Tab Insights dashboard: top domains, average stats, snapshot trend in AI panel
-- Analytics & Focus Mode: habits score, recommendation tracking, activity heatmap, persistent clusters, focus mode
-- Search dialog over SQLite-backed AI results, history, and saved clusters using the same provider chain as AI analysis
-- Cleanup Session mode (guided step-by-step flow)
-- Content script for page metadata extraction
-- Auto-snapshots via Chrome Alarms
-- Obsidian exports: TopicCluster, TabSessionSnapshot, CleanupReview
-- LLM call logging with `llm_call_logs` SQLite table and viewer in Settings
-- URL cache browser and analysis sessions management in Settings
-
-### v0.3
-- Provider health/status view in the UI
-- Additional CLI/local-model adapters
-- Snapshot comparison view
-- ReadingList + WorkContext Obsidian entities
-- Drag and drop tab reordering
-
-### v1.0
-- Polish + performance optimization
-- Onboarding flow
-- Keyboard shortcuts
-- Options page (standalone)
-- Extension packaging + Chrome Web Store submission
-
-### v2.0
-- Broader local-model ecosystem support
-- Cross-device snapshot sync (chrome.storage.sync)
-- Obsidian plugin counterpart (read-only dashboard inside Obsidian)
-- Tab usage heatmap + analytics over time
-
-## Workspace protocol additions
-
-The canonical discriminated union and exhaustive router include workspace overview; duplicate preview/execute; operation Undo; window preview/execute; collection preview/save/open/update/merge; and backup export/preview/import. Previews expire after five minutes and confirmations revalidate current data. No AI result initiates browser mutations.
-
-Current additions: `OPEN_COLLECTION_ITEM`, `REMEMBER_REVIEW_DECISION`, `COLLAPSE_TOPIC`,
-`SAVE_URL_RULES`, `SAVE_PAGE_TO_COLLECTION`, `GET_FULL_BACKUP_STATUS`, `CONFIGURE_BACKUPS`,
-`CREATE_FULL_BACKUP`, `PREVIEW_FULL_BACKUP_RESTORE`. `SAVE_COLLECTION` accepts optional
-validated task metadata; `UPDATE_COLLECTION` edits it. The complete canonical union is
-[messages.ts](extension/src/shared/types/messages.ts).
-
-Additional server routes: `GET/POST /workspace-backups`, `GET /workspace-backups/{id}`.
-They inherit the loopback origin/token guard. Backup creation accepts a version-1
-workspace envelope and retention 1–30; no client-provided filesystem destination.
-`AITAB_BACKUP_DIR` selects the server-owned root. Restore checks SHA-256 and returns
-the workspace envelope for explicit append-import; it never overwrites the live DB.
-
-Additional local keys: `aitab.workspace.v1` (collections, journal, review decisions and
-URL rules); `aitab.content-evidence` (derived 900 KB cache); `aitab.review-focus`;
-`aitab.backups` (schedule/status); `aitab.automation-error` (last background save error).
-Session keys hold review jobs, previews and the browser-session identifier. Provider
-authentication is external to these stores. See [WORKSPACE.md](docs/WORKSPACE.md) for
-storage limits, stale evidence, source revisions and recovery semantics.
+| Navigation / selection / scope | [store.ts](extension/src/side-panel/store.ts), [tab-filter.ts](extension/src/side-panel/tab-filter.ts) |
+| Shared search | [library-index.ts](extension/src/side-panel/library-index.ts), [library.ts](extension/src/shared/utils/library.ts) |
+| Catalog | [topics.ts](extension/src/shared/types/topics.ts), [topic-catalog.ts](extension/src/background/topic-catalog.ts) |
+| Pair advice | [topic-pairs.ts](extension/src/shared/utils/topic-pairs.ts), [topic-advice.ts](extension/src/background/topic-advice.ts), [topic_review.py](server_core/topic_review.py) |
+| Review / plan | [content-review.ts](extension/src/background/content-review.ts), [review-jobs.ts](extension/src/background/review-jobs.ts), [optimization.ts](extension/src/background/optimization.ts) |
+| Journal / layout | [workspace-operations.ts](extension/src/background/workspace-operations.ts), [window-operations.ts](extension/src/background/window-operations.ts) |
+| Protocol | [messages.ts](extension/src/shared/types/messages.ts), [service-worker.ts](extension/src/background/service-worker.ts) |
+| Backups | [workspace-backup.ts](extension/src/background/workspace-backup.ts), [workspace_backups.py](server_core/workspace_backups.py) |
+| HTTP / SQL | [agent.py](agent.py), [server_core](server_core) |
+
+`POST /workspace-review` and `POST /topic-review` share the configured provider chain.
+`GET/POST /workspace-backups` and `GET /workspace-backups/{id}` operate on bounded,
+server-owned bundles; API restore never overwrites live SQLite. Existing analysis,
+history, cluster and snapshot routes stay compatible. Origin/token guards apply.
+
+## Persistence and deployment
+
+`aitab.workspace.v1` owns collections, operations, remembered decisions, URL rules
+and optional topic catalog/history. Session storage owns jobs, previews and browser
+session identity. Evidence is derived cache excluded from backups. SQLite owns
+analysis/cache/history/server clusters/snapshots. Legacy database and Obsidian
+`TabOptimizer/*` paths stay compatible.
+
+Portable JSON validates and appends with remapped IDs. Full backups add a consistent
+SQLite copy with provider settings purged and SHA-256 manifests. JSON/SQL snapshots
+are separate moments. Schedules are opt-in; SQL replacement requires a stopped server.
+
+Build `extension/dist/` and Reload the existing installation. Preserve its old loader
+path/ID during [migration](docs/MIGRATION.md); removing the extension can separate
+profile-local data. `pnpm server` starts loopback FastAPI.
+
+## Validation and next work
+
+[TESTING](docs/TESTING.md) gives commands; [TEST_REPORT](docs/testing/TEST_REPORT.md)
+records evidence and limits. Automated suites use isolated profiles/databases and
+synthetic provider responses. Large-workspace measurements are reproducible local
+observations, not a human study or corpus-wide semantic accuracy claim.
+
+The [UX plan](docs/plans/usability-tabs-topics.md) follows the earlier
+[product review](docs/plans/product-development.md). External relevance verification,
+full incremental semantic recomputation, topic trees, drag/drop and cross-device
+sync remain future work.

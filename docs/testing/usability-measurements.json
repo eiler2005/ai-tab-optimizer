@@ -1,0 +1,190 @@
+{
+  "measuredAt": "2026-10-19T08:42:07.723Z",
+  "method": "Sequential isolated headless Chromium profiles; real synthetic tabs discarded after creation, 1000 saved records, 12 input-to-DOM timings include Playwright overhead; no AI or human study.",
+  "measurements": [
+    {
+      "version": "before",
+      "syntheticLiveTabs": 600,
+      "savedMaterials": 1000,
+      "collections": 40,
+      "firstUsefulMs": 148,
+      "initialRenderedRows": 602,
+      "searchInputToResultMs": [
+        57,
+        33,
+        33,
+        34,
+        34,
+        32,
+        34,
+        33,
+        34,
+        33,
+        32,
+        34
+      ],
+      "searchP95Ms": 57,
+      "savedRetrievalMs": 82,
+      "savedNavigationClicks": 2,
+      "singlePageOpenAndFocus": true,
+      "layoutChecks": []
+    },
+    {
+      "version": "after",
+      "syntheticLiveTabs": 600,
+      "savedMaterials": 1000,
+      "collections": 40,
+      "firstUsefulMs": 58,
+      "initialRenderedRows": 100,
+      "searchInputToResultMs": [
+        92,
+        33,
+        33,
+        33,
+        33,
+        34,
+        33,
+        34,
+        33,
+        34,
+        33,
+        34
+      ],
+      "searchP95Ms": 92,
+      "savedRetrievalMs": 116,
+      "savedNavigationClicks": 1,
+      "singlePageOpenAndFocus": true,
+      "layoutChecks": [
+        {
+          "width": 360,
+          "textScale": 1,
+          "view": "Tabs",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 1,
+          "view": "Topics",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 1,
+          "view": "Library",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 2,
+          "view": "Tabs",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 2,
+          "view": "Topics",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 2,
+          "view": "Library",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 420,
+          "textScale": 1,
+          "view": "Tabs",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 420,
+          "textScale": 1,
+          "view": "Topics",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 420,
+          "textScale": 1,
+          "view": "Library",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 420,
+          "textScale": 2,
+          "view": "Tabs",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 420,
+          "textScale": 2,
+          "view": "Topics",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 420,
+          "textScale": 2,
+          "view": "Library",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 600,
+          "textScale": 1,
+          "view": "Tabs",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 600,
+          "textScale": 1,
+          "view": "Topics",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 600,
+          "textScale": 1,
+          "view": "Library",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 600,
+          "textScale": 2,
+          "view": "Tabs",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 600,
+          "textScale": 2,
+          "view": "Topics",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 600,
+          "textScale": 2,
+          "view": "Library",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 2,
+          "view": "Вкладки",
+          "locale": "ru",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 2,
+          "view": "Темы",
+          "locale": "ru",
+          "horizontalOverflow": false
+        },
+        {
+          "width": 360,
+          "textScale": 2,
+          "view": "Библиотека",
+          "locale": "ru",
+          "horizontalOverflow": false
+        }
+      ]
+    }
+  ]
+}

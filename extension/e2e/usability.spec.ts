@@ -2,6 +2,43 @@ import { test, expect, request } from './fixtures';
 import type { CollectionPreview } from '../src/shared/types/workspace';
 import type { TopicCatalog } from '../src/shared/types/topics';
 
+test('Show current reveals a filtered active tab beyond the first hundred and restores keyboard focus', async ({ panel, worker }) => {
+  const target = await worker.evaluate(async () => {
+    let id = 0;
+    for (let i = 0; i < 125; i++) id = (await chrome.tabs.create({ url: `http://aitab.test/reveal-${i}`, active: false })).id!;
+    await chrome.tabs.update(id, { active: true });
+    return id;
+  });
+  await expect(panel.getByTestId('current-page')).toHaveAttribute('data-current-tab-id', String(target));
+  await panel.getByLabel('Find materials', { exact: true }).fill('reveal-0');
+  await expect(panel.locator('[data-tab-id]')).toHaveCount(1);
+  await expect(panel.locator(`[data-tab-id="${target}"]`)).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Show current', exact: true }).click();
+  await expect(panel.getByLabel('Find materials', { exact: true })).toHaveValue('');
+  await expect(panel.locator(`[data-tab-id="${target}"]`)).toBeInViewport();
+  await expect(panel.locator(`[data-tab-id="${target}"] button`).first()).toBeFocused();
+});
+
+test('navigation remains usable at narrow widths and doubled text; Escape returns focus from More', async ({ panel }) => {
+  for (const width of [360, 420, 600]) {
+    await panel.setViewportSize({ width, height: 860 });
+    await panel.evaluate(() => document.documentElement.style.fontSize = '200%');
+    for (const view of ['Tabs', 'Topics', 'Library']) {
+      await panel.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: view, exact: true }).click();
+      expect(await panel.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    }
+  }
+  const more = panel.getByRole('button', { name: 'More', exact: false });
+  await more.click();
+  await panel.getByRole('button', { name: 'Journal and Undo', exact: true }).focus();
+  await panel.keyboard.press('Escape');
+  await expect(more).toBeFocused();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await panel.keyboard.press('Enter');
+  await panel.mouse.click(2, 850);
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+});
+
 test('tabs are first; filtered selection exposes hidden choices and menus remain reachable', async ({ panel, worker }, testInfo) => {
   await worker.evaluate(async () => {
     await chrome.tabs.create({ url: 'http://aitab.test/filter-one', active: false });

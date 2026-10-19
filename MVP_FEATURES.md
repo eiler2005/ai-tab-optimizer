@@ -1,5 +1,22 @@
 # Feature Scope — AITab
 
+## Current v0.3 workspace
+
+- [x] Tabs first; current page, window scope, hidden-selection counts and keyboard actions.
+- [x] Shared local search across live/saved materials, notes, task focus and topic names.
+- [x] Permanent topics adapting collections, browser groups, AI and cached server clusters.
+- [x] Editable task/membership, common/unique comparison, merge/link/distinct/split with structural Undo.
+- [x] Explicit cancellable AI pair advice with supplied-evidence validation and visible coverage.
+- [x] One scoped review plan with category filters, forecast, separate apply, actual report and Undo.
+- [x] Task collections, save-before-close, library retrieval, Inbox, URL rules and full local backups.
+- [x] Narrow/doubled-text keyboard checks and a reproducible 600-tab synthetic benchmark.
+
+Current routes and semantics: [README](README.md), [workspace](docs/WORKSPACE.md),
+[topics](docs/TOPICS.md), [review](docs/REVIEW.md), [test evidence](docs/testing/TEST_REPORT.md).
+The version sections below describe historical shipped features; their old AI/Cleanup
+screen names are not the current navigation. Age heuristics are not topical obsolescence.
+
+
 ## v0.1 (MVP) — Complete
 
 ### Goal

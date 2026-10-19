@@ -104,10 +104,10 @@ This starts a FastAPI server on `http://localhost:8765`. The server orchestrates
 
 ### 6. Configure the Extension
 1. Open the extension side panel
-2. Go to **Settings**
+2. Go to **More → Settings**
 3. Set AI Provider to **Local Server (CLI providers)**
 4. Server URL should be `http://localhost:8765` (default)
-5. Primary provider can stay **Claude Code**, fallback can stay **Codex CLI**
+5. Choose an authenticated primary CLI (Codex CLI for your ChatGPT login, or Claude Code); configure fallback only when available
 6. Click **Test Connection** to verify
 
 ---
@@ -210,6 +210,7 @@ The AI server is a FastAPI application that proxies tab analysis requests to CLI
 | DELETE | `/clusters/{id}` | Delete a persistent cluster |
 | POST | `/chat` | SQLite-backed dialog search over AI results, history, and persistent clusters using the same configured provider chain as AI analysis (20s LLM timeout, 6-keyword UNION ALL query) |
 | POST | `/analytics/refresh` | Sends aggregated SQLite analytics (top domains, habits, clusters, recommendation stats) to LLM, returns AI insight card data |
+| POST | `/topic-review` | Reviews two selected task topics using bounded supplied metadata/cached excerpts; returns validated organizational advice without browser actions |
 | POST | `/workspace-review` | Reviews up to 600 supplied tabs for content overlap and topical obsolescence, validates page IDs and quoted evidence |
 
 ### How It Works
@@ -223,7 +224,7 @@ The AI server is a FastAPI application that proxies tab analysis requests to CLI
 8. If a batch finishes through the client-side heuristic fallback, those per-URL results are imported back into SQLite through `/url-analysis/import`, so coverage stays accurate
 9. Server stores per-URL results + session metrics in SQLite, then returns the aggregated result, metadata, and cache stats
 10. Service worker also persists tab history events, snapshots, and settings to the same SQLite database so they survive extension reload/removal
-11. The Search tab uses `/chat` to retrieve SQLite candidates from URL analysis and history via a consolidated UNION ALL query (up to 6 keyword patterns, 20s LLM timeout), plus persistent clusters, then ranks/summarizes them through the same provider/model chain configured in Settings
+11. The shared search → By meaning / ask a question mode uses `/chat` to retrieve SQLite candidates from URL analysis and history via a consolidated UNION ALL query (up to 6 keyword patterns, 20s LLM timeout), plus persistent clusters, then ranks/summarizes them through the same provider/model chain configured in Settings
 
 ### Running the Server
 ```bash
@@ -251,8 +252,8 @@ See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and
 [Codex models](https://learn.chatgpt.com/docs/models).
 
 If the UI says it cannot connect, start the server from the **aitab** checkout,
-check `curl -sf http://127.0.0.1:8765/health`, then press **Retry** in AI.
-Cleanup → Duplicates / Windows / Collections remains usable with the server off.
+check `curl -sf http://127.0.0.1:8765/health`, then retry the requested review or topic refresh.
+Tabs, local Review, Topics and Library remain usable with the server off; server-sourced topics use their cache.
 
 ### Prerequisites
 - At least one local AI CLI must be available:
@@ -339,14 +340,14 @@ chrome.storage.local.get('tabHistory', (data) => console.log(data.tabHistory?.le
 1. Start the AI server: `pnpm server`
 2. In extension settings: set AI Provider to "Local Server (CLI providers)"
 3. Click "Test Connection" — should show "Connected"
-4. Go to the **AI** tab in the side panel
-5. Click **Analyze Tabs**
-6. Review results: recommendations, clusters, session stats, habits score, recommendation history, activity heatmap, and the runtime provider status card (current CLI/model, failover, errors)
-7. Use the persistent clusters section to rename, delete, or focus on a saved cluster in Chrome
+4. Go to **Topics** and choose **AI: suggest topics for all windows**
+5. Observe the shared task center; navigate away and return without restarting the job
+6. Review topic suggestions in **Topics**; edit names/tasks and inspect common/unique material before merging or splitting. Use contextual **Review…** for proposed closures and an actual outcome report
+7. Open **More → Reports** for domain statistics, habits, recommendation history and the activity heatmap; use **Settings** for detailed provider/runtime diagnostics
 8. In **Settings**, you can also inspect SQLite counts, sync local data to the DB, clear server-side DB state, and review recent model logs
 
 ### Testing Search Dialog
-1. Open the **Search** tab in the side panel
+1. Open shared search → **By meaning / ask a question**
 2. Ask a natural-language question, for example:
    - `Покажи вкладки про Claude Code и что стоит разобрать первым`
    - `Which tabs are relevant to my current project?`
@@ -404,13 +405,13 @@ chrome.storage.local.get(null, (data) => console.log(JSON.stringify(data, null, 
 2. Create a new vault, e.g. `~/Documents/TestVault`
 
 ### Step 2: Test LinkNote Export
-1. Click the Obsidian icon on any tab in the side panel
+1. Open a tab row’s ⋯ menu and choose its Obsidian export action
 2. Grant file system permission (first time only)
 3. Verify `.md` file appears in `TestVault/TabOptimizer/Links/{domain}/`
 
 ### Step 3: Test TopicCluster Export
-1. Run AI analysis
-2. In the topic clusters section, click "Export to Obsidian"
+1. Open **Topics** and choose any topic
+2. Click **Export topic to Obsidian**; this includes its focus, material links and available source notes
 3. Verify file in `TestVault/TabOptimizer/Topics/`
 
 ### Step 4: Test Session Snapshot Export
@@ -419,8 +420,8 @@ chrome.storage.local.get(null, (data) => console.log(JSON.stringify(data, null, 
 3. Verify file in `TestVault/TabOptimizer/Sessions/`
 
 ### Step 5: Test Cleanup Report Export
-1. Complete a cleanup session
-2. Click "Export Cleanup Report"
+1. Prepare/apply a plan through **Review…**
+2. Click **Report to Obsidian**; the report separates the forecast from available actual outcomes
 3. Verify file in `TestVault/TabOptimizer/Cleanups/`
 
 ---

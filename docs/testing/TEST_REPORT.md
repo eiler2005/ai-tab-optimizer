@@ -1,59 +1,104 @@
-# AITab 0.3 workspace verification
+# AITab workspace and UX verification
 
-Date: 2026-10-18 (Europe/Moscow). Local environment: macOS, Node 22.14.0, Python 3.12.13, pnpm 10.32.1, Vitest 4.1.2, pytest 9.0.2, Playwright 1.64.1 with Chromium 156.
+Date: 2026-10-19 (Europe/Moscow). macOS, Node 22.14.0, Python 3.12.13,
+pnpm 10.32.1, Vitest 4.1.2, pytest 9.0.2, Playwright 1.64.1 / Chromium 156.
 
 | Check | Result |
 |---|---|
-| TypeScript strict check and production build | Pass |
-| Vitest unit/integration tests | 150 passed across 25 files |
-| Python API/runtime/security/prompt/backup tests | 51 passed |
-| Real Chromium extension E2E | 11 passed |
-| Whitespace/conflict-marker check | Pass |
+| Strict TypeScript and production build | Pass |
+| Vitest | 178 passed across 31 files |
+| Python API/runtime/security/review/backup tests | 56 passed |
+| Real Chromium extension E2E | 19 passed |
+| Large isolated workload | 600 synthetic live tabs, 1,000 saved materials, 40 collections/topics |
+| Layout matrix | 360/420/600 px, 100%/200% text; additional Russian 360 px/200% |
+| Whitespace and documentation links/fences | Pass |
 
-## Browser scenarios
+## Before/after measurement
 
-1. Load the actual built MV3 extension into a temporary Chromium profile. Close exact duplicates through the UI, stop the service worker through CDP, verify persisted history, undo, and verify a repeated undo creates no extra tabs.
-2. Move pinned tabs and an intact Chrome group between normal windows; verify preserved metadata, recreate the emptied source window on Undo, and verify the original live tab IDs/order/group colour/collapse state.
-3. Save a collection through the UI, edit a note, download JSON, preview/confirm append import, preserve notes and verify no tabs open automatically. Check English and Russian layouts at 420 px width and capture screenshots.
-4. Group related tabs in separate windows without moving them, save a collection, close the fixture tabs, restore into separate windows with pinning/group metadata, and verify reopening only skips existing URLs.
-5. Use a synthetic AI response in the real content-review UI. Verify current-focus transmission, initially empty selection, protected survivor, separate overlap/obsolescence lists, clearing hidden selections, keeping the replacement page open and Undo. Capture the 420 px layout.
-   Verify an unused group's survivor does not silently disable selection in another group.
-6. Prepare/apply a local optimization plan with two same-address synthetic ChatGPT pages. Verify chats are retained, the action footer stays in the viewport after scrolling, actual reduction is reported, Markdown downloads include actual outcomes and Undo restores closed copies.
-7. Hold a synthetic AI response pending, observe the AI phase, switch to duplicates and verify selection/closing controls stay enabled. Cancel the review and verify review controls become available again.
-8. Search saved notes with a purpose filter in Library, open one missing page, focus it again without duplication and preserve task/review metadata in JSON. Inspect the 420 px screenshot.
-9. Use Topics to retain a working page, collapse a browser group, preview/save/close the remainder and Undo. Verify source collections remain.
-10. Save a page to Inbox twice, enable a hostname save rule, navigate/reload and verify only one saved copy per exact URL with live tabs retained.
-11. Launch an actual FastAPI subprocess with temporary SQLite/backup roots. Read two live loopback pages through the real deep-extraction Chrome API. Create a JSON + SQLite bundle, run the read-only checksum/integrity verifier, append its collections without opening tabs and configure the actual Chrome backup alarm. Stop and remove the isolated server/profile afterward.
+Baseline: product commit `01dc077`; after: the new six-stage UX implementation.
+Both builds ran sequentially on the same local machine in separate temporary
+headless Chromium profiles. HTTP was restricted to synthetic `.test` pages; live
+tabs were loaded then discarded, with identical saved collections/notes. No real
+user tabs, browser profile, account or provider request was used.
 
-The browser harness uses actual Chrome APIs, isolated `.test` pages and temporary profiles removed after each test. It does not use the user's browser profile, browsing data or live AI account.
+| Observation | Before | After |
+|---|---|---|
+| Initially rendered tab rows | 602 | 100 |
+| First useful Tabs render after reload | 148 ms | 58 ms |
+| Search input-to-result p95, 12 inputs | 57 ms | 92 ms |
+| Navigation clicks to saved-material search | 2 | 1 |
+| Automated saved-note retrieval | 82 ms | 116 ms |
+| Open one saved page, then focus without a duplicate | Pass | Pass |
 
-## Regression coverage
+Raw data: [usability-measurements.json](usability-measurements.json). Reproduce with
+`node scripts/measure-usability.mjs` from `extension/`; `AITAB_BASELINE_DIST` selects
+the old independently built `dist`. Input-to-DOM timing includes Playwright and
+two animation frames. This single local observation demonstrates the 200 ms search
+budget, bounded initial DOM and fewer navigation transitions. The richer new search
+was slower in this run; no universal speedup or human task-completion claim is made.
 
-- Full URL identity preserves path case, fragments, meaningful query parameters and trailing slashes.
-- Tracking variants require explicit selection; current protections and the surviving copy are revalidated.
-- Durable journal writes precede browser effects; storage failure prevents closing/moving.
-- Partial failures, stale previews, repeated confirmations, interrupted workers and changed browser-session IDs are covered.
-- Collections retain source sets, notes, stable IDs and group metadata; revisions prevent stale merges.
-- Backup validation rejects executable URLs, unknown versions and oversized data; excludes credentials and isolates imported live IDs.
-- API tests cover browser-origin rejection, optional token enforcement and explicit extension-origin allowlists. Prompt tests verify JSON-quoted untrusted page data.
-- Content-review tests reject hallucinated IDs/evidence/replacements, separate content overlap from merely related titles, keep discarded pages asleep, reject excerpts captured after navigation, cap AI input at 600 tabs and send large prompts through stdin. Old last-access timestamps never generate topical-obsolescence suggestions.
-- Chat roots and distinct conversation IDs are handled conservatively; automatic closes refuse chat state. Missing AI relation labels default to complementary material. Planning requires excerpts for default AI redundancy selection and leaves obsolete material to manual choice.
-- Review-job tests cover immediate acknowledgement, persisted completion, cancellation, local actions during an AI wait and interruption after worker restart. Python tests cover client-disconnect cancellation and termination of the owned Codex subprocess.
-- Optimization tests cover partial outcomes, survivor preservation, storage failure before effects, idempotent confirmation and Undo, changed-title rejection and forecast/report generation.
-- Library tests cover note/task search, purpose filters, separate chat states, single-item focus/open, optional old-schema metadata and portable task fields.
-- Saved-source review IDs never serve as live close proof, even if Chrome later allocates a matching numeric ID. Saved collection revisions are revalidated for manual archive candidates.
-- Review decisions are keyed to URL/title/evidence/focus, expire after 30 days, survive backup and do not suppress materially changed reviews.
-- Evidence tests cover excerpt reuse, invalidation, deep URL selection and payload bounds; saved pages are never opened for extraction.
-- Rule/Inbox tests cover idempotence, exact-host matching, deleted targets, imported-rule remapping to suggestion mode, and chat exclusion.
-- Full backup tests verify SQLite integrity, provider-setting removal without changing the source DB, SHA-256 mismatch rejection, version rotation without touching unrelated folders, invalid requests and an uncommitted concurrent writer. Schedule tests preserve an existing matching alarm across worker restarts and surface failed attempts while retaining last success.
+The workload passed 21 view/width/text combinations without root horizontal overflow.
+Screenshots were inspected; Russian navigation at doubled text was then improved
+to wrap whole controls into rows. The final layout was rechecked on the same saved
+corpus with a smaller 120-live-tab fixture and by the keyboard E2E matrix.
 
-## Performance observation
+## Browser coverage
 
-On the same local synthetic workload of 1,200 distinct URLs from one domain, the reviewed rule engine took approximately 2,102 ms. The indexed implementation took approximately 2.17 ms. These are single local observations rather than a cross-machine performance guarantee. UI tab/history refresh is also debounced during bulk events.
+- Tabs first, shared query, scoped filtered selection and visible hidden-selection
+  counts; permanent row menus and recovery/settings remain reachable.
+- Reveal-current clears obstructing filters, renders a target beyond the initial
+  100 rows, scrolls it into view and returns keyboard focus. More closes on Escape
+  with focus returned to its trigger and on an outside pointer click.
+- Shared search finds saved notes from Tabs, opens one missing page and focuses it
+  without duplication. Local search and cached topics remain available offline.
+- Topic names/tasks survive reload. Delete retains sources; structural Undo restores
+  the topic. Merge preserves unique material/notes; Undo and split never close tabs.
+- Pair AI comparison is explicit, scoped and cancellable after navigating away;
+  local work remains available. Provider output is synthetic in automated suites.
+- One selected-tab review excludes unrelated copies and survives category/navigation
+  changes. A hidden plan cannot leak its footer into a topic screen.
+- Content review separates complementary material, redundancy and topical obsolescence;
+  changed sources, protected keepers and expired plans cannot silently execute.
+- Optimization retains same-address ChatGPT states, reports actual closes/skips/failures,
+  exports Markdown and supports repeated Undo without extra tabs.
+- Worker restart preserves/reconciles close history. Window/group moves and Undo
+  retain live IDs, pinning, order, colour and collapse state; empty source windows
+  can be recreated without duplicate pages.
+- Collections preserve notes, group layout and source sets; JSON append import
+  never opens tabs. Single-item opening and collection reopening are idempotent.
+- URL rules/Inbox capture are idempotent and never close tabs.
+- An actual isolated FastAPI process and temporary SQLite create a checksum-verified
+  full backup, retain extension data and configure the real Chrome backup alarm.
 
-## Installed-extension compatibility
+## Regression boundaries
 
-The original Chrome loader path was found in the installation metadata. Temporary Chromium profiles confirmed that a symlink to the renamed checkout changed the computed extension ID. A real compatibility loader at the original path restores the original ID; successful builds synchronize it through an owned local config. User browser profile data was not edited. See [MIGRATION.md](../MIGRATION.md).
+Unit/API suites cover meaningful URL case/query/fragment identity; stateful chats;
+write-before-effect failures; source/keeper changes; partial and interrupted actions;
+scope ID/URL binding; saved IDs isolated from live IDs; remembered decisions tied to
+evidence/focus; prompt-data isolation and supplied-quote validation; provider timeout,
+disconnect cancellation and owned subprocess termination; bounded excerpts that do
+not wake discarded pages; origin/token guards; secret-free checksummed backups,
+rotation and concurrent SQLite writers.
+
+Topic regressions cover idempotent source adaptation, Chrome storage property-order
+changes, separate manual revisions, lineage after merge/split, membership exclusions,
+distinct decisions invalidated by material changes, guarded structural Undo and
+backup remapping of collection/topic/saved-chat relationships. Full backup sanitization
+explicitly retains `topicCatalog` while excluding provider secrets. Optimization
+reports retain signed unrelated tab-count changes through export/import.
+
+## Deployment and compatibility
+
+The final production build was synchronized to the owned real legacy loader;
+all 15 build files matched. A symlink is not used because a changed loader path can
+change unpacked extension identity. Reload the existing extension card; do not remove
+and reinstall it. See [MIGRATION.md](../MIGRATION.md).
+
+The owned loopback server was identified by command/cwd, restarted and checked for
+health, `/topic-review`, backup routes and the 8,000-character deep-excerpt schema.
+Existing Codex GPT-5.6 Terra settings were retained. No user database was replaced.
+GitHub Actions passed independently for stages 1–5; the final pushed revision uses
+the same TypeScript/Vitest/Python/Chromium gates. Its run is available in repository CI.
 
 ## Reproduce
 
@@ -67,32 +112,17 @@ pnpm --dir extension test:e2e
 git diff --check
 ```
 
-CI runs TypeScript, Vitest, Python and Chromium checks. Browser failure artifacts contain traces/screenshots. The first five implementation commits were independently verified as successful in GitHub Actions; the final workflow run is linked from the repository's CI badge.
+## Limits
 
-The product-workspace package was built and synchronized to the owned legacy Chrome
-loader. The detached loopback server was restarted and its health, backup routes and
-8,000-character deep-excerpt schema verified. The README now contains three Mermaid
-diagrams; Markdown links, code fences and protocol counts (76 requests / 9 broadcasts)
-were checked. English library and Russian review screenshots were visually inspected.
+Tests establish mechanics and conservative guards, not corpus-wide semantic accuracy.
+Closed pages may have metadata/cached text only; excerpts are not whole-document
+equivalence. No external relevance verification or full incremental semantic-group
+recomputation is implemented. AI coverage/sampling is shown explicitly. Running
+jobs/plans and derived evidence are outside portable backup scope. URL recovery
+does not recover arbitrary unsent application state.
 
-Automated checks establish mechanics and conservative guards, not semantic accuracy
-on the user's entire corpus. Closed pages can have only metadata/cached evidence;
-there is no external web verification or full-document equivalence guarantee. The
-600-entry library AI budget balances unique live/saved URLs; remaining coverage is
-explicit. Excerpt reuse is not full incremental recomputation of semantic AI groups.
-
-Live Claude/Codex calls and recovery of arbitrary unsaved form/application state are outside the automated checks. Provider orchestration remains covered by stubbed-provider tests. The historical pre-workspace report is available in Git history.
-
-Manual live verification on 2026-10-18: the globally installed Codex 0.147.0 failed
-with the retired GPT-5.4 model. An AITab-specific Codex 0.163.0 installation,
-authenticated through the existing ChatGPT session, successfully returned
-GPT-5.6 Terra recommendations. A separate four-page synthetic content review
-identified two overlapping release articles and one expired 2024 event, while
-retaining a useful algorithms reference published in 2012. No real browser pages
-were sent during these checks. This small smoke check does not establish quality
-for every user corpus or verify live performance on 600 pages.
-
-After the UI revision, a live loopback request to GPT-5.6 Terra compared synthetic
-videos from different authors: the response classified them as complementary,
-explained each author's unique method and retained the supplied ChatGPT draft.
-This check used synthetic metadata only, not the user's pages.
+Current automated suites stub provider output. Earlier live smoke checks on
+2026-10-18 used synthetic pages and the AITab-specific Codex 0.163.0 authenticated
+through ChatGPT: overlapping articles, an expired event and a useful old reference
+were distinguished; videos from different authors were retained as complementary.
+Those small checks are historical evidence, not a live-provider 600-page benchmark.

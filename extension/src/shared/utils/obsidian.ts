@@ -171,6 +171,14 @@ export async function exportTopicCluster(cluster: TopicCluster, tabs: TabRecord[
   return `TabOptimizer/Topics/${filename}`;
 }
 
+export async function exportWorkspaceMarkdown(kind: 'Topics' | 'Cleanups', name: string, markdown: string): Promise<string> {
+  const vault = await getVaultHandle();
+  const root = await ensureDir(vault, 'TabOptimizer');
+  const directory = await ensureDir(root, kind);
+  const filename = await writeMarkdownVersion(directory, slugify(name) || 'workspace', markdown);
+  return `TabOptimizer/${kind}/${filename}`;
+}
+
 // ─── TabSessionSnapshot Export ───────────────────────────
 
 function renderSessionSnapshot(snapshot: SnapshotRecord, aiResult?: AIAnalysisResult): string {

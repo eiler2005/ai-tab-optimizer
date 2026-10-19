@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useI18n } from '@shared/i18n';
 import type { TabOperation, WorkspaceData } from '@shared/types/workspace';
 import { useStore } from '../store';
+import { useTopics } from '../topic-store';
 import { workspaceMessage } from '../workspace-api';
 import { WindowMergePanel } from './WindowMergePanel';
 import { CollectionsPanel } from './CollectionsPanel';
@@ -22,6 +23,13 @@ export function WorkspaceView() {
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const { view, workspaceSection, librarySection } = useStore();
+  const topicId = useTopics((state) => state.activeId);
+  const scrollArea = useRef<HTMLDivElement>(null);
+  const scrollPositions = useRef(new Map<string, number>());
+  const scrollKey = `${view}:${workspaceSection}:${librarySection}:${view === 'topics' ? topicId ?? 'catalog' : ''}`;
+  useLayoutEffect(() => {
+    if (scrollArea.current) scrollArea.current.scrollTop = scrollPositions.current.get(scrollKey) ?? 0;
+  }, [scrollKey]);
   const section = view === 'topics' ? 'ai' : view === 'library' ? librarySection : view === 'tabs' && useStore.getState().searchScope !== 'open' ? 'library' : workspaceSection;
   const setSection = (next: import('../store').WorkspaceSection) => useStore.setState({ workspaceSection: next });
 
@@ -73,7 +81,7 @@ export function WorkspaceView() {
     </nav>}
     {busy && <p role="status" className="text-xs text-blue-800">{tr('Выполняем действие и сохраняем результат…', 'Applying action and saving the result…')}</p>}
     </div>
-    <div data-testid="workspace-view" className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
+    <div ref={scrollArea} data-testid="workspace-view" className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4" onScroll={(event) => scrollPositions.current.set(scrollKey, event.currentTarget.scrollTop)}>
     {error && <p role="alert" className="text-xs text-red-700 bg-red-50 p-2 rounded">{error}</p>}
     {feedback && <p role="status" className="text-xs text-green-800 bg-green-50 p-2 rounded">{feedback}</p>}
     <div className={['optimize', 'duplicates', 'similar', 'outdated'].includes(section) ? 'block' : 'hidden'}><OptimizationPanel busy={busy} run={run} filter={section} /></div>

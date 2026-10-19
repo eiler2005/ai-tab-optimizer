@@ -5,6 +5,7 @@ import type { CollectionPreview, TabOperation, WorkspaceData } from '@shared/typ
 import { liveTopicTabs, topicMaterial, resolveTopic } from '@shared/utils/topics';
 import { tabProtectionReason } from '@shared/utils/rules';
 import { isStatefulChat } from '@shared/utils/page-safety';
+import { exportWorkspaceMarkdown } from '@shared/utils/obsidian';
 import { useStore } from '../store';
 import { useTopics } from '../topic-store';
 import { workspaceMessage } from '../workspace-api';
@@ -59,6 +60,14 @@ export function TopicsPanel({ workspace, busy, run, onResult, onFeedback }: { wo
     </> : <>
       <button className="text-accent" onClick={() => { useTopics.setState({ activeId: null }); setPreview(null); }}>{tr('← Все темы', '← All topics')}</button>
       <h3 className="font-semibold text-base break-words">{topic.name}</h3><p>{topic.focus}</p>
+      <button disabled={busy} className="border rounded p-2" onClick={() => void run(async () => {
+        const line = (value: string) => value.replace(/\s+/g, ' ');
+        const markdown = [`# ${line(topic.name)}`, '', topic.focus, '', ...topic.materials.flatMap((material) => {
+          const notes = workspace?.collections.filter((collection) => material.collectionIds.includes(collection.id)).flatMap((collection) => collection.windows.flatMap((window) => window.tabs.filter((tab) => tab.url === material.url && (!isStatefulChat(tab.url) || material.key === `saved:${collection.id}:${tab.itemId}`)).map((tab) => tab.note).filter((note): note is string => typeof note === 'string' && Boolean(note)))) ?? [];
+          return [`- ${line(material.title)} — ${material.url}`, ...[...new Set(notes)].map((note) => `  ${line(note)}`)];
+        })].join('\n');
+        onFeedback(await exportWorkspaceMarkdown('Topics', topic.name, markdown));
+      })}>{tr('Экспорт темы в Obsidian', 'Export topic to Obsidian')}</button>
       {topic.relatedIds.length > 0 && <div className="flex gap-2 flex-wrap"><span>{tr('Связанные темы', 'Related topics')}:</span>{[...new Set(topic.relatedIds.map((id) => resolveTopic(state.catalog, id)?.id).filter((id): id is string => Boolean(id)))].filter((id) => id !== topic.id).map((id) => <button key={id} className="text-accent underline" onClick={() => useTopics.setState({ activeId: id })}>{resolveTopic(state.catalog, id)?.name}</button>)}</div>}
       <p>{members.length} {tr('открыто', 'open')} · {topic.materials.length} {tr('материалов', 'materials')}</p>
       <div className="flex gap-2 flex-wrap"><button className="border rounded p-2" onClick={() => { useStore.setState({ view: 'tabs', searchScope: 'open', searchMatchIds: null, tabTopicUrls: topic.materials.filter((material) => !isStatefulChat(material.url)).map((material) => material.url), tabTopicName: topic.name, searchQuery: '', tabScope: 'all' }); }}>{tr('Работать с темой', 'Work on topic')}</button><button className="border rounded p-2" onClick={() => useStore.getState().beginReview(members, topic.name, topic.focus)}>{tr('Разобрать тему…', 'Review topic…')}</button></div>

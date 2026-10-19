@@ -13,6 +13,27 @@ export function TabList() {
   const groups = useMemo(() => filteredWindows(state.windowGroups, state), [state.windowGroups, state.searchQuery, state.tabScope, state.tabTopicUrls, state.showSelectedOnly, state.selectedTabIds, state.searchMatchIds]);
   const total = groups.reduce((sum, window) => sum + window.tabs.length, 0);
   useLayoutEffect(() => { if (ref.current) ref.current.scrollTop = useStore.getState().tabsScrollTop; }, []);
+  useLayoutEffect(() => {
+    if (state.tabRevealId === null) return;
+    let index = 0;
+    for (const window of groups) {
+      const offset = window.tabs.findIndex((tab) => tab.id === state.tabRevealId);
+      if (offset >= 0) {
+        if (collapsedWindows.has(window.windowId)) {
+          setCollapsedWindows((current) => { const next = new Set(current); next.delete(window.windowId); return next; });
+          return;
+        }
+        if (index + offset >= limit) { setLimit(Math.ceil((index + offset + 1) / 100) * 100); return; }
+        const row = ref.current?.querySelector<HTMLElement>(`[data-tab-id="${state.tabRevealId}"]`);
+        row?.scrollIntoView({ block: 'center' });
+        row?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+        useStore.setState({ tabRevealId: null });
+        return;
+      }
+      index += window.tabs.length;
+    }
+    if (!state.loading) useStore.setState({ tabRevealId: null });
+  }, [state.tabRevealId, state.loading, groups, limit, collapsedWindows]);
   let shown = 0;
   return <div ref={ref} className="flex-1 min-h-0 overflow-y-auto" onScroll={(event) => useStore.setState({ tabsScrollTop: event.currentTarget.scrollTop })}>
     {state.loading && <p className="p-3 text-xs">{t('tabs.loading')}</p>}

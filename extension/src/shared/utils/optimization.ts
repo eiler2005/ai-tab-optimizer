@@ -66,6 +66,7 @@ export function optimizationMarkdown(plan: OptimizationPlan, selected: number[],
     lines.push(`Фактически после / Actual after: ${report.tabsAfter}`, `Закрыто / Closed: ${report.closed}`,
       `Сохранены в коллекциях / Archived in collections: ${report.archived ?? 0}`, `Повторы закрыты / Duplicates closed: ${report.duplicatesClosed ?? 0}`, `Устаревшие закрыты / Outdated closed: ${report.outdatedClosed ?? 0}`,
       `Пропущено / Skipped: ${report.skipped}`, `Ошибок / Failed: ${report.failed}`, '');
+    if (report.otherChanges) lines.push(`Изменения вне операции / Changes outside this operation: ${report.otherChanges}`, '');
   }
   for (const candidate of plan.candidates.filter((item) => selected.includes(item.tab.id))) {
     const outcome = operation?.items.find((item) => item.tab.id === candidate.tab.id);

@@ -11,6 +11,7 @@ export function GlobalSearch() {
   const pages = useLibraryPages();
   useEffect(() => { void useTopics.getState().refresh(); }, [windowGroups]);
   useEffect(() => {
+    if (useTopics.getState().query !== searchQuery) useTopics.setState({ query: searchQuery });
     const results = scopedSearch(pages, searchQuery, searchScope);
     const ids = searchQuery.trim() || searchScope !== 'open' ? results.flatMap((page) => page.liveTabIds) : null;
     if (JSON.stringify(ids) !== JSON.stringify(useStore.getState().searchMatchIds)) useStore.setState({ searchMatchIds: ids });

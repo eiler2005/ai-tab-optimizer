@@ -11,13 +11,14 @@ The project has two execution surfaces — the TypeScript extension and the Pyth
 | **Unit** | Vitest (TS), pytest (Python) | Pure utilities, type guards, single message handlers, single endpoints |
 | **Integration** | pytest with FastAPI test client | End-to-end through HTTP into SQLite, with the CLI provider stubbed where appropriate |
 | **Behavioural** | pytest scenarios | Multi-step flows: provider failover, stop-and-resume, retention sweeps |
+| **Browser integration** | Playwright Chromium | Built MV3 extension, real tabs/groups/storage and isolated FastAPI/SQLite |
 | **Manual** | Documented in [SETUP.md](../SETUP.md) | Side-panel views, Chrome integration, Obsidian export |
 
 The extension now has real Chromium integration/UI tests in `extension/e2e/` in addition to unit tests with simulated Chrome APIs. Live provider CLIs remain stubbed in automated tests.
 
 ## TypeScript — Vitest
 
-**Where:** [`extension/src/**/__tests__/`](../extension/src) (15 files). Configuration: [`extension/vitest.config.ts`](../extension/vitest.config.ts).
+**Where:** [`extension/src/**/__tests__/`](../extension/src) (see the latest run report for counts). Configuration: [`extension/vitest.config.ts`](../extension/vitest.config.ts).
 
 | File | Covers |
 |---|---|
@@ -125,9 +126,25 @@ If you fix any of these, please update this section in the same PR.
 ## Test-related docs in this repo
 
 - [`docs/testing/TEST_PLAN.md`](testing/TEST_PLAN.md) — current test plan, scenarios, exit criteria.
-- [`docs/testing/TEST_REPORT.md`](testing/TEST_REPORT.md) — the most recent test run summary (Python integration: 23/23 passing at the time of writing).
+- [`docs/testing/TEST_REPORT.md`](testing/TEST_REPORT.md) — the most recent test run summary.
 - [`SETUP.md`](../SETUP.md) — manual smoke-test scripts for each side-panel view.
 
 ## Chromium extension E2E
 
 From `extension/`, run `pnpm exec playwright install chromium`, `pnpm build`, then `pnpm test:e2e`. Tests launch a separate temporary persistent Chromium profile, load the built MV3 extension and use real tab/window/group/storage APIs. User browser profiles and real AI accounts are not used. Fixtures serve isolated `.test` pages and configure the AI server to an unusable port. Tests cover worker stop/restart, duplicate close/Undo, intact group moves, recreated source windows, notes, JSON downloads/imports, multi-window collection restore, idempotent reopening, and English/Russian narrow layouts. CI installs Chromium and OS dependencies and uploads traces/screenshots on failure.
+
+## Large-workspace usability measurement
+
+From `extension/`, run `node scripts/measure-usability.mjs` after building. This
+creates isolated temporary Chromium profiles, 600 synthetic live tabs, 1,000 saved
+materials and 40 collections. It measures input-to-DOM search latency, first useful
+render and saved-page retrieval, verifies single-page open/focus, and checks narrow
+layouts at 360/420/600 px with 100%/200% root text sizes. A Russian 360 px check is
+included. `AITAB_BASELINE_DIST` optionally selects an independently built old version
+for the same sequential workload; `AITAB_MEASUREMENT_TABS` supports 120–1,000.
+
+Results are written to `docs/testing/usability-measurements.json`; screenshots go
+to `/tmp/aitab-ux-measurements/`. This is an explicit local measurement, not a CI
+latency gate or human usability study. Input timing includes Playwright overhead.
+The normal E2E suite separately checks keyboard menus and reveal-current beyond
+100 rows, scoped selection, stable topics, merge/split/Undo and offline navigation.

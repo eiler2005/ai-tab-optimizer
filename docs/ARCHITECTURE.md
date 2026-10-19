@@ -21,7 +21,7 @@ flowchart LR
     COX["Codex CLI"]
   end
 
-  SP <--> |chrome.runtime<br/>76 message types| SW
+  SP <--> |chrome.runtime<br/>82 request types| SW
   SW <--> |http :8765| SRV
   SW -.-> |chrome.scripting<br/>injects on demand| CS
   SRV <--> DB
@@ -39,8 +39,8 @@ Both configured CLIs can relay prompts to their model provider; local execution 
 
 | Component | Path | Responsibility |
 |---|---|---|
-| Side Panel | [`extension/src/side-panel/`](../extension/src/side-panel) | All UI: 8 views, Zustand store, broadcast event handlers |
-| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (76 request types), AI server proxy |
+| Side Panel | [`extension/src/side-panel/`](../extension/src/side-panel) | Tabs/Topics/Library navigation, shared search, scoped review and task controllers |
+| Service Worker | [`extension/src/background/service-worker.ts`](../extension/src/background/service-worker.ts) | Chrome API bridge, listeners, message router (82 request types), AI server proxy |
 | Transport | [`extension/src/background/transport.ts`](../extension/src/background/transport.ts) | HTTP layer with timeouts, multi-candidate URL fallback, abort handling |
 | Persistence | [`extension/src/background/persistence.ts`](../extension/src/background/persistence.ts) | `chrome.storage.local` wrappers |
 | Analysis helpers | [`extension/src/background/analysis-helpers.ts`](../extension/src/background/analysis-helpers.ts) | Tab fingerprinting, status computation |
@@ -52,7 +52,7 @@ Both configured CLIs can relay prompts to their model provider; local execution 
 
 ## Type-driven message protocol
 
-Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (76 request types, 9 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
+Every message between the side panel and the service worker is a member of a single discriminated union in [`shared/types/messages.ts`](../extension/src/shared/types/messages.ts) (82 request types, 9 broadcast event types). Adding a new message means extending the union; the compiler then forces the message handler to cover it. This eliminates an entire class of routing bugs that are common in Chrome extensions.
 
 ```ts
 // Sketch — see the actual file for the full union.
@@ -61,10 +61,10 @@ export type MessageRequest =
   | { type: 'ANALYZE_TABS'; resume?: boolean }
   | { type: 'STOP_AI_ANALYSIS' }
   | { type: 'CHAT_SEARCH'; query: string; history?: ChatTurn[] }
-  // … 41 more variants
+  // … see the canonical union for remaining variants
 ```
 
-The same pattern is used for broadcasts (`AI_ANALYSIS_PROGRESS`, `AI_ANALYSIS_PARTIAL`, `HISTORY_UPDATED`, …) so the side-panel listener is exhaustive against the union.
+The same pattern is used for broadcasts (`AI_ANALYSIS_PROGRESS`, `AI_ANALYSIS_PARTIAL`, `HISTORY_UPDATED`, …) with typed payloads; runtime listeners must still validate incoming data.
 
 ## Data model — SQLite schema
 
@@ -124,7 +124,7 @@ sequenceDiagram
 
 Notice three things worth pointing out in a code review:
 
-1. The cache check happens **before** any CLI invocation, so re-running an analysis on a stable tab set is effectively free.
+1. The cache check happens **before** provider invocation; unchanged cached pages can avoid a new provider call within the cache lifetime.
 2. The fallback chain (Claude Code → Codex CLI → heuristic) is decided per-batch, not per-run, so a transient rate limit on one batch doesn't kill the whole analysis.
 3. Per-batch results are persisted to SQLite **before** the broadcast, so a service-worker restart mid-broadcast doesn't lose data.
 
@@ -168,7 +168,7 @@ flowchart TD
   Heuristic --> Done
 ```
 
-Every attempt — success or failure — is recorded as a `ProviderAttempt`, surfaced in the runtime status card in the AI panel, and persisted to `runtime_logs`. The server never silently gives up.
+Every attempt — success or failure — is recorded as a `ProviderAttempt`, surfaced in Settings diagnostics and reports, and persisted to `runtime_logs`. The server never silently gives up.
 
 ## Resilience layer in the extension
 
@@ -217,9 +217,9 @@ A few decisions that came up repeatedly during reviews and are worth stating exp
 
 - **Why a localhost FastAPI server instead of bundling the CLI calls into a Native Messaging host?** Faster iteration, easier to add HTTP endpoints, and lets the Python side own the SQLite schema. Cost: the user has to run `pnpm server`. Acceptable for a developer-facing tool.
 - **Why SQLite instead of `chrome.storage.local` for everything?** `chrome.storage.local` has a 10MB default quota and isn't queryable. Tab history alone exceeds that quickly. SQLite gives us cheap aggregation for analytics and full-text-ish search for the chat dialog.
-- **Why batches of 30, not one big request?** CLI providers have variable latency and partial-result tolerance. 30 keeps each round-trip under a few seconds, lets the UI show progress, and matches the typical "one screen worth of tabs" mental model.
-- **Why Zustand and not Redux/Jotai?** The store has 9 slices; Redux's boilerplate would dominate the file, and Jotai's atomic model fights the broadcast-event pattern. Zustand stays under 800 lines for the whole app.
-- **Why a single 2,389-line service worker file?** It started small and grew. The incoming-message switch is sequential by nature; splitting it into N handler files would replace one file you can grep with N files you have to chase. Modularization is on the [improvements backlog](IMPROVEMENTS.md).
+- **Why batches of 30, not one big request?** CLI providers have variable latency and partial-result tolerance. 30 limits per-request payloads and exposes partial progress; CLI latency is variable and no few-second completion time is guaranteed.
+- **Why Zustand?** Shared navigation, selection, scope and background broadcasts need state independent of component mounting. Topic state has a separate store; durable mutations remain in the worker.
+- **Why a central message router?** The exhaustive switch delegates workspace, topics, review jobs and backups to dedicated modules. The canonical message union remains the protocol authority.
 
 ## Where to go next
 
@@ -290,3 +290,51 @@ they are not one distributed transaction. SQL backups securely remove provider s
 Restore verifies both file checksums and feeds the existing append-import preview. Live
 SQLite replacement is deliberately a stopped-server recovery procedure, documented in
 [WORKSPACE.md](WORKSPACE.md). No new SQLite tables are introduced.
+
+## Unified workspace state and topic review
+
+```mermaid
+flowchart TD
+  UI["Tabs / Topics / Library"] --> Search["Shared query + explicit search scope"]
+  UI --> Scope["Review scope snapshot: IDs + expected URLs + origin"]
+  Scope --> Controller["Root review controller + task center"]
+  Controller --> Job["Worker job: capture / local / AI / complete"]
+  Job --> Plan["One plan; category filters retain selection"]
+  Plan --> Validate["Validate expiry, live URL, keeper and protections"]
+  Validate --> Journal["Durable journal before Chrome effects"]
+  Journal --> Actual["Actual result / Markdown / Undo"]
+  Sources["Collections / Chrome groups / AI / cached SQLite clusters"] --> Catalog["Local TopicCatalog v1"]
+  Catalog --> Pair["Local pair ranking; optional AI pair advice"]
+  Pair --> Changes["Explicit merge / link / different / split"]
+  Changes --> History["Structural journal + guarded Undo; no Chrome actions"]
+```
+
+`side-panel/store.ts` owns views, query/scope, visible/hidden selection and review
+origin. `tab-filter.ts` applies window/topic/search/selection predicates consistently.
+`library-index.ts` joins live and saved materials with topic names, aliases and focus.
+Tabs initially renders 100 rows and expands explicitly; reveal-current can render
+the target beyond that boundary. Workspace scroll positions are retained by view
+and topic. The optimization component stays mounted so navigation retains its plan;
+its action portal is rendered only when that review is visible.
+
+`topic-catalog.ts` adapts source sets to stable local IDs. Source revisions and manual
+`userRevision` protect concurrent edits. AI lineage binds evolving source suggestions
+without overwriting a manual merge/split. Value signatures use explicit tuples because
+Chrome storage can reorder object properties. Exact-source reconciliation is idempotent;
+name similarity alone never performs a merge. Sources remain authoritative for their
+own notes and metadata; catalog membership is a reference layer, not a replacement DB.
+
+`topic-pairs.ts` ranks shared-material/name candidates and evidence-bound distinct
+decisions. `topic-advice.ts` acknowledges a cancellable session job immediately and
+calls `POST /topic-review`; `server_core/topic_review.py` validates two topics, bounded
+metadata and verified supplied quotes. At most 60 materials per topic and cached
+excerpts up to 1,200 characters are submitted. It does not open pages. Changed topic
+revisions invalidate returned advice. The provider uses the same configured chain
+and shared 90-second server budget as content review (100-second client wait).
+
+Topic structural history and distinct decisions live in optional `topicCatalog` on
+`aitab.workspace.v1`. Append import remaps topic/collection/saved-item relationships;
+imported structural Undo is not executable. Full server backups explicitly retain
+the catalog while excluding provider secrets. Derived excerpt caches and running
+jobs are outside portable scope. See [TOPICS.md](TOPICS.md), [REVIEW.md](REVIEW.md)
+and [TEST_REPORT.md](testing/TEST_REPORT.md).

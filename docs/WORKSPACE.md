@@ -1,14 +1,49 @@
-# Offline workspace
+# Workspace: tabs, topics and saved materials
+
+The main navigation is **Tabs · Topics · Library · More**. Tabs opens first;
+cleanup is a contextual action rather than the starting screen. More contains
+Review tabs, Journal and Undo, Reports, Activity, Snapshots, Recovery and backups,
+and Settings. No AI connection is required for local search and organization.
+
+```mermaid
+flowchart LR
+  Tabs["Tabs: current work / selection"] --> Topics["Topics: task and working minimum"]
+  Tabs --> Review["One scoped review plan"]
+  Topics --> Review
+  Topics --> Library["Library: saved links and collections"]
+  Review --> Report["Forecast → apply → actual report"]
+  Report --> Undo["Journal and Undo"]
+  Library --> Open["Open one material / focus existing copy"]
+```
+
+Tabs uses the current-window/all-windows scope, shared search and optional topic
+filter. Select results respects those filters; hidden selections have an explicit
+counter and Show selected control. The current-page card saves to Inbox or reveals
+the active page, clearing obstructing filters and rendering it beyond the initial
+100 rows. Row actions are always reachable by keyboard through the ⋯ button.
+
+Shared search has **Open / Saved / Everything** scopes and filters `domain:`,
+`collection:`, `topic:`, `window:` and `status:open|now|later|reference`. The same
+query follows navigation; each destination starts with its appropriate scope.
+By meaning / ask a question opens a separately labelled server-history search;
+local filters do not constrain that backend search.
+
+Topics is the user-facing name for task-based groups. Its persistent catalog
+adapts collections, Chrome groups, recent AI results and cached server clusters.
+Manual names, focus and exclusions survive source refreshes. Compare common and
+unique materials before merging, linking or splitting; these changes never close
+tabs and have their own Undo. See [TOPICS.md](TOPICS.md).
+
 
 ## Library and task collections
 
-Cleanup → Collections supports Working now (`now`), Read later (`later`) and Reference
+Library → Collections supports Working now (`now`), Read later (`later`) and Reference
 (`reference`). Add an optional reason, current task/relevance criteria and review date;
 save these details when creating a collection or edit them on its card. Dates only mark
 the collection due for review and never imply obsolescence or trigger deletion. Missing
 metadata in older collections is read as Reference; no destructive migration occurs.
 
-Cleanup → Library searches all normal open HTTP(S) pages and non-trashed collections,
+Library → Materials → Additional tools searches all normal open HTTP(S) pages and non-trashed collections,
 including page notes, collection reasons and tasks. Combine words with `collection:`,
 `domain:` and `status:open|now|later|reference`; quoted collection names are supported.
 Matching exact addresses share a result with all saved locations and live-copy count.
@@ -19,7 +54,7 @@ Collection metadata is validated and preserved in portable backups.
 
 ## Library comparison and evidence
 
-Cleanup → Library → **AI: compare library** includes non-trashed saved pages alongside
+Library → Materials → Additional tools → **AI: compare library** includes non-trashed saved pages alongside
 the chosen open-window scope. **Compare locally** needs no server. The same background
 job/progress/cancellation mechanism applies. Live and saved entries have distinct review
 IDs; saved IDs never address browser tabs. Results identify their source collection,
@@ -41,7 +76,7 @@ cache data, excluded from portable backups. It is not proof of full-page equival
 
 ## Unified optimization
 
-Cleanup opens on **Optimize**. Click **Optimize tabs — prepare plan** to see a
+Choose **Review…** from Tabs, selected rows or a topic, or **More → Review tabs**. The current IDs and exact URLs define the scope. Click **Optimize tabs — prepare plan** to see a
 before/after forecast, proposed closures, the page retained for each candidate,
 and counts for protected pages, preserved chats and alternative material. Exact
 URL copies form the initial local plan. A fresh matching content review is reused;
@@ -91,15 +126,15 @@ cancels the provider coroutine on disconnect and terminates its owned Codex proc
 
 Progress/results survive closing and reopening the panel in the same worker
 session. A worker restart marks an unfinished job interrupted and invites a new
-review. Switching cleanup sections while AI runs does not disable duplicate
-selection or local actions. Close buttons and selected counts stay in a separate
+review. Switching review categories while AI runs does not disable duplicate
+selection or local actions. Apply buttons and selected counts stay in a separate
 footer outside the scrolling list, including the zero-selection disabled state.
 Each disabled row explains its protection or survivor dependency. To close the
 currently retained copy, first choose another survivor with the radio button.
 
 ## Duplicate review
 
-Open **Cleanup**, choose all normal windows or one window, and click **Find duplicates**. Exact groups compare full HTTP(S) URLs. Tracking variants only strip a small list of known analytics parameters; fragments, `ref`, `source`, path case and trailing slashes remain meaningful.
+Open **Review…**, choose the scope and prepare the shared plan, then use its **Duplicates** filter. Exact groups compare full HTTP(S) URLs. Tracking variants only strip a small list of known analytics parameters; fragments, `ref`, `source`, path case and trailing slashes remain meaningful.
 
 The radio button chooses the surviving copy; checkboxes choose copies to close. Protected/important, pinned, active, audible and protected-domain tabs are excluded from automatic closing. Tracking variants start unselected. A preview expires after five minutes; execution rechecks each URL, window/group, survivor and current protection. Changed or missing targets are skipped. Selecting a survivor for deletion is rejected.
 
@@ -117,14 +152,14 @@ Offline workspace mutations run in the service worker through a serialized queue
 
 ## Similar content and topical obsolescence
 
-In **Cleanup → Similar content / Outdated content**, enter an optional current
-focus and click **AI: review content and relevance**. For example: "I am moving
-to React 19; registration for the 2025 conference is no longer relevant."
-The same review produces two separate lists and a count summary. Nothing is
-selected initially. Choose the version to keep, select individual candidates
-or **Select candidates in this section**, and confirm **Close selected with
-Undo**. Switching lists clears the selection. History reports actual outcomes
-and restores successful closes.
+In the shared **Review tabs** plan, enter a current focus and optionally enable AI.
+For example: "I am moving to React 19; registration for the 2025 conference is
+no longer relevant." Similar content and Outdated content filter that same plan.
+Selection is preserved across categories and its hidden-category count is shown.
+Apply plan is a separate action; the journal reports actual outcomes and Undo.
+Tracking variants, outdated content and useful pages deferred to a collection
+require explicit choice. A useful deferred page is saved before closing and is
+not labelled obsolete. See [REVIEW.md](REVIEW.md) for all categories and limits.
 
 Content overlap can span different URLs and domains. Sharing a broad topic is
 insufficient: the prompt asks for overlapping information and differences that
@@ -164,13 +199,13 @@ GPT-5.6 Terra with low reasoning is the AITab default. See [SETUP.md](../SETUP.m
 
 ## Window consolidation
 
-In Cleanup → Merge windows, choose a target and explicitly select source windows or individual tabs. Preview lists the exact pages and group labels. Execution moves existing live tabs instead of closing/reopening pages. Entire selected groups move as a unit through `chrome.tabGroups.move`; subsets are regrouped in the target with their original name, colour and collapsed state. Pinned tabs stay in the pinned section and the target's existing active tab is retained.
+In Tabs → Merge windows, choose a target and explicitly select source windows or individual tabs. Preview lists the exact pages and group labels. Execution moves existing live tabs instead of closing/reopening pages. Entire selected groups move as a unit through `chrome.tabGroups.move`; subsets are regrouped in the target with their original name, colour and collapsed state. Pinned tabs stay in the pinned section and the target's existing active tab is retained.
 
 The same operation journal records each result. Changed URLs, windows, group membership or pinning invalidate individual preview targets. Errors are reported per tab; successful moves can be undone independently. Undo moves the original live tab IDs back, recreating a source window with its existing tab if Chrome automatically closed that now-empty window. It creates no duplicate pages or placeholder tabs. Undo restores source groups and active tabs. After a full browser restart, live-ID move undo is refused rather than applying old IDs to unrelated tabs; use a saved collection or snapshot for URL restoration.
 
 ## Saved collections
 
-Cleanup → Collections saves all normal windows, one window, or tabs selected in the tab list. Preview names the exact URLs. Save and close persists the collection and recovery journal together before closing any unprotected tab. Changed/failed/protected tabs remain open and their outcomes are reported. Archive in the guided cleanup now creates a collection before closing the page.
+Library → Collections saves all normal windows, one window, or tabs selected in the tab list. Preview names the exact URLs. Save and close persists the collection and recovery journal together before closing any unprotected tab. Changed/failed/protected tabs remain open and their outcomes are reported. Useful deferral in the shared review creates a collection before closing the page.
 
 Saved pages have independent UUIDs, notes, timestamps, page flags and logical group keys; they never address live Chrome tab IDs. Opening a collection only opens missing URLs and restores layout/group metadata. Same-URL page flags are reapplied to newly opened pages without replacing current flags.
 
@@ -181,7 +216,7 @@ Select one collection to create a deduplicated copy, or several collections to c
 Tabs shows a local hint for the focused normal-window page if an exact non-chat copy
 is already open/saved, or its hostname matches a collection rule. The hint can focus
 an existing copy or save to the suggested collection. It never closes a page.
-Cleanup → Library → **Duplicate prevention and save rules** manages up to 50 exact-host
+Library → Materials → Additional tools → **Duplicate prevention and save rules** manages up to 50 exact-host
 rules. First matching valid rule wins. `suggest` shows a hint; opt-in `save` saves the
 loaded link once, preserving existing records and notes, without closing the tab.
 Repeated loads are idempotent. Chats, private windows and unavailable targets are skipped.
@@ -196,7 +231,7 @@ remapped to imported collection IDs and become suggestions until explicitly enab
 
 ## Portable JSON backups
 
-Download a version-1 AITab JSON backup from Collections. It contains saved collections (including trash), operation history, safe UI preferences, page flags and local snapshot/history buffers. The server's canonical SQLite data is separate; back up `tab_analysis.db` with SQLite's backup API. Existing Obsidian directory handles cannot be transferred and must be granted again on another extension installation. AI credentials, local API tokens, provider executable paths and server URLs are excluded.
+Download a version-1 AITab JSON backup from Collections. It contains saved collections (including trash), the topic catalog and distinct-topic decisions, operation history, safe UI preferences, page flags and local snapshot/history buffers. The server's canonical SQLite data is separate; back up `tab_analysis.db` with SQLite's backup API. Existing Obsidian directory handles cannot be transferred and must be granted again on another extension installation. AI credentials, local API tokens, provider executable paths and server URLs are excluded.
 
 Import first validates and previews a file; confirmation appends data with new stable IDs instead of replacing existing collections. It never opens or closes tabs. Existing flags/preferences take precedence. Script URLs and malformed entries are skipped and counted; unknown schema versions and oversized fields are rejected. Imported operation IDs are isolated from the current browser session, so old live tab IDs cannot target new tabs. Closed-page history can still restore validated URLs through explicit Undo.
 
@@ -204,7 +239,7 @@ Limits: 8 MB input JSON, 200 imported collections, 100 imported operation record
 
 ## Full local backup and recovery
 
-In Collections expand **Automatic backups and restore**. **Create full backup now**
+In More → Recovery and backups (also available from Collections), expand **Automatic backups and restore**. **Create full backup now**
 exports the extension's validated portable scope to the configured loopback server,
 which adds a consistent committed SQLite snapshot. The bundle is published only after
 both files and its manifest exist. The two stores are captured at separate moments;
@@ -254,12 +289,11 @@ settings, including a custom port.
 
 ## AI assistance
 
-Cleanup → Topics starts with **Topics and clusters**: collections, existing browser groups
-and current AI topics are matched to exact live URLs. **Load my persistent clusters**
-adds existing server-side clusters when the local server is available. Choose pages
-to keep in current work, then **Preview save and close** for the rest. Chat/protected
-pages are retained. Confirmation creates a detached Read later collection and durable
-close journal before any close; History offers Undo. Sources remain intact.
+**Topics** opens a permanent catalog. Select a topic and its working minimum,
+then **Preview save and close** for the rest. Chat/protected pages are retained.
+Confirmation creates a detached Read later collection and durable close journal
+before any close; Journal offers Undo. Source collections and clusters remain.
+An unavailable server leaves local topics and cached server sources accessible.
 
 **Group and collapse** only groups unpinned live members within their original windows
 and collapses those groups. It never closes/reopens tabs; it does not reduce the tab
@@ -271,9 +305,16 @@ the saved collection revision and exact item/URL before closing. A changed/delet
 collection invalidates the plan. The report separates archived pages, duplicate closes
 and obsolete-content closes, counting each selected live tab once. Undo keeps collections.
 
-The AI tab reuses the existing analysis workflow on explicit request. It shows topic descriptions and current matching pages, then offers a separate collection preview and save action. Suggestions match exact live URLs and include all current copies. Stale numeric IDs, hallucinated URLs and groups with fewer than two live tabs are ignored. AI prompts JSON-quote page metadata and instruct the provider to treat titles, URLs, group names and excerpts as untrusted data. AI suggestions never initiate closing; duplicate deletion always uses the deterministic review flow.
+**AI: suggest topics for all windows** refreshes suggestions explicitly from Topics;
+**AI: compare these topics** reviews a selected pair using metadata and available
+cached excerpts, with visible source coverage. Reports shows activity and analytics,
+without another action list. A shared task center retains progress while navigating.
+Prompt data is JSON quoted; proposals cannot invoke browser actions.
 
-Manual closes from the regular tab list and guided cleanup also enter the durable operation journal. Explicit manual closing may close a protected tab; automatic cleanup continues to honor protections. AI cleanup checks its original expected URL again before acting. Grouping related pages preserves separate windows by explicitly specifying each group's destination window.
+Manual closes in Tabs also enter the durable journal. Explicit manual closing may
+close a protected page; optimization honors protections. Related-page grouping keeps
+separate windows. Topic merge/split uses a separate structural journal and never
+opens, closes or relocates browser tabs.
 
 ## History and undo
 

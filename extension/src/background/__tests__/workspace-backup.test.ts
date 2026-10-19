@@ -11,7 +11,7 @@ const backup = (extra: object = {}) => JSON.stringify({ format: 'aitab-backup', 
 
 describe('portable backup boundary', () => {
   it('preserves numeric optimization summaries while excluding malformed report fields', () => {
-    const report = { tabsBefore: 10, tabsAfter: 8, requested: 3, closed: 2, skipped: 1, failed: 0 };
+    const report = { tabsBefore: 10, tabsAfter: 8, requested: 3, closed: 2, skipped: 1, failed: 0, otherChanges: -1 };
     const operation = { kind: 'close', optimizationReport: report, items: [{ state: 'done', tab: { url: 'https://example.test/' } }] };
     expect(parseBackup(backup({ operations: [operation] })).operations[0].optimizationReport).toEqual(report);
     expect(parseBackup(backup({ operations: [{ ...operation, optimizationReport: { ...report, closed: -1 } }] })).operations[0].optimizationReport).toBeUndefined();

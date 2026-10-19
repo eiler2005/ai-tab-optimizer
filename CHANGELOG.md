@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Tabs-first navigation (Tabs / Topics / Library / More), contextual review, shared search scopes and explicit hidden-selection counts.
+- Permanent task topics with stable IDs, editable names/focus/membership, source adapters, portable backup and guarded structural Undo.
+- Topic overlap comparison, evidence-bound distinct decisions, merge/link/split and cancellable AI pair advice with visible sampling coverage.
+- One scoped optimization plan across categories and entry points; background task center, resume after navigation and separate reports.
+- Reproducible isolated 600-tab / 1,000-saved-material UI measurement, narrow/doubled-text and keyboard regressions.
 - Task collections (Working now / Read later / Reference), reasons, saved focus and review dates; unified live/saved library search and single-page open/focus.
 - Library-wide semantic review with source labels, timestamped evidence, bounded cache and explicit two-URL deep extraction; saved review IDs cannot close browser tabs.
 - Evidence/focus-bound user decisions for useful or complementary materials, retained for 30 days and preserved in portable backups.
@@ -30,6 +35,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 
 ### Fixed
+- Reveal-current expands rows beyond the first hundred and clears obstructing filters; More restores keyboard focus on Escape.
+- Chrome storage object-key reordering no longer causes endless topic revision writes; merged/split AI lineage and saved-chat identity survive backup.
+- Full JSON/SQLite backup retains the new topic catalog; signed external tab-count changes survive report export/import.
 - A custom loopback server URL is preserved when synchronizing provider settings; loading persisted focus keeps a stable accessible field label.
 - Chat routes/drafts are no longer auto-selected as duplicate content. Distinct authors and approaches default to complementary material. AI waiting no longer disables local duplicate controls; disabled rows explain survivor/protection constraints.
 - Codex ChatGPT-subscription support defaults to GPT-5.6 Terra with low reasoning and a read-only sandbox. Large review prompts use stdin instead of exceeding process argument limits.

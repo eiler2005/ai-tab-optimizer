@@ -61,7 +61,7 @@ Three entry points configured in vite.config.ts:
 1. `pnpm build` (or `pnpm dev` for watch)
 2. chrome://extensions → Developer mode → Load unpacked → select `dist/`
 3. Service worker changes require clicking reload on the extension card
-4. Manifest changes require removing and re-loading the extension
+4. After manifest changes use Reload on the existing extension card; retain its folder and ID to preserve local data. Do not remove and reinstall an existing installation.
 
 ## Key Constraints
 

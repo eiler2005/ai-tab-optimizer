@@ -68,6 +68,7 @@ interface AppState {
   beginReview: (tabs: TabRecord[], label: string, focus?: string) => void;
   librarySection: 'library' | 'collections';
   tabScope: 'all' | 'current';
+  tabRevealId: number | null;
   tabTopicUrls: string[] | null;
   tabTopicName: string;
   showSelectedOnly: boolean;
@@ -213,6 +214,7 @@ export const useStore = create<AppState>((set, get) => ({
   } }),
   librarySection: 'library',
   tabScope: 'all',
+  tabRevealId: null,
   tabTopicUrls: null,
   tabTopicName: '',
   showSelectedOnly: false,
