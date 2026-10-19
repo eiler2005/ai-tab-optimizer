@@ -338,3 +338,21 @@ imported structural Undo is not executable. Full server backups explicitly retai
 the catalog while excluding provider secrets. Derived excerpt caches and running
 jobs are outside portable scope. See [TOPICS.md](TOPICS.md), [REVIEW.md](REVIEW.md)
 and [TEST_REPORT.md](testing/TEST_REPORT.md).
+
+## Batched content attention and cleanup continuity
+
+`review-batches.ts` creates bounded primary sets plus lexical neighbor bridges;
+each eligible page has one primary assignment, with at most 65 pages per request.
+The worker owns a maximum of three requests concurrently, a four-minute AI-stage
+deadline and existing per-request abort/timeout semantics. It validates each reply
+against that request's supplied IDs, merges duplicate groups conservatively and
+then validates cross-batch replacement conflicts. Successful-page IDs, batch counts
+and failures persist with the preview. Local candidates survive sparse AI replies
+as explicitly unconfirmed suggestions. The server prompt asks for systematic
+batch coverage while retaining its quote/confidence/chat guards.
+
+`cleanup-position.ts` resolves the old reading anchor against ID-and-URL identities
+in a fresh plan. The panel captures position before Apply, renders sufficient rows
+on Continue and restores scroll/focus to the same or next surviving material.
+The local operation fallback must belong to the current plan, preventing an old
+response from rebinding a new plan to a completed operation.

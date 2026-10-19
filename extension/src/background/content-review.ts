@@ -10,6 +10,7 @@ import { isStatefulChat } from '@shared/utils/page-safety';
 import { readEvidence, storeEvidence } from './content-evidence';
 import { extractDeepText } from './deep-extraction';
 import { applyReviewDecisions, decisionKey } from './review-decisions';
+import { buildReviewBatches } from '@shared/utils/review-batches';
 import { applyTabScope } from '@shared/utils/tab-scope';
 
 const KEY = 'aitab.content-review.preview';
@@ -79,7 +80,8 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         const before = await chrome.tabs.get(tab.id);
-        if (before.discarded || before.url !== tab.url) throw new Error('Unavailable page');
+        if (before.discarded) { preview.sleepingWithoutText = (preview.sleepingWithoutText ?? 0) + 1; throw new Error('Sleeping page; not opened for extraction'); }
+        if (before.url !== tab.url) throw new Error('Unavailable page');
         const data = await Promise.race([options.deepUrls ? extractDeepText(tab.id).then((excerpt) => ({ excerpt })) : extract(tab.id), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Extraction timed out')), 3000); })]);
         const after = await chrome.tabs.get(tab.id);
         if (after.url !== tab.url || after.incognito) throw new Error('Page changed');
@@ -103,22 +105,55 @@ export async function previewContentReview(options: ContentReviewOptions, extrac
   await onProgress?.({ phase: 'compare', processed: batch.length, total: batch.length });
   preview.similarGroups = findSimilarContent(tabs, excerpts);
   if (options.useAi && batch.length) {
-    try {
-      await onProgress?.({ phase: 'ai', processed: 0, total: batch.length });
-      const result = await fetchServerJson<{ similarGroups: unknown; outdatedTabs: unknown; provider: string }>('/workspace-review', {
-        method: 'POST', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(100_000)]) : AbortSignal.timeout(100_000), body: JSON.stringify({ tabs: batch.map((tab) => ({
-          id: tab.id, url: tab.url.slice(0, 8192), title: tab.title.slice(0, 1000), excerpt: excerpts[tab.id] ?? '',
-        })), focus: (options.focus ?? '').slice(0, 1000) }),
-      }, settings?.localServerUrl ?? 'http://localhost:8765');
-      preview.similarGroups = validateAiContentGroups(result.similarGroups, batch);
-      preview.outdatedTabs = validateOutdatedTabs(result.outdatedTabs, batch, excerpts);
-      const outdated = new Set(preview.outdatedTabs.map((item) => item.tabId));
-      for (const group of preview.similarGroups) {
-        const current = batch.filter((tab) => group.tabIds.includes(tab.id) && !outdated.has(tab.id));
-        if (current.length) group.keepTabId = chooseContentSurvivor(current);
+    const localGroups = preview.similarGroups;
+    const batches = buildReviewBatches(batch, excerpts);
+    const aiGroups: ContentReviewPreview['similarGroups'] = []; const outdated: unknown[] = [];
+    const reviewed = new Set<number>(); const failures: string[] = [];
+    const providers = new Set<string>();
+    const deadline = Date.now() + 240_000;
+    let nextBatch = 0; let completed = 0;
+    preview.aiBatchCount = batches.length;
+    await onProgress?.({ phase: 'ai', processed: 0, total: batch.length, batchesCompleted: 0, batchesTotal: batches.length, batchesFailed: 0 });
+    const work = async () => {
+      while (nextBatch < batches.length) {
+        signal?.throwIfAborted();
+        const part = batches[nextBatch++];
+        try {
+          const remaining = deadline - Date.now();
+          if (remaining <= 0) throw new Error('Overall AI review time limit reached');
+          const timeout = AbortSignal.timeout(Math.min(100_000, remaining));
+          const result = await fetchServerJson<{ similarGroups: unknown; outdatedTabs: unknown; provider: string }>('/workspace-review', {
+            method: 'POST', signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+            body: JSON.stringify({ tabs: part.tabs.map((tab) => ({ id: tab.id, url: tab.url.slice(0, 8192), title: tab.title.slice(0, 1000), excerpt: excerpts[tab.id] ?? '' })), focus: (options.focus ?? '').slice(0, 1000) }),
+          }, settings?.localServerUrl ?? 'http://localhost:8765');
+          aiGroups.push(...validateAiContentGroups(result.similarGroups, part.tabs));
+          outdated.push(...validateOutdatedTabs(result.outdatedTabs, part.tabs, excerpts));
+          part.tabs.forEach((tab) => reviewed.add(tab.id));
+          providers.add(result.provider); completed++;
+        } catch (error) { signal?.throwIfAborted(); failures.push(String(error)); }
+        await onProgress?.({ phase: 'ai', processed: reviewed.size, total: batch.length, batchesCompleted: completed, batchesTotal: batches.length, batchesFailed: failures.length });
       }
-      preview.aiTabCount = batch.length; preview.provider = result.provider;
-    } catch (error) { signal?.throwIfAborted(); preview.warning = String(error); }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, batches.length) }, work));
+    signal?.throwIfAborted();
+    // Duplicate bridge results must agree before becoming redundant close evidence.
+    const combined = new Map<string, typeof localGroups[number]>();
+    for (const raw of aiGroups) {
+      const key = [...raw.tabIds].sort((a, b) => a - b).join(':'); const old = combined.get(key);
+      if (!old || (old.relation === 'redundant' && raw.relation === 'related')) combined.set(key, raw);
+    }
+    const verified = [...combined.values()].slice(0, 100);
+    preview.similarGroups = [...verified, ...localGroups.filter((local) => !verified.some((group) => local.tabIds.every((id) => group.tabIds.includes(id))))];
+    preview.outdatedTabs = validateOutdatedTabs(outdated, batch, excerpts);
+    const old = new Set(preview.outdatedTabs.map((item) => item.tabId));
+    for (const group of preview.similarGroups) {
+      const current = batch.filter((tab) => group.tabIds.includes(tab.id) && !old.has(tab.id));
+      if (current.length) group.keepTabId = chooseContentSurvivor(current);
+    }
+    preview.aiTabCount = reviewed.size; preview.provider = [...providers].join(', ') || undefined;
+    preview.aiCompletedBatches = completed; preview.aiFailedBatches = failures.length;
+    preview.aiReviewedTabIds = [...reviewed];
+    if (failures.length) preview.warning = [preview.warning, `AI reviewed ${reviewed.size}/${batch.length} pages; ${failures.length}/${batches.length} batches failed. ${failures[0].slice(0, 500)}`].filter(Boolean).join(' ');
   }
   signal?.throwIfAborted();
   preview.createdAt = Date.now();

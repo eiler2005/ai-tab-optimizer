@@ -6,9 +6,9 @@ pnpm 10.32.1, Vitest 4.1.2, pytest 9.0.2, Playwright 1.64.1 / Chromium 156.
 | Check | Result |
 |---|---|
 | Strict TypeScript and production build | Pass |
-| Vitest | 178 passed across 31 files |
+| Vitest | 187 passed across 33 files |
 | Python API/runtime/security/review/backup tests | 56 passed |
-| Real Chromium extension E2E | 22 passed |
+| Real Chromium extension E2E | 24 passed |
 | Large isolated workload | 600 synthetic live tabs, 1,000 saved materials, 40 collections/topics |
 | Layout matrix | 360/420/600 px, 100%/200% text; additional Russian 360 px/200% |
 | Whitespace and documentation links/fences | Pass |
@@ -43,6 +43,15 @@ to wrap whole controls into rows. The final layout was rechecked on the same sav
 corpus with a smaller 120-live-tab fixture and by the keyboard E2E matrix.
 
 ## Browser coverage
+
+- Continue returns to the prior reading position/next surviving URL beyond the
+  first hundred rows and focuses its unchecked checkbox. Old completed operations
+  cannot bind a different fresh plan. Unit tests cover changed URLs and end-of-list fallback.
+- A 95-page browser review makes three bounded topic-neighbor requests, covers all
+  supplied IDs, brings distant specific sources together and displays title-only
+  coverage plus similar and grounded outdated results. Unit tests cover all 600
+  primary assignments, cross-position neighbors, partial failures, three-request
+  concurrency and retention of local matches after an empty successful AI response.
 
 - Single-page save-and-close switches to an outcome screen with its URL and collection.
   Finding the saved page opens Library search without reopening the tab. Continue
@@ -141,3 +150,10 @@ Current automated suites stub provider output. Earlier live smoke checks on
 through ChatGPT: overlapping articles, an expired event and a useful old reference
 were distinguished; videos from different authors were retained as complementary.
 Those small checks are historical evidence, not a live-provider 600-page benchmark.
+
+The batched-review revision improves attention allocation and preserves omitted
+local candidates; it does not establish higher semantic precision/recall on the
+user corpus. Automated model responses are synthetic. No count quota or lower
+confidence threshold was introduced, and visit age remains excluded. Per-request
+provider/client limits remain 90/100 seconds; the worker's total AI-stage deadline
+is now four minutes, with explicit partial coverage on failure.

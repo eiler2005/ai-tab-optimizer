@@ -18,7 +18,7 @@ export function ReviewProgress() {
     <div className="flex items-center gap-2 justify-between"><strong>{job.status === 'running' || job.status === 'completed' ? labels[job.phase] : job.status === 'cancelled' ? tr('Проверка отменена', 'Review cancelled') : tr('Проверка прервана', 'Review interrupted')}</strong><span>{elapsed} {tr('с', 's')}</span></div>
     {job.status === 'running' && <>
       {job.phase === 'extract' ? <><progress aria-label={tr('Обработано фрагментов', 'Excerpts processed')} value={job.processed} max={Math.max(1, job.total)} className="w-full" /><p>{job.processed} / {job.total}{eta !== null ? ` · ${tr('до этапа AI примерно', 'estimated before AI')} ${eta} ${tr('с', 's')}` : ''}</p></> : <progress aria-label={labels[job.phase]} className="w-full" />}
-      {job.phase === 'ai' && <p>{tr('Вкладок отправлено', 'Tabs sent')}: {job.total}. {tr('Ждём ответ, точный процент неизвестен. Лимит ожидания — 100 с.', 'Waiting for a response; exact percentage is unavailable. Wait limit: 100 s.')}</p>}
+      {job.phase === 'ai' && <p>{tr('Проверено страниц', 'Pages reviewed')}: {job.processed} / {job.total}. {job.batchesTotal ? `${tr('Порций', 'Batches')}: ${job.batchesCompleted ?? 0}/${job.batchesTotal}. ` : ''}{tr('До 3 запросов одновременно; общий лимит этапа AI — 4 минуты. Одна порция — до 100 с. Можно отменить.', 'Up to 3 requests at once; AI stage limit: 4 minutes. Each batch: up to 100 s. Cancellation is available.')}</p>}
       <button onClick={() => void cancel().catch((failure) => console.error(failure))} className="border rounded bg-white px-2 py-1">{tr('Отменить проверку', 'Cancel review')}</button>
     </>}
     {job.error && <p role="alert">{job.error}</p>}

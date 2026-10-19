@@ -119,8 +119,9 @@ Content review runs as a background job, independent of the short action lock.
 The persistent progress card shows capture, excerpt reading, local comparison,
 AI waiting and completion. Excerpt counts are measured and the optional remaining
 time is estimated from observed extraction speed. AI waiting is indeterminate,
-with elapsed time and a 100-second client wait limit rather than an invented
-percentage. Provider attempts share a 90-second server budget. Cancel stops
+with elapsed time and measured reviewed-page/batch counts. Each request has a
+100-second client limit and shared 90-second provider budget; the batched AI stage
+has a four-minute overall limit with at most three concurrent requests. Cancel stops
 further extraction/submission and aborts an in-flight local request; the server
 cancels the provider coroutine on disconnect and terminates its owned Codex process.
 
@@ -325,3 +326,12 @@ A browser-session identifier in `chrome.storage.session` distinguishes worker re
 Obsidian exports use a fresh UUID suffix for each version, avoiding collisions across multiple side-panel contexts.
 
 Private/incognito windows are excluded from workspace capture. Existing snapshot, history and Obsidian stores remain compatible. Workspace data has one authority in Chrome local storage; the Python database continues to serve analysis/history and existing snapshots.
+
+Large content reviews retain local candidates instead of replacing them with a
+short AI response. `review-batches.ts` covers each of up to 600 eligible pages in
+a primary group (45 pages), adding up to 20 lexical neighbors from other groups.
+This bounds attention per request to 65 pages while enabling cross-group matches.
+Coverage is not an exhaustive all-pairs claim. Failed batches retain successful
+results and explicitly report unreviewed scope. Local hints stay labelled as
+unconfirmed; they cannot establish automatic semantic redundancy. Missing excerpts
+and sleeping-page limitations are visible in both review and Library comparison.

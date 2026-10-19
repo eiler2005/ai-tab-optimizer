@@ -30,12 +30,20 @@ export interface ContentReviewPreview {
   focus?: string;
   retainedByUser?: number;
   reviewEligibleCount?: number;
+  aiBatchCount?: number;
+  aiCompletedBatches?: number;
+  aiFailedBatches?: number;
+  aiReviewedTabIds?: number[];
+  sleepingWithoutText?: number;
 }
 
 export interface ReviewProgress {
   phase: 'capture' | 'extract' | 'compare' | 'ai' | 'complete';
   processed: number;
   total: number;
+  batchesCompleted?: number;
+  batchesTotal?: number;
+  batchesFailed?: number;
 }
 
 export interface ContentReviewJob extends ReviewProgress {

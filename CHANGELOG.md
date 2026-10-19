@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 
 ### Fixed
+- Large content reviews now use bounded topic-neighbor batches, retain unconfirmed local candidates after sparse AI replies, report actual batch/text coverage and partial failures, and expose current-task guidance for obsolescence.
+- Continue cleanup restores the previous reading position and keyboard focus, advances to the next surviving URL after closure, renders beyond the first hundred rows and ignores stale operations from other plans.
 - Completed cleanup now replaces the stale plan with named closed/restored/remaining pages and saved collection destinations; Continue cleanup refreshes the remaining scope without another automatic AI request, and each batch retains independent Undo.
 - Apply now exposes persisted per-tab progress, actual outcomes and Undo in the action footer; completed/expired plans no longer leave an unexplained disabled Apply button. Workspace storage updates render directly instead of queuing an overview read for every journal write.
 - Similar content now shows expanded matching groups before the forecast, separates complementary sources from closure selection, provides an explicit empty state and collapses finished review setup.

@@ -1,6 +1,30 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures';
 
+test('Continue resumes at the next page beyond the first hundred after closing the current page', async ({ panel, worker }) => {
+  const ids = await worker.evaluate(async () => {
+    const ids: number[] = [];
+    for (let index = 0; index < 125; index++) ids.push((await chrome.tabs.create({ url: `http://aitab.test/position-${index}`, active: false })).id!);
+    return ids;
+  });
+  await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url?.includes('/position-')).length)).toBe(125);
+  await panel.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  await panel.getByRole('button', { name: 'Show more', exact: true }).click();
+  await panel.getByLabel(`Include in optimization ${ids[110]}`, { exact: true }).check();
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  await expect(panel.getByTestId('optimization-outcome')).toContainText('position-110');
+  await panel.getByRole('button', { name: 'Continue cleanup', exact: true }).click();
+  await expect(panel.getByTestId('optimization-outcome')).not.toBeAttached();
+  const next = panel.locator(`[data-cleanup-tab-id="${ids[111]}"]`);
+  await expect(next).toHaveAttribute('data-resumed', 'true');
+  await expect(next).toBeInViewport();
+  await expect(next.getByRole('checkbox')).toBeFocused();
+  await expect(next.getByRole('checkbox')).not.toBeChecked();
+  await expect(panel.locator(`[data-cleanup-tab-id="${ids[110]}"]`)).not.toBeAttached();
+});
+
 test('single save-and-close shows its destination and continuing creates a fresh plan for the remaining tabs', async ({ panel, worker }) => {
   const ids = await worker.evaluate(async () => {
     const ids: number[] = [];

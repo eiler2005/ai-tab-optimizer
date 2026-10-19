@@ -100,7 +100,7 @@ partial coverage are explicit. No external web verification or full-page equival
 guarantee exists. The local server orchestrates CLIs that can send data to providers.
 Codex defaults to `gpt-5.6-terra`, low reasoning; CLI-managed ChatGPT authentication
 is described in SETUP. The task center shows stages, measured counts, elapsed time
-and cancellation. AI wait is indeterminate: 90-second server budget, 100-second client.
+and cancellation. AI wait is indeterminate: 90-second server budget per request, 100-second client per request. Large content reviews use up to three concurrent bounded requests and a four-minute AI-stage deadline. Topic-pair advice remains one request.
 
 ## Canonical implementation contracts
 

@@ -1,6 +1,7 @@
 import { useI18n } from '@shared/i18n';
 import { useWorkspaceReview } from '../review-controller';
 import { ReviewOptions } from './ReviewOptions';
+import { ReviewCoverage } from './ReviewCoverage';
 import { workspaceMessage } from '../workspace-api';
 import { useState } from 'react';
 
@@ -21,11 +22,12 @@ export function LibraryReview({ selectedUrls }: { selectedUrls: string[] }) {
       <button disabled={review.job?.status === 'running' || selectedUrls.length !== 2} className="border rounded p-2 disabled:opacity-50" onClick={() => void review.start(true, { tabIds: undefined, expectedUrls: undefined, windowId: undefined, scopeLabel: tr('Библиотека', 'Library'), includeSaved: true, deepUrls: selectedUrls }).catch((error) => setFeedback(String(error)))}>{tr('Углубить выбранную пару', 'Deep review selected pair')} ({selectedUrls.length}/2)</button>
     </div>
     {preview && <>
+      <ReviewCoverage preview={preview} />
       <p role="status">AI: {preview.aiTabCount}/{preview.reviewEligibleCount ?? preview.tabs.length - (preview.excludedChats ?? 0)} {tr('уникальных URL', 'unique URLs')} · {tr('Групп', 'Groups')}: {preview.similarGroups.length} · {tr('Неактуально', 'Outdated')}: {preview.outdatedTabs.length}</p>
       {preview.warning && <p role="alert" className="text-amber-800">{preview.warning}</p>}
       {(preview.reviewEligibleCount ?? preview.tabs.length) > 600 && <p className="text-amber-800">{tr('AI охватил до 600 уникальных URL из открытых и сохранённых страниц. Для остальных выберите пару или область проверки.', 'AI covers up to 600 unique live/saved URLs. Choose a pair or scope to review the rest.')}</p>}
       {preview.similarGroups.map((group) => <article key={group.id} className="border rounded p-2 space-y-2">
-        <h5 className="font-medium">{group.relation === 'related' ? tr('Дополняют друг друга — оставить', 'Complementary — retain') : tr('Возможный повтор информации', 'Possible information redundancy')}</h5>
+        <h5 className="font-medium">{group.source !== 'ai' ? tr('Локальное сходство — проверьте содержание', 'Local similarity — inspect content') : group.relation === 'related' ? tr('Дополняют друг друга — оставить', 'Complementary — retain') : tr('Возможный повтор информации', 'Possible information redundancy')}</h5>
         <p>{group.reason}</p>{group.uniqueValue && <p className="text-green-800">{group.uniqueValue}</p>}
         <button className="border rounded p-2" onClick={() => void workspaceMessage({ type: 'REMEMBER_REVIEW_DECISION', previewId: preview.id, kind: 'complementary', tabIds: group.tabIds }).then(() => setFeedback(tr('Источники сохранены как дополняющие на 30 дней, пока содержание и задача те же.', 'Complementary decision remembered for 30 days while evidence and focus stay unchanged.'))).catch((error) => setFeedback(String(error)))}>{tr('Дополняют друг друга — запомнить', 'Remember as complementary')}</button>
         {group.tabIds.map((id) => { const tab = preview.tabs.find((page) => page.id === id); const source = preview.savedSources?.[id]; const evidence = preview.evidence?.[id]; return tab ? <div key={id} className="border-t pt-1 break-words">

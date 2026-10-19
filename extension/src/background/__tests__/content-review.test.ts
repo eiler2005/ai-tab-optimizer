@@ -11,6 +11,31 @@ const seed = () => [1, 2, 3].map((id) => makeTab({ id, url: `https://test.test/$
 const options = { useAi: false, readContent: false };
 
 describe('reviewed content closes', () => {
+  it('does not discard local candidates when a successful AI response omits them', async () => {
+    mockBrowser(seed());
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ provider: 'codex_cli', similarGroups: [], outdatedTabs: [] }))));
+    const preview = await previewContentReview({ ...options, useAi: true });
+    expect(preview.similarGroups.length).toBeGreaterThan(0);
+    expect(preview.similarGroups.every((group) => group.source !== 'ai' && group.relation === 'related')).toBe(true);
+    expect(preview.aiTabCount).toBe(3);
+  });
+  it('retains partial coverage and limits concurrent requests when one batch fails', async () => {
+    mockBrowser(Array.from({ length: 140 }, (_, index) => makeTab({ id: index + 1, url: `https://site-${index}.test/`, title: `Independent material ${index}` })));
+    let inFlight = 0; let maximum = 0;
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      inFlight++; maximum = Math.max(maximum, inFlight);
+      await Promise.resolve();
+      const tabs = JSON.parse(String(init.body)).tabs as { id: number }[];
+      inFlight--;
+      if (tabs.some((tab) => tab.id === 1)) return new Response('Provider unavailable', { status: 503 });
+      return new Response(JSON.stringify({ provider: 'codex_cli', similarGroups: [], outdatedTabs: [] }));
+    }));
+    const preview = await previewContentReview({ ...options, useAi: true });
+    expect(maximum).toBeLessThanOrEqual(3);
+    expect(preview.aiTabCount).toBeGreaterThan(0); expect(preview.aiTabCount).toBeLessThan(140);
+    expect(preview.aiFailedBatches).toBe(1); expect(preview.aiCompletedBatches).toBe(3);
+    expect(preview.warning).toContain('batches failed');
+  });
   it('reviews saved and live sources with isolated IDs, cached evidence, no hidden opens and no library closes', async () => {
     const browser = mockBrowser(seed());
     const saved = (await saveCollection((await previewCollection('Saved research')).id, false)).collection;
@@ -54,11 +79,14 @@ describe('reviewed content closes', () => {
   });
   it('bounds the AI payload to 600 while reporting total coverage', async () => {
     mockBrowser(Array.from({ length: 602 }, (_, index) => makeTab({ id: index + 1, url: `https://test.test/${index}` })));
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ provider: 'codex_cli', similarGroups: [], outdatedTabs: [] })));
+    const fetch = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ provider: 'codex_cli', similarGroups: [], outdatedTabs: [] })));
     vi.stubGlobal('fetch', fetch);
     const preview = await previewContentReview({ ...options, useAi: true });
     expect(preview.tabs).toHaveLength(602); expect(preview.aiTabCount).toBe(600);
-    expect(JSON.parse(fetch.mock.calls[0][1].body).tabs).toHaveLength(600);
+    expect(preview.aiBatchCount).toBe(14); expect(preview.aiCompletedBatches).toBe(14);
+    const requests = fetch.mock.calls.map((call) => JSON.parse(call[1].body).tabs as { id: number }[]);
+    expect(requests.every((tabs) => tabs.length <= 65)).toBe(true);
+    expect(new Set(requests.flatMap((tabs) => tabs.map((tab) => tab.id))).size).toBe(600);
   });
   it('never infers topical obsolescence from an old lastAccessed timestamp', async () => {
     const browser = mockBrowser(seed());

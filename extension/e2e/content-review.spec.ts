@@ -1,6 +1,48 @@
 import { test, expect, request } from './fixtures';
 import type { WorkspaceData } from '../src/shared/types/workspace';
 
+test('large review uses topic-neighbor batches and reports text coverage alongside similar and outdated results', async ({ panel, worker, context }) => {
+  await context.route('http://aitab.test/quality-*', async route => {
+    const index = Number(new URL(route.request().url()).pathname.split('-').pop());
+    const title = [4, 82].includes(index) ? 'Postgres HNSW vector indexing benchmark migration' : index === 30 ? 'Conference registration closed 2024' : `Independent reference ${index}`;
+    await route.fulfill({ contentType: 'text/html', body: `<title>${title}</title>` });
+  });
+  for (let index = 0; index < 95; index++) {
+    const page = await context.newPage(); await page.goto(`http://aitab.test/quality-${index}`);
+  }
+  const ids = await worker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    const ids = Array.from({ length: 95 }, (_, index) => tabs.find(tab => tab.url === `http://aitab.test/quality-${index}`)!.id!);
+    const stored = await chrome.storage.local.get('settings');
+    await chrome.storage.local.set({ settings: { ...stored.settings, localServerUrl: 'http://127.0.0.1:17776' } });
+    return ids;
+  });
+  await expect.poll(() => panel.evaluate(async id => (await chrome.tabs.get(id)).title, ids[82])).toBe('Postgres HNSW vector indexing benchmark migration');
+  await panel.bringToFront();
+  const requests: number[][] = [];
+  await context.route('http://127.0.0.1:17776/workspace-review', async route => {
+    const tabs = route.request().postDataJSON().tabs as { id: number }[];
+    const seen = tabs.map(tab => tab.id); requests.push(seen);
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'codex_cli', similarGroups: seen.includes(ids[4]) && seen.includes(ids[82]) ? [{ tabIds: [ids[4], ids[82]], relation: 'related', confidence: .9, reason: 'Both sources cover HNSW migration; independent benchmarks may differ.' }] : [], outdatedTabs: seen.includes(ids[30]) ? [{ tabId: ids[30], reason: 'Registration for the 2024 event is closed.', evidence: 'registration closed 2024', confidence: .95 }] : [] }) });
+  });
+  await panel.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  const nav = panel.getByRole('navigation', { name: 'Cleanup section' });
+  await nav.getByRole('button', { name: 'Similar content', exact: true }).click();
+  await panel.getByText('Review focus and options', { exact: true }).click();
+  await panel.getByLabel('Include accessible page excerpts', { exact: true }).uncheck();
+  await panel.getByRole('button', { name: 'AI: review content and relevance', exact: true }).click();
+  await expect(panel.getByTestId('review-coverage')).toContainText('AI: 95 / 95');
+  await expect(panel.getByTestId('review-coverage')).toContainText('Title and URL only: 95');
+  await expect(panel.getByTestId('review-coverage')).toContainText('AI batches completed: 3 / 3');
+  expect(requests).toHaveLength(3); expect(requests.every(ids => ids.length <= 65)).toBe(true);
+  expect(new Set(requests.flat()).size).toBe(95);
+  await expect(panel.getByText('Both sources cover HNSW migration; independent benchmarks may differ.', { exact: true })).toBeVisible();
+  await nav.getByRole('button', { name: 'Outdated content', exact: true }).click();
+  await expect(panel.getByText('Registration for the 2024 event is closed.', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Set task and review options', exact: true })).toBeVisible();
+});
+
 test('Similar content shows complementary groups with zero closures before the forecast', async ({ panel, context, worker }, testInfo) => {
   const ids: number[] = [];
   for (const name of ['author-a', 'author-b']) {

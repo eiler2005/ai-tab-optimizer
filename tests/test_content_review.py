@@ -66,6 +66,8 @@ def test_endpoint_supplies_focus_current_date_and_no_visit_age(client, monkeypat
         assert 'today' in payload
         assert 'lastAccessed' not in prompt
         assert 'time since last visit DO NOT' in system
+        assert 'Assess every supplied page' in system
+        assert 'not a short selection of examples' in system
         return {'similarGroups': [], 'outdatedTabs': [{'tabId': 1, 'reason': 'Superseded for React 19 focus', 'evidence': 'React 17', 'confidence': .9, 'replacementTabId': 2}]}, agent.AnalysisMetadata(durationMs=1, durationApiMs=1, totalCostUsd=None, inputTokens=0, outputTokens=0, tabCount=3, providerUsed='codex_cli')
 
     monkeypatch.setattr(agent, 'run_codex_json_prompt', fake)
