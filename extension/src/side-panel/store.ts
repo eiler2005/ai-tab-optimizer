@@ -77,6 +77,8 @@ interface AppState {
   totalTabs: number;
   loading: boolean;
   searchQuery: string;
+  searchScope: import('./library-index').SearchScope;
+  searchMatchIds: number[] | null;
   selectedTabIds: Set<number>;
   duplicateCount: number;
   nearDuplicateCount: number;
@@ -198,7 +200,7 @@ export const useStore = create<AppState>((set, get) => ({
   setActionError: (actionError) => set({ actionError }),
   // Navigation
   view: 'tabs',
-  setView: (view) => set({ view }),
+  setView: (view) => set({ view, ...(view !== get().view && ['tabs', 'library', 'topics'].includes(view) ? { searchScope: view === 'tabs' ? 'open' : view === 'library' ? 'saved' : 'all', searchMatchIds: null } : {}) }),
   workspaceSection: 'optimize',
   openWorkspace: (workspaceSection) => set({ workspaceSection, view: 'workspace' }),
   librarySection: 'library',
@@ -214,11 +216,13 @@ export const useStore = create<AppState>((set, get) => ({
   totalTabs: 0,
   loading: true,
   searchQuery: '',
+  searchScope: 'open',
+  searchMatchIds: null,
   selectedTabIds: new Set(),
   duplicateCount: 0,
   nearDuplicateCount: 0,
   staleCount: 0,
-  setSearchQuery: (q) => set({ searchQuery: q }),
+  setSearchQuery: (q) => set({ searchQuery: q, searchMatchIds: null }),
   toggleTabSelection: (id) => {
     const selected = new Set(get().selectedTabIds);
     if (selected.has(id)) selected.delete(id);

@@ -7,7 +7,6 @@ export function StatsBar() {
   const state = useStore();
   const current = state.windowGroups.find((window) => window.focused)?.tabs.find((tab) => tab.active);
   return <div className="border-b p-3 space-y-2 flex-none text-xs">
-    <input aria-label={tr('Поиск материалов', 'Find materials')} value={state.searchQuery} onChange={(event) => state.setSearchQuery(event.target.value)} placeholder={tr('Найти вкладку, тему или материал…', 'Find a tab, topic or material…')} className="w-full border rounded p-2" />
     <div className="flex gap-2 items-center flex-wrap">
       <select aria-label={tr('Область вкладок', 'Tab scope')} value={state.tabScope} onChange={(event) => { const tabScope = event.target.value as 'all' | 'current'; useStore.setState({ tabScope }); void chrome.storage.local.set({ 'aitab.tab-scope': tabScope }); }} className="border rounded p-2"><option value="all">{tr('Все окна', 'All windows')}</option><option value="current">{tr('Текущее окно', 'Current window')}</option></select>
       <span>{state.totalTabs} {tr('вкладок', 'tabs')} · {state.windowGroups.length} {tr('окон', 'windows')}</span>

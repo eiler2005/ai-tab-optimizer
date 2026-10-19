@@ -55,3 +55,20 @@ test('topic names and task edits persist through reload; deleting a topic retain
   await expect(panel.getByRole('button', { name: 'My current task · 1 open · 1 saved', exact: true })).toBeVisible();
   expect(await panel.evaluate(async (id) => Boolean(await chrome.tabs.get(id)), id)).toBe(true);
 });
+
+test('shared search finds a saved note from Tabs, opens one page and keeps comparison out of the first screen', async ({ panel, worker }) => {
+  const id = await worker.evaluate(async () => (await chrome.tabs.create({ url: 'http://aitab.test/search-saved', active: false })).id!);
+  await expect.poll(async () => panel.evaluate(async (id) => (await chrome.tabs.get(id)).url, id)).toBe('http://aitab.test/search-saved');
+  const preview = await request<CollectionPreview>(panel, { type: 'PREVIEW_COLLECTION', name: 'Findable references', tabIds: [id] });
+  const saved = await request<{ collection: { id: string; windows: { tabs: { itemId: string }[] }[] } }>(panel, { type: 'SAVE_COLLECTION', previewId: preview.id, closeAfter: false });
+  await request(panel, { type: 'UPDATE_COLLECTION', collectionId: saved.collection.id, change: { itemId: saved.collection.windows[0].tabs[0].itemId, note: 'Unique concurrency explanation' } });
+  await panel.evaluate(async (id) => chrome.tabs.remove(id), id);
+  await panel.getByLabel('Search scope', { exact: true }).selectOption('all');
+  await panel.getByLabel('Find materials', { exact: true }).fill('concurrency collection:"Findable references"');
+  await expect(panel.getByRole('status').filter({ hasText: 'Found: 1' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'AI: compare library', exact: true })).not.toBeVisible();
+  await panel.getByRole('button', { name: 'Open page', exact: true }).click();
+  await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/search-saved').length)).toBe(1);
+  await panel.getByRole('button', { name: 'Focus open page', exact: true }).click();
+  expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/search-saved').length)).toBe(1);
+});

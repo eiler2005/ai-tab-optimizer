@@ -165,7 +165,7 @@ function ResultCard({
 export function ChatSearch() {
   const { chatMessages, chatLoading, sendChatQuery, clearChat, windowGroups } = useStore();
   const { t } = useI18n();
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(useStore.getState().searchQuery);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const allTabs = windowGroups.flatMap((wg) => wg.tabs).map((tab) => ({

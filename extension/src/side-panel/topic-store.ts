@@ -10,6 +10,7 @@ interface TopicState {
   error: string | null;
   activeId: string | null;
   query: string;
+  matchedIds: string[] | null;
   filter: 'all' | 'working' | 'proposals' | 'unassigned';
   scrollTop: number;
   refresh: (server?: boolean) => Promise<void>;
@@ -17,7 +18,7 @@ interface TopicState {
 }
 let pending: Promise<void> | undefined;
 export const useTopics = create<TopicState>((set, get) => ({
-  catalog: emptyTopicCatalog(), sessionId: '', loading: false, error: null, activeId: null, query: '', filter: 'all', scrollTop: 0,
+  catalog: emptyTopicCatalog(), sessionId: '', loading: false, error: null, activeId: null, query: '', matchedIds: null, filter: 'all', scrollTop: 0,
   refresh: async (server = false) => {
     if (!server && pending) return pending;
     const run = async () => {

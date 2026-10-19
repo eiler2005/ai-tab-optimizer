@@ -31,7 +31,7 @@ export function WorkspaceView() {
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const { view, workspaceSection, librarySection } = useStore();
-  const section = view === 'topics' ? 'ai' : view === 'library' ? librarySection : workspaceSection;
+  const section = view === 'topics' ? 'ai' : view === 'library' ? librarySection : view === 'tabs' && useStore.getState().searchScope !== 'open' ? 'library' : workspaceSection;
   const setSection = (next: import('../store').WorkspaceSection) => useStore.setState({ workspaceSection: next });
 
   const refresh = async () => setWorkspace(await workspaceMessage<WorkspaceData>({ type: 'WORKSPACE_OVERVIEW' }));

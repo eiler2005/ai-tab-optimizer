@@ -10,7 +10,7 @@ export function TabList() {
   const [collapsedWindows, setCollapsedWindows] = useState<Set<number>>(new Set());
   const [limit, setLimit] = useState(100);
   const ref = useRef<HTMLDivElement>(null);
-  const groups = useMemo(() => filteredWindows(state.windowGroups, state), [state.windowGroups, state.searchQuery, state.tabScope, state.tabTopicUrls, state.showSelectedOnly, state.selectedTabIds]);
+  const groups = useMemo(() => filteredWindows(state.windowGroups, state), [state.windowGroups, state.searchQuery, state.tabScope, state.tabTopicUrls, state.showSelectedOnly, state.selectedTabIds, state.searchMatchIds]);
   const total = groups.reduce((sum, window) => sum + window.tabs.length, 0);
   useLayoutEffect(() => { if (ref.current) ref.current.scrollTop = useStore.getState().tabsScrollTop; }, []);
   let shown = 0;

@@ -19,7 +19,6 @@ export function Header() {
         [tr('Разбор вкладок', 'Review tabs'), () => openWorkspace('optimize')],
         [tr('Журнал и Undo', 'Journal and Undo'), () => openWorkspace('history')],
         [tr('Отчёты', 'Reports'), () => setView('ai-recommendations')],
-        [tr('Поиск по смыслу', 'Search by meaning'), () => setView('chat')],
         [tr('Активность', 'Activity'), () => setView('history')],
         [tr('Восстановление и бэкапы', 'Recovery and backups'), () => openWorkspace('backups')],
         [tr('Снимки', 'Snapshots'), () => setView('snapshots')],

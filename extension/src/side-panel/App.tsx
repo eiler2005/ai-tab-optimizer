@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from './store';
+import { GlobalSearch } from './components/GlobalSearch';
 import { Header } from './components/Header';
 import { StatsBar } from './components/StatsBar';
 import { TabList } from './components/TabList';
@@ -113,12 +114,13 @@ export function App() {
   return (
     <div className="flex flex-col h-screen">
       <Header />
-      <div className={['workspace', 'topics', 'library'].includes(view) ? 'flex flex-1 min-h-0 flex-col' : 'hidden'}><WorkspaceView /></div>
+      <GlobalSearch />
+      <div className={(['workspace', 'topics', 'library'].includes(view) || view === 'tabs' && useStore.getState().searchScope !== 'open') ? 'flex flex-1 min-h-0 flex-col' : 'hidden'}><WorkspaceView /></div>
       {actionError && <div role="alert" className="p-3 text-xs bg-red-50 text-red-700 flex gap-2">
         <span className="flex-1">{actionError}</span>
         <button aria-label="Dismiss" onClick={() => useStore.getState().setActionError(null)}>✕</button>
       </div>}
-      {view === 'tabs' && (
+      {view === 'tabs' && useStore.getState().searchScope === 'open' && (
         <>
           <StatsBar />
           <LibraryHintBanner />

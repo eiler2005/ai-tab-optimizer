@@ -14,7 +14,7 @@ test('library searches saved notes, opens one missing page and preserves task me
   await request(panel, { type: 'UPDATE_COLLECTION', collectionId: collection.id, change: { itemId: item.itemId, note: 'Unique transaction reference' } });
   await panel.evaluate(async (id) => chrome.tabs.remove(id), ids[1]);
   await panel.getByRole('button', { name: 'Library', exact: true }).click();
-  await panel.getByLabel('Search library', { exact: true }).fill('transaction status:reference');
+  await panel.getByLabel('Find materials', { exact: true }).fill('transaction status:reference');
   await expect(panel.getByRole('status').filter({ hasText: 'Found: 1' })).toBeVisible();
   await panel.getByRole('button', { name: 'Open page', exact: true }).click();
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/library-b').length)).toBe(1);

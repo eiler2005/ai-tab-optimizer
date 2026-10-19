@@ -24,6 +24,9 @@ export function collectionDetails(value: CollectionDetails): CollectionDetails {
 export interface LibraryPage {
   key: string; url: string; title: string; notes: string[];
   liveTabIds: number[];
+  windowIds?: number[];
+  topicNames?: string[];
+  topicIds?: string[];
   saved: { collectionId: string; itemId: string; name: string; purpose: CollectionPurpose }[];
 }
 
@@ -56,6 +59,8 @@ export function searchLibrary(pages: LibraryPage[], query: string): LibraryPage[
     if (text.startsWith('collection:')) return page.saved.some((saved) => saved.name.toLocaleLowerCase().includes(text.slice(11)));
     if (text.startsWith('status:')) return text.slice(7) === 'open' ? page.liveTabIds.length > 0 : page.saved.some((saved) => saved.purpose === text.slice(7));
     if (text.startsWith('domain:')) return new URL(page.url).hostname.includes(text.slice(7));
-    return [page.title, page.url, ...page.notes, ...page.saved.map((saved) => saved.name)].join('\n').toLocaleLowerCase().includes(text);
+    if (text.startsWith('topic:')) return (page.topicNames ?? []).some((name) => name.toLocaleLowerCase().includes(text.slice(6)));
+    if (text.startsWith('window:')) return (page.windowIds ?? []).includes(Number(text.slice(7)));
+    return [page.title, page.url, ...page.notes, ...page.saved.map((saved) => saved.name), ...(page.topicNames ?? [])].join('\n').toLocaleLowerCase().includes(text);
   }));
 }
