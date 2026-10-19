@@ -1,6 +1,42 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures';
 
+test('single save-and-close shows its destination and continuing creates a fresh plan for the remaining tabs', async ({ panel, worker }) => {
+  const ids = await worker.evaluate(async () => {
+    const ids: number[] = [];
+    for (const name of ['first', 'second', 'third']) ids.push((await chrome.tabs.create({ url: `http://aitab.test/continue-${name}`, active: false })).id!);
+    return ids;
+  });
+  await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url?.includes('/continue-')).length)).toBe(3);
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  await panel.getByLabel(`Include in optimization ${ids[0]}`, { exact: true }).check();
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  const outcome = panel.getByTestId('optimization-outcome');
+  await expect(outcome).toContainText('Closed: 1 · Skipped: 0 · Failed: 0');
+  await expect(outcome).toContainText('Saved in collection:');
+  await expect(outcome).toContainText('http://aitab.test/continue-first');
+  await expect(panel.getByLabel(`Include in optimization ${ids[0]}`, { exact: true })).not.toBeAttached();
+  await panel.getByRole('button', { name: 'Find saved page', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Library', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(panel.getByLabel('Find materials', { exact: true })).toHaveValue('http://aitab.test/continue-first');
+  await expect(panel.getByRole('button', { name: 'Open page', exact: true })).toBeVisible();
+  expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url === 'http://aitab.test/continue-first').length)).toBe(0);
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  await panel.getByRole('button', { name: 'Continue cleanup', exact: true }).click();
+  await expect(outcome).not.toBeAttached();
+  await expect(panel.getByLabel(`Include in optimization ${ids[0]}`, { exact: true })).not.toBeAttached();
+  await panel.getByLabel(`Include in optimization ${ids[1]}`, { exact: true }).check();
+  await panel.getByRole('button', { name: 'Apply plan (1)', exact: true }).click();
+  await expect(outcome).toContainText('http://aitab.test/continue-second');
+  await panel.getByRole('button', { name: 'Undo optimization', exact: true }).click();
+  await expect(panel.getByTestId('optimization-execution')).toContainText('Undo completed');
+  expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url === 'http://aitab.test/continue-first').length)).toBe(0);
+  expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url === 'http://aitab.test/continue-second').length)).toBe(1);
+});
+
 test('Apply shows live progress and the final save-and-close outcome in the footer while scrolled', async ({ panel, worker }, testInfo) => {
   await worker.evaluate(async () => {
     for (const name of ['apply-copy', 'apply-copy', 'apply-unique-a', 'apply-unique-b', 'apply-unique-c']) await chrome.tabs.create({ url: `http://aitab.test/${name}`, active: false });
@@ -24,8 +60,12 @@ test('Apply shows live progress and the final save-and-close outcome in the foot
   await expect(panel.getByTestId('optimization-execution')).toContainText('Processed: 0 / 4');
   await expect(panel.getByRole('button', { name: 'Applying…', exact: true })).toBeDisabled();
   await worker.evaluate(() => (globalThis as unknown as { releaseApply: () => void }).releaseApply());
-  await expect(panel.getByTestId('optimization-execution')).toContainText('Closed: 4 · Skipped: 0 · Failed / inspect: 0 · Saved: 3');
-  await expect(panel.getByRole('button', { name: 'Plan already processed', exact: true })).toBeDisabled();
+  await expect(panel.getByTestId('optimization-execution')).toContainText('Tabs closed: 4');
+  await expect(panel.getByTestId('optimization-outcome')).toContainText('Closed: 4 · Skipped: 0 · Failed: 0');
+  await expect(panel.locator('[data-closed-tab-id]')).toHaveCount(4);
+  await expect(panel.getByText('Saved and closed', { exact: true })).toHaveCount(3);
+  await expect(panel.getByRole('button', { name: 'Continue cleanup', exact: true })).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'Plan already processed', exact: true })).not.toBeAttached();
   const undo = panel.getByRole('button', { name: 'Undo optimization', exact: true });
   await expect(undo).toBeInViewport();
   expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url?.startsWith('http://aitab.test/apply-')).length)).toBe(1);
@@ -71,6 +111,7 @@ test('optimization keeps distinct chat state, exposes persistent actions, export
   expect(text).toContain('Actual after:'); expect(text).toContain('Closed: 2');
   await panel.getByRole('button', { name: 'Undo optimization', exact: true }).click();
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/optimize').length)).toBe(3);
+  await panel.getByRole('button', { name: 'Continue cleanup', exact: true }).click();
   const nav = panel.getByRole('navigation', { name: 'Cleanup section' });
   await nav.getByRole('button', { name: 'Duplicates', exact: true }).click();
   await panel.getByTestId('review-setup').locator('summary').first().click();

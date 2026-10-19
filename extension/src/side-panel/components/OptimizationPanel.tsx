@@ -10,6 +10,7 @@ import { workspaceMessage } from '../workspace-api';
 import { useStore, type WorkspaceSection } from '../store';
 import { ReviewOptions } from './ReviewOptions';
 import { ReviewProgress } from './ReviewProgress';
+import { OptimizationOutcome } from './OptimizationOutcome';
 import { WorkspaceActionBar } from './WorkspaceActionBar';
 
 const scopeKey = (value: ContentReviewOptions) => JSON.stringify([value.tabIds, value.expectedUrls, value.windowId, value.focus ?? '', value.readContent, value.includeSaved ?? false, value.deepUrls]);
@@ -24,7 +25,6 @@ export function OptimizationPanel({ workspace, busy, run, filter = 'optimize' }:
   const [category, setCategory] = useState<'all' | OptimizationCategory>('all'); const [limit, setLimit] = useState(100);
   const [now, setNow] = useState(Date.now()); const [feedback, setFeedback] = useState('');
   const results = useRef<HTMLDivElement>(null);
-  const report = useRef<HTMLDivElement>(null);
   const awaiting = useRef<{ id: string; scope: string } | null>(null); const touched = useRef(false);
   const error = (failure: unknown) => useStore.getState().setActionError(String(failure));
   useEffect(() => { setPlan(null); setSelected(new Set()); setOperation(null); awaiting.current = null; touched.current = false; }, [reviewScope?.id]);
@@ -52,6 +52,17 @@ export function OptimizationPanel({ workspace, busy, run, filter = 'optimize' }:
       else if (useAi && job?.status === 'running' && scopeKey(job.options) === scopeKey(options)) awaiting.current = { id: job.id, scope: scopeKey(options) };
     } finally { setPreparing(false); }
   }
+  async function continueCleanup() {
+    setPreparing(true); awaiting.current = null;
+    try {
+      const reusable = job?.status === 'completed' && job.preview && !job.preview.savedSources && Date.now() - job.preview.createdAt <= 300_000 && scopeKey(job.options) === scopeKey(options);
+      const next = await requestPlan(reusable ? job.preview?.id : undefined);
+      touched.current = false;
+      setSelected(new Set());
+      accept(next);
+      setFeedback(tr('Список обновлён по оставшимся открытым вкладкам. Выберите следующую порцию.', 'Updated from the remaining open tabs. Select the next batch.'));
+    } finally { setPreparing(false); }
+  }
   async function chooseKeeper(ids: number[], keep: number) {
     if (!plan) return;
     touched.current = true;
@@ -67,8 +78,6 @@ export function OptimizationPanel({ workspace, busy, run, filter = 'optimize' }:
   const finished = currentOperation && !['running', 'undoing'].includes(currentOperation.status);
   const processed = currentOperation?.items.filter((item) => !['pending', 'applying', 'restoring'].includes(item.state)).length ?? 0;
   const closed = currentOperation?.items.filter((item) => item.state === 'done').length ?? 0;
-  const skipped = currentOperation?.items.filter((item) => item.state === 'skipped').length ?? 0;
-  const failed = currentOperation?.items.filter((item) => item.state === 'failed' || item.state === 'uncertain').length ?? 0;
   const labels: Record<OptimizationCategory, string> = { exact: tr('Точные копии', 'Exact copies'), tracking: tr('Tracking-варианты', 'Tracking variants'), redundant: tr('Пересечение информации', 'Information overlap'), outdated: tr('Возможно неактуально', 'Possibly outdated'), saved: tr('Уже сохранено', 'Already saved'), defer: tr('Сохранить и закрыть', 'Save and close'), manual: tr('Рекомендация AI — ручная проверка', 'AI suggestion — manual review') };
   const matches = (value: OptimizationCategory) => category !== 'all' ? value === category : filter === 'duplicates' ? ['exact', 'tracking'].includes(value) : filter === 'similar' ? value === 'redundant' : filter === 'outdated' ? value === 'outdated' : true;
   const candidates = plan?.candidates.filter((item) => matches(item.category)) ?? [];
@@ -82,6 +91,23 @@ export function OptimizationPanel({ workspace, busy, run, filter = 'optimize' }:
   const redundantCount = review?.similarGroups.filter((group) => group.relation === 'redundant').length ?? 0;
   const relatedCount = review?.similarGroups.filter((group) => group.relation !== 'redundant').length ?? 0;
   const forecast = plan && <div className="rounded border bg-blue-50 p-3 space-y-1" data-testid="optimization-forecast"><p>{tr('План для', 'Plan for')}: {plan.scope?.scopeLabel ?? tr('Все обычные окна', 'All normal windows')}</p><strong className="text-lg">{plan.tabsBefore} → {plan.tabsBefore - selected.size}</strong><p>{tr('Предлагается закрыть', 'Proposed to close')}: {selected.size} · {tr('с сохранением', 'with saving')}: {archiveCount}</p><p>{tr('Чатов сохраняем', 'Chats retained')}: {plan.chatCount} · {tr('Защищённых', 'Protected')}: {plan.protectedCount} · {tr('Групп альтернатив', 'Alternative groups')}: {plan.relatedGroups}</p><p>AI: {plan.aiCompared}</p></div>;
+  if (plan && currentOperation && (finished || currentOperation.status === 'undoing')) return <section className="space-y-3" data-testid="optimization-panel">
+    <OptimizationOutcome plan={plan} operation={currentOperation} workspace={workspace} />
+    {feedback && <p role="status" className="text-xs">{feedback}</p>}
+    {view === 'workspace' && ['optimize', 'duplicates', 'similar', 'outdated'].includes(filter) && <WorkspaceActionBar>
+      <div data-testid="optimization-execution" role="status" aria-live="polite" className="font-semibold">{currentOperation.status === 'undoing' ? tr('Восстанавливаем…', 'Restoring…') : currentOperation.status === 'undone' ? tr('Отмена выполнена', 'Undo completed') : `${tr('Закрыто вкладок', 'Tabs closed')}: ${closed}`}</div>
+      <div className="flex gap-2 flex-wrap">
+        <button disabled={busy || preparing} className="rounded p-2 bg-accent text-white disabled:opacity-50" onClick={() => void continueCleanup().catch(error)}>{preparing ? tr('Обновляем оставшиеся вкладки…', 'Refreshing remaining tabs…') : tr('Продолжить очистку', 'Continue cleanup')}</button>
+        <button disabled={busy || !closed} className="border rounded p-2" onClick={() => void run(async () => setOperation(await workspaceMessage<TabOperation>({ type: 'UNDO_TAB_OPERATION', operationId: currentOperation.id })))}>{tr('Отменить оптимизацию', 'Undo optimization')}</button>
+        <button className="border rounded p-2" onClick={() => useStore.getState().setView('tabs')}>{tr('Открытые вкладки', 'Open tabs')}</button>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <button className="text-accent underline" onClick={download}>{tr('Скачать отчёт', 'Download report')}</button>
+        <button disabled={busy} className="text-accent underline" onClick={() => void run(async () => setFeedback(await exportWorkspaceMarkdown('Cleanups', `aitab-review-${new Date(plan.createdAt).toISOString().slice(0, 10)}`, optimizationMarkdown(plan, [...selected], currentOperation))))}>{tr('Отчёт в Obsidian', 'Report to Obsidian')}</button>
+        <button className="text-accent underline" onClick={() => useStore.getState().openWorkspace('history')}>{tr('Журнал операций', 'Operation journal')}</button>
+      </div>
+    </WorkspaceActionBar>}
+  </section>;
   return <section className="space-y-3 text-xs" data-testid="optimization-panel">
     <details open={!plan || job?.status === 'running'} data-testid="review-setup" className="rounded border p-2">
     <summary className="font-medium cursor-pointer">{tr('Новая проверка и параметры', 'New review and options')}</summary>
@@ -105,7 +131,6 @@ export function OptimizationPanel({ workspace, busy, run, filter = 'optimize' }:
       </div>}
       {expired && !currentOperation && <p role="alert" className="text-amber-800">{tr('Предпросмотр истёк — подготовьте новый план. Объяснения доступны для просмотра.', 'Preview expired — prepare a new plan. Explanations remain available.')}</p>}
       {plan.warning && <p role="alert" className="text-amber-800">{plan.warning}</p>}
-      {currentOperation?.optimizationReport && <div ref={report} data-testid="optimization-report" className="rounded bg-green-50 p-3 space-y-2" role="status"><strong>{tr('Фактически', 'Actual')}: {currentOperation.optimizationReport.tabsBefore} → {currentOperation.optimizationReport.tabsAfter}</strong><p>{tr('Закрыто', 'Closed')}: {currentOperation.optimizationReport.closed} · {tr('Пропущено', 'Skipped')}: {currentOperation.optimizationReport.skipped} · {tr('Ошибок', 'Failed')}: {currentOperation.optimizationReport.failed}</p><p>{tr('В коллекциях', 'Archived')}: {currentOperation.optimizationReport.archived ?? 0} · {tr('Повторов', 'Duplicates')}: {currentOperation.optimizationReport.duplicatesClosed ?? 0} · {tr('Неактуальных', 'Outdated')}: {currentOperation.optimizationReport.outdatedClosed ?? 0}</p>{currentOperation.optimizationReport.otherChanges ? <p>{tr('Изменения вне операции', 'Changes outside this operation')}: {currentOperation.optimizationReport.otherChanges}</p> : null}<details><summary>{tr('Результат по каждой вкладке', 'Per-tab outcome')}</summary>{currentOperation.items.map((item) => <p key={item.tab.id} className="break-words">{item.state}: {item.tab.title || item.tab.url}{item.error ? ` · ${item.error}` : ''}</p>)}</details></div>}
       {filter !== 'similar' && forecast}
       <div ref={results} data-testid="similarity-groups" className="space-y-3">
       {(filter === 'similar' || filter === 'optimize') && plan.localGroups?.map((group) => <details key={group.id} open={filter === 'similar'} className="border rounded p-2"><summary>{tr('Совпадение заголовков — проверить', 'Title overlap — review')}</summary><p>{tr('Это локальное сходство слов, а не доказательство повторения содержания. Источники остаются открытыми.', 'This is local word similarity, not evidence of content redundancy. Sources remain open.')}</p>{group.tabIds.map((id) => <p key={id}>{useStore.getState().windowGroups.flatMap((window) => window.tabs).find((tab) => tab.id === id)?.title}</p>)}</details>)}
@@ -126,10 +151,10 @@ export function OptimizationPanel({ workspace, busy, run, filter = 'optimize' }:
       {expired && !currentOperation && <p role="status" className="text-amber-800">{tr('План истёк. Откройте «Новую проверку и параметры» и подготовьте план заново.', 'Plan expired. Open New review and options and prepare a fresh plan.')}</p>}
       {!currentOperation && <p>{tr('Выбрано к закрытию', 'Selected to close')}: <strong>{selected.size}</strong> · {tr('вне категории', 'outside category')}: {hiddenSelected} · {tr('с сохранением', 'with saving')}: {archiveCount}{plan ? ` · ${tr('после останется', 'forecast remaining')}: ${plan.tabsBefore - selected.size}` : ''}</p>}
       {currentOperation && <div data-testid="optimization-execution" role="status" aria-live="polite" className="space-y-1">
-        <strong>{currentOperation.status === 'undoing' ? tr('Восстанавливаем…', 'Restoring…') : !finished ? tr('Сохраняем и закрываем…', 'Saving and closing…') : currentOperation.status === 'undone' ? tr('Отмена выполнена', 'Undo completed') : tr('План обработан', 'Plan processed')}</strong>
-        {!finished ? <p>{tr('Обработано', 'Processed')}: {processed} / {currentOperation.items.length}. {tr('Повторно нажимать Apply не нужно.', 'Do not apply again.')}</p> : <p>{tr('Закрыто', 'Closed')}: {closed} · {tr('Пропущено', 'Skipped')}: {skipped} · {tr('Ошибок / проверить', 'Failed / inspect')}: {failed} · {tr('Сохранено', 'Saved')}: {currentOperation.optimizationReport?.archived ?? 0}</p>}
-        <div className="flex gap-2 flex-wrap"><button className="text-accent underline" onClick={() => report.current?.scrollIntoView({ block: 'start' })}>{tr('Показать результат', 'Show result')}</button><button className="text-accent underline" onClick={() => useStore.getState().openWorkspace('history')}>{tr('Журнал операций', 'Operation journal')}</button></div>
+        <strong>{tr('Сохраняем и закрываем…', 'Saving and closing…')}</strong>
+        <p>{tr('Обработано', 'Processed')}: {processed} / {currentOperation.items.length}. {tr('Повторно нажимать Apply не нужно.', 'Do not apply again.')}</p>
+        <button className="text-accent underline" onClick={() => useStore.getState().openWorkspace('history')}>{tr('Журнал операций', 'Operation journal')}</button>
       </div>}
-      <div className="flex gap-2 flex-wrap"><button disabled={!plan || busy || expired || Boolean(currentOperation)} className="border rounded p-2" onClick={() => { touched.current = true; const next = new Set(selected); for (const item of candidates) if (!plan?.candidates.some((other) => next.has(other.tab.id) && other.keep?.id === item.tab.id) && !(item.keep && next.has(item.keep.id))) next.add(item.tab.id); setSelected(next); }}>{tr('Выбрать кандидатов этого раздела', 'Select candidates in this section')}</button><button disabled={!selected.size || busy || Boolean(currentOperation)} className="border rounded p-2" onClick={() => { touched.current = true; setSelected(new Set()); }}>{tr('Снять выбор', 'Clear selection')}</button><button disabled={!plan} className="border rounded p-2" onClick={download}>{tr('Скачать отчёт', 'Download report')}</button><button disabled={!plan || busy} className="border rounded p-2" onClick={() => void run(async () => { if (plan) setFeedback(await exportWorkspaceMarkdown('Cleanups', `aitab-review-${new Date(plan.createdAt).toISOString().slice(0, 10)}`, optimizationMarkdown(plan, [...selected], currentOperation ?? undefined))); })}>{tr('Отчёт в Obsidian', 'Report to Obsidian')}</button></div><button disabled={busy || !selected.size || Boolean(currentOperation) || expired} className="w-full rounded bg-red-600 text-white p-2 disabled:opacity-50" onClick={() => void run(async () => { if (plan) setOperation(await workspaceMessage<TabOperation>({ type: 'EXECUTE_OPTIMIZATION', planId: plan.id, tabIds: [...selected] })); })}>{currentOperation ? !finished ? tr('Выполняется…', 'Applying…') : tr('План уже обработан', 'Plan already processed') : `${tr('Применить план', 'Apply plan')} (${selected.size})`}</button>{currentOperation && finished && <button disabled={busy || !currentOperation.items.some((item) => item.state === 'done')} className="border rounded p-2" onClick={() => void run(async () => setOperation(await workspaceMessage<TabOperation>({ type: 'UNDO_TAB_OPERATION', operationId: currentOperation.id })))}>{tr('Отменить оптимизацию', 'Undo optimization')}</button>}</WorkspaceActionBar>}
+      <div className="flex gap-2 flex-wrap"><button disabled={!plan || busy || expired || Boolean(currentOperation)} className="border rounded p-2" onClick={() => { touched.current = true; const next = new Set(selected); for (const item of candidates) if (!plan?.candidates.some((other) => next.has(other.tab.id) && other.keep?.id === item.tab.id) && !(item.keep && next.has(item.keep.id))) next.add(item.tab.id); setSelected(next); }}>{tr('Выбрать кандидатов этого раздела', 'Select candidates in this section')}</button><button disabled={!selected.size || busy || Boolean(currentOperation)} className="border rounded p-2" onClick={() => { touched.current = true; setSelected(new Set()); }}>{tr('Снять выбор', 'Clear selection')}</button><button disabled={!plan} className="border rounded p-2" onClick={download}>{tr('Скачать отчёт', 'Download report')}</button><button disabled={!plan || busy} className="border rounded p-2" onClick={() => void run(async () => { if (plan) setFeedback(await exportWorkspaceMarkdown('Cleanups', `aitab-review-${new Date(plan.createdAt).toISOString().slice(0, 10)}`, optimizationMarkdown(plan, [...selected], currentOperation ?? undefined))); })}>{tr('Отчёт в Obsidian', 'Report to Obsidian')}</button></div><button disabled={busy || !selected.size || Boolean(currentOperation) || expired} className="w-full rounded bg-red-600 text-white p-2 disabled:opacity-50" onClick={() => void run(async () => { if (plan) setOperation(await workspaceMessage<TabOperation>({ type: 'EXECUTE_OPTIMIZATION', planId: plan.id, tabIds: [...selected] })); })}>{currentOperation ? tr('Выполняется…', 'Applying…') : `${tr('Применить план', 'Apply plan')} (${selected.size})`}</button></WorkspaceActionBar>}
   </section>;
 }

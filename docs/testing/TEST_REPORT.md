@@ -8,7 +8,7 @@ pnpm 10.32.1, Vitest 4.1.2, pytest 9.0.2, Playwright 1.64.1 / Chromium 156.
 | Strict TypeScript and production build | Pass |
 | Vitest | 178 passed across 31 files |
 | Python API/runtime/security/review/backup tests | 56 passed |
-| Real Chromium extension E2E | 21 passed |
+| Real Chromium extension E2E | 22 passed |
 | Large isolated workload | 600 synthetic live tabs, 1,000 saved materials, 40 collections/topics |
 | Layout matrix | 360/420/600 px, 100%/200% text; additional Russian 360 px/200% |
 | Whitespace and documentation links/fences | Pass |
@@ -43,6 +43,11 @@ to wrap whole controls into rows. The final layout was rechecked on the same sav
 corpus with a smaller 120-live-tab fixture and by the keyboard E2E matrix.
 
 ## Browser coverage
+
+- Single-page save-and-close switches to an outcome screen with its URL and collection.
+  Finding the saved page opens Library search without reopening the tab. Continue
+  builds a fresh remaining-tab plan; a second batch closes another page and Undo
+  restores only that second batch. The old disabled Apply button is absent.
 
 - A held real tab-close call exposes live journal progress while scrolled to the
   bottom. Releasing it closes four selected fixture tabs, saves three beforehand,
