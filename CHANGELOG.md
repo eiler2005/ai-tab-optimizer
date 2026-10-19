@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rename the product and packages to AITab 0.3.0 while preserving storage identifiers and repository URLs. See `docs/MIGRATION.md` for checkout migration.
 
 ### Fixed
+- Similar content now shows expanded matching groups before the forecast, separates complementary sources from closure selection, provides an explicit empty state and collapses finished review setup.
 - Reveal-current expands rows beyond the first hundred and clears obstructing filters; More restores keyboard focus on Escape.
 - Chrome storage object-key reordering no longer causes endless topic revision writes; merged/split AI lineage and saved-chat identity survive backup.
 - Full JSON/SQLite backup retains the new topic catalog; signed external tab-count changes survive report export/import.

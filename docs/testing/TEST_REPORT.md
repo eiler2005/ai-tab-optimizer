@@ -8,7 +8,7 @@ pnpm 10.32.1, Vitest 4.1.2, pytest 9.0.2, Playwright 1.64.1 / Chromium 156.
 | Strict TypeScript and production build | Pass |
 | Vitest | 178 passed across 31 files |
 | Python API/runtime/security/review/backup tests | 56 passed |
-| Real Chromium extension E2E | 19 passed |
+| Real Chromium extension E2E | 20 passed |
 | Large isolated workload | 600 synthetic live tabs, 1,000 saved materials, 40 collections/topics |
 | Layout matrix | 360/420/600 px, 100%/200% text; additional Russian 360 px/200% |
 | Whitespace and documentation links/fences | Pass |
@@ -43,6 +43,10 @@ to wrap whole controls into rows. The final layout was rechecked on the same sav
 corpus with a smaller 120-live-tab fixture and by the keyboard E2E matrix.
 
 ## Browser coverage
+
+- Similar content with only complementary sources and zero selected closures shows
+  its expanded group before the forecast, explains the distinction, exposes source
+  links and a jump-to-results action, collapses finished setup and retains both tabs.
 
 - Tabs first, shared query, scoped filtered selection and visible hidden-selection
   counts; permanent row menus and recovery/settings remain reachable.

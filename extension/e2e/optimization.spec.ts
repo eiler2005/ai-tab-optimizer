@@ -34,6 +34,7 @@ test('optimization keeps distinct chat state, exposes persistent actions, export
   await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'http://aitab.test/optimize').length)).toBe(3);
   const nav = panel.getByRole('navigation', { name: 'Cleanup section' });
   await nav.getByRole('button', { name: 'Duplicates', exact: true }).click();
+  await panel.getByTestId('review-setup').locator('summary').first().click();
   await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
   await expect(panel.getByText(/Chats sharing an address — manual review/)).toBeVisible();
   const chats = await panel.evaluate(async () => (await chrome.tabs.query({})).filter((tab) => tab.url === 'https://chatgpt.com/').map((tab) => tab.id!));
@@ -71,5 +72,6 @@ test('AI progress remains visible, duplicate selection stays usable and cancella
   await expect(panel.getByTestId('review-progress')).toContainText('Review cancelled');
   release();
   await nav.getByRole('button', { name: 'Similar content', exact: true }).click();
+  await panel.getByTestId('review-setup').locator('summary').first().click();
   await expect(panel.getByRole('button', { name: 'AI: review content and relevance', exact: true })).toBeEnabled();
 });

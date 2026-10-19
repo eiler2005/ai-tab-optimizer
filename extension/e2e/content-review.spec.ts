@@ -1,6 +1,41 @@
 import { test, expect, request } from './fixtures';
 import type { WorkspaceData } from '../src/shared/types/workspace';
 
+test('Similar content shows complementary groups with zero closures before the forecast', async ({ panel, context, worker }, testInfo) => {
+  const ids: number[] = [];
+  for (const name of ['author-a', 'author-b']) {
+    const page = await context.newPage();
+    await page.goto(`http://aitab.test/${name}`);
+  }
+  ids.push(...await worker.evaluate(async () => (await chrome.tabs.query({})).filter(tab => ['http://aitab.test/author-a', 'http://aitab.test/author-b'].includes(tab.url ?? '')).map(tab => tab.id!)));
+  await worker.evaluate(async () => {
+    const stored = await chrome.storage.local.get('settings');
+    await chrome.storage.local.set({ settings: { ...stored.settings, localServerUrl: 'http://127.0.0.1:17775' } });
+  });
+  await context.route('http://127.0.0.1:17775/workspace-review', async route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ provider: 'codex_cli', similarGroups: [{ tabIds: ids, relation: 'related', confidence: .9, reason: 'Two authors discuss the same task with different methods.', uniqueValue: 'Distinct practical examples are useful in both sources.' }], outdatedTabs: [] }) }));
+  await panel.bringToFront();
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  const nav = panel.getByRole('navigation', { name: 'Cleanup section' });
+  await nav.getByRole('button', { name: 'Similar content', exact: true }).click();
+  await panel.getByText('Review focus and options', { exact: true }).click();
+  await panel.getByLabel('Include accessible page excerpts', { exact: true }).uncheck();
+  await panel.getByRole('button', { name: 'AI: review content and relevance', exact: true }).click();
+  await expect(panel.getByTestId('similarity-summary')).toContainText('Similar materials: 1 groups');
+  await expect(panel.getByTestId('similarity-summary')).toContainText('Complementary: 1');
+  await expect(panel.getByTestId('review-setup')).not.toHaveAttribute('open', '');
+  const group = panel.getByTestId('similarity-groups').locator('details').first();
+  await expect(group).toHaveAttribute('open', '');
+  await expect(group.getByText('Two authors discuss the same task with different methods.', { exact: true })).toBeVisible();
+  const beforeForecast = await panel.evaluate(() => Boolean(document.querySelector('[data-testid="similarity-groups"]')!.compareDocumentPosition(document.querySelector('[data-testid="optimization-forecast"]')!) & Node.DOCUMENT_POSITION_FOLLOWING));
+  expect(beforeForecast).toBe(true);
+  await panel.getByRole('button', { name: 'Show matching groups', exact: true }).click();
+  await expect(group.locator('summary')).toBeInViewport();
+  await expect(panel.getByRole('button', { name: 'Apply plan (0)', exact: true })).toBeDisabled();
+  for (const id of ids) expect(await panel.evaluate(async id => Boolean(await chrome.tabs.get(id)), id)).toBe(true);
+  await panel.screenshot({ path: testInfo.outputPath('similar-complementary.png') });
+});
+
 test('content review separates overlap and topical obsolescence, clears hidden selections and supports Undo', async ({ panel, worker, context }, testInfo) => {
   const errors: string[] = []; panel.on('pageerror', (error) => errors.push(error.message));
   await context.route('http://aitab.test/review-*', async (route) => {
