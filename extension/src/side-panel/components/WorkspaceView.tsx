@@ -37,7 +37,13 @@ export function WorkspaceView() {
   useEffect(() => {
     const reload = () => { void refresh().catch((failure) => setError(String(failure))); };
     const listener = (message: { type?: string }) => { if (message.type === 'TAB_OPERATION_COMPLETE') reload(); };
-    const changed = (changes: Record<string, chrome.storage.StorageChange>) => { if (changes['aitab.workspace.v1']) reload(); };
+    const changed = (changes: Record<string, chrome.storage.StorageChange>) => {
+      const change = changes['aitab.workspace.v1'];
+      if (!change) return;
+      const data = change.newValue as WorkspaceData | undefined;
+      if (data?.version === 1 && Array.isArray(data.operations) && Array.isArray(data.collections)) setWorkspace(data);
+      else reload();
+    };
     reload(); chrome.runtime.onMessage.addListener(listener);
     chrome.storage.onChanged.addListener(changed);
     return () => { chrome.runtime.onMessage.removeListener(listener); chrome.storage.onChanged.removeListener(changed); };
@@ -80,11 +86,11 @@ export function WorkspaceView() {
       {([['optimize', tr('Оптимизация', 'Optimize')], ['duplicates', tr('Повторы', 'Duplicates')], ['similar', tr('Похожий контент', 'Similar content')], ['outdated', tr('Устарело по смыслу', 'Outdated content')], ] as const).map(([value, label]) => <button key={value} onClick={() => setSection(value)} aria-pressed={section === value} className={`px-2 py-1 rounded text-xs ${section === value ? 'bg-accent text-white' : 'bg-gray-100'}`}>{label}</button>)}
     </nav>}
     {busy && <p role="status" className="text-xs text-blue-800">{tr('Выполняем действие и сохраняем результат…', 'Applying action and saving the result…')}</p>}
+    {error && <p role="alert" className="text-xs text-red-700 bg-red-50 p-2 rounded">{error}</p>}
     </div>
     <div ref={scrollArea} data-testid="workspace-view" className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4" onScroll={(event) => scrollPositions.current.set(scrollKey, event.currentTarget.scrollTop)}>
-    {error && <p role="alert" className="text-xs text-red-700 bg-red-50 p-2 rounded">{error}</p>}
     {feedback && <p role="status" className="text-xs text-green-800 bg-green-50 p-2 rounded">{feedback}</p>}
-    <div className={['optimize', 'duplicates', 'similar', 'outdated'].includes(section) ? 'block' : 'hidden'}><OptimizationPanel busy={busy} run={run} filter={section} /></div>
+    <div className={['optimize', 'duplicates', 'similar', 'outdated'].includes(section) ? 'block' : 'hidden'}><OptimizationPanel workspace={workspace} busy={busy} run={run} filter={section} /></div>
     {section === 'backups' && <FullBackupsPanel busy={busy} run={run} onFeedback={setFeedback} />}
     {section === 'windows' && <WindowMergePanel busy={busy} run={run} onResult={showResult} />}
     {section === 'collections' && <CollectionsPanel workspace={workspace} busy={busy} run={run} onResult={showResult} onFeedback={setFeedback} />}

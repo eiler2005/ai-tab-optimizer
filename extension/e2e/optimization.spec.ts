@@ -1,6 +1,45 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures';
 
+test('Apply shows live progress and the final save-and-close outcome in the footer while scrolled', async ({ panel, worker }, testInfo) => {
+  await worker.evaluate(async () => {
+    for (const name of ['apply-copy', 'apply-copy', 'apply-unique-a', 'apply-unique-b', 'apply-unique-c']) await chrome.tabs.create({ url: `http://aitab.test/${name}`, active: false });
+  });
+  await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url?.startsWith('http://aitab.test/apply-')).length)).toBe(5);
+  await panel.getByRole('button', { name: 'More', exact: false }).click();
+  await panel.getByRole('button', { name: 'Review tabs', exact: true }).click();
+  await panel.getByRole('button', { name: 'Compare locally without AI', exact: true }).click();
+  await panel.getByRole('button', { name: 'Select candidates in this section', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Apply plan (4)', exact: true })).toBeEnabled();
+  await panel.getByTestId('workspace-view').evaluate(element => element.scrollTop = element.scrollHeight);
+  await worker.evaluate(() => {
+    const remove = chrome.tabs.remove.bind(chrome.tabs);
+    let release: () => void = () => {};
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    (globalThis as unknown as { releaseApply: () => void }).releaseApply = release;
+    chrome.tabs.remove = (async (ids: number | number[]) => { await gate; await remove(ids); }) as typeof chrome.tabs.remove;
+  });
+  await panel.getByRole('button', { name: 'Apply plan (4)', exact: true }).click();
+  await expect(panel.getByTestId('optimization-execution')).toContainText('Saving and closing…');
+  await expect(panel.getByTestId('optimization-execution')).toContainText('Processed: 0 / 4');
+  await expect(panel.getByRole('button', { name: 'Applying…', exact: true })).toBeDisabled();
+  await worker.evaluate(() => (globalThis as unknown as { releaseApply: () => void }).releaseApply());
+  await expect(panel.getByTestId('optimization-execution')).toContainText('Closed: 4 · Skipped: 0 · Failed / inspect: 0 · Saved: 3');
+  await expect(panel.getByRole('button', { name: 'Plan already processed', exact: true })).toBeDisabled();
+  const undo = panel.getByRole('button', { name: 'Undo optimization', exact: true });
+  await expect(undo).toBeInViewport();
+  expect(await panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url?.startsWith('http://aitab.test/apply-')).length)).toBe(1);
+  const savedCount = await panel.evaluate(async () => {
+    const workspace = (await chrome.storage.local.get('aitab.workspace.v1'))['aitab.workspace.v1'];
+    return workspace.collections.flatMap((collection: { windows: { tabs: unknown[] }[] }) => collection.windows.flatMap(window => window.tabs)).length;
+  });
+  expect(savedCount).toBe(3);
+  await panel.screenshot({ path: testInfo.outputPath('apply-result-footer.png') });
+  await undo.click();
+  await expect(panel.getByTestId('optimization-execution')).toContainText('Undo completed');
+  await expect.poll(async () => panel.evaluate(async () => (await chrome.tabs.query({})).filter(tab => tab.url?.startsWith('http://aitab.test/apply-')).length)).toBe(5);
+});
+
 test('optimization keeps distinct chat state, exposes persistent actions, exports actual report and supports Undo', async ({ panel, context, worker }, testInfo) => {
   await context.route('https://chatgpt.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<title>ChatGPT draft</title><textarea>Different unsent state</textarea>' }));
   for (let index = 0; index < 2; index++) {
